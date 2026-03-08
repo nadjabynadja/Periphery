@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   PERIPHERY — Intelligence Console
+   Global Styles & Aesthetic Layer
+   ============================================ */
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0a0e17;
+    color: #c8cdd5;
+    font-family: 'Barlow', system-ui, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  #root {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0e17;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e2940;
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a3a55;
+  }
+
+  ::selection {
+    background: #00d4ff33;
+    color: #e2e8f0;
+  }
+}
+
+@layer components {
+  /* Panel base */
+  .panel {
+    @apply bg-surface border border-surface-border;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #00d4ff22, transparent);
+    pointer-events: none;
+  }
+
+  .panel-header {
+    @apply px-3 py-2 border-b border-surface-border flex items-center justify-between;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7a8494;
+  }
+
+  .panel-header .panel-title {
+    @apply flex items-center gap-2;
+  }
+
+  .panel-header .panel-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 1px;
+    background-color: #00d4ff;
+    box-shadow: 0 0 6px #00d4ff66;
+  }
+
+  .panel-body {
+    @apply p-3;
+    overflow-y: auto;
+  }
+
+  /* Scanline overlay effect */
+  .scanline-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      #00d4ff03 2px,
+      #00d4ff03 4px
+    );
+    z-index: 100;
+  }
+
+  /* Grid background texture */
+  .grid-texture {
+    background-image:
+      linear-gradient(#1e294008 1px, transparent 1px),
+      linear-gradient(90deg, #1e294008 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  /* Data readout style */
+  .data-readout {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: #7a8494;
+    letter-spacing: 0.04em;
+  }
+
+  .data-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: #00d4ff;
+    font-weight: 500;
+  }
+
+  /* Confidence colors */
+  .confidence-high {
+    color: #00d4ff;
+  }
+
+  .confidence-medium {
+    color: #d4a000;
+  }
+
+  .confidence-low {
+    color: #ff3333;
+  }
+
+  /* Button styles */
+  .btn-primary {
+    @apply px-3 py-1.5;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #00d4ff;
+    background: #00d4ff11;
+    border: 1px solid #00d4ff33;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-primary:hover {
+    background: #00d4ff22;
+    border-color: #00d4ff55;
+    box-shadow: 0 0 12px #00d4ff22;
+  }
+
+  .btn-secondary {
+    @apply px-3 py-1.5;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #7a8494;
+    background: transparent;
+    border: 1px solid #1e2940;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-secondary:hover {
+    color: #c8cdd5;
+    border-color: #2a3a55;
+    background: #1e294033;
+  }
+
+  /* Status indicator */
+  .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    display: inline-block;
+  }
+
+  .status-dot.online {
+    background-color: #00d4ff;
+    box-shadow: 0 0 4px #00d4ff88;
+  }
+
+  .status-dot.warning {
+    background-color: #d4a000;
+    box-shadow: 0 0 4px #d4a00088;
+  }
+
+  .status-dot.error {
+    background-color: #ff3333;
+    box-shadow: 0 0 4px #ff333388;
+  }
+
+  .status-dot.offline {
+    background-color: #4a5568;
+  }
+
+  /* Command input */
+  .command-input {
+    @apply w-full px-3 py-2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+    background: #0a0e17;
+    border: 1px solid #1e2940;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  .command-input:focus {
+    border-color: #00d4ff44;
+    box-shadow: 0 0 0 1px #00d4ff11;
+  }
+
+  .command-input::placeholder {
+    color: #4a5568;
+  }
+
+  /* Loading calibration effect */
+  @keyframes calibrate {
+    0% { width: 0%; }
+    20% { width: 35%; }
+    40% { width: 42%; }
+    60% { width: 78%; }
+    80% { width: 85%; }
+    100% { width: 100%; }
+  }
+
+  .calibrating {
+    height: 2px;
+    background: #00d4ff;
+    animation: calibrate 2s ease-in-out infinite;
+    box-shadow: 0 0 8px #00d4ff66;
+  }
+
+  /* Pulse animation for low-confidence nodes */
+  @keyframes node-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Flow animation for edges */
+  @keyframes edge-flow {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+  }
+}

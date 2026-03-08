@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 
@@ -23,113 +23,90 @@ export function IngestPanel() {
       setLastResult({ count: result.count })
       setContent('')
       queryClient.invalidateQueries({ queryKey: ['ingestStats'] })
+      queryClient.invalidateQueries({ queryKey: ['graph'] })
     } finally {
       setIsIngesting(false)
     }
   }
 
   return (
-    <div>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Ingest Data</h2>
-        {stats && (
-          <span style={styles.stats}>
-            {stats.total_documents} documents / {stats.total_vectors} vectors / {stats.embedding_dim}d
-          </span>
-        )}
-      </div>
+    <div className="space-y-3">
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-2 p-2 bg-base-800" style={{ borderRadius: '2px', border: '1px solid #1e294055' }}>
+          <div>
+            <div className="text-xxs text-text-dim font-display uppercase tracking-wider">Docs</div>
+            <div className="data-value text-xs">{stats.total_documents}</div>
+          </div>
+          <div>
+            <div className="text-xxs text-text-dim font-display uppercase tracking-wider">Vectors</div>
+            <div className="data-value text-xs">{stats.total_vectors}</div>
+          </div>
+          <div>
+            <div className="text-xxs text-text-dim font-display uppercase tracking-wider">Dim</div>
+            <div className="data-value text-xs">{stats.embedding_dim}</div>
+          </div>
+        </div>
+      )}
 
-      <div style={styles.form}>
-        <div style={styles.typeSelector}>
-          {['text/plain', 'application/json', 'text/csv'].map((t) => (
+      {/* Content type selector */}
+      <div className="flex gap-1">
+        {['text/plain', 'application/json', 'text/csv'].map((t) => {
+          const label = t.split('/')[1].toUpperCase()
+          const active = contentType === t
+          return (
             <button
               key={t}
               onClick={() => setContentType(t)}
-              style={styles.typeButton(contentType === t)}
+              className={`px-2 py-0.5 text-xxs font-display font-semibold tracking-wider uppercase transition-all duration-150 ${
+                active
+                  ? 'text-accent-cyan bg-accent-cyan/10 border-accent-cyan/30'
+                  : 'text-text-dim hover:text-text-secondary border-surface-border'
+              }`}
+              style={{ borderRadius: '2px', border: '1px solid' }}
             >
-              {t.split('/')[1].toUpperCase()}
+              {label}
             </button>
-          ))}
-        </div>
+          )
+        })}
+      </div>
 
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={
-            contentType === 'text/plain'
-              ? 'Paste any text here...'
-              : contentType === 'application/json'
-                ? '{"key": "value", ...}'
-                : 'col1,col2\nval1,val2'
-          }
-          style={styles.textarea}
-          rows={12}
-        />
+      {/* Textarea */}
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder={
+          contentType === 'text/plain'
+            ? 'paste data for ingestion...'
+            : contentType === 'application/json'
+              ? '{"key": "value", ...}'
+              : 'col1,col2\nval1,val2'
+        }
+        className="command-input w-full resize-y"
+        rows={8}
+        style={{ minHeight: '80px', fontFamily: '"JetBrains Mono", monospace', fontSize: '0.7rem' }}
+      />
 
-        <div style={styles.actions}>
-          <button onClick={handleIngest} style={styles.ingestButton} disabled={isIngesting || !content.trim()}>
-            {isIngesting ? 'Ingesting...' : 'Ingest'}
-          </button>
-          {lastResult && <span style={styles.result}>Ingested {lastResult.count} chunks</span>}
-        </div>
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleIngest}
+          className="btn-primary"
+          disabled={isIngesting || !content.trim()}
+        >
+          {isIngesting ? (
+            <span className="flex items-center gap-2">
+              <div className="calibrating" style={{ width: '20px' }} />
+              INGESTING
+            </span>
+          ) : 'INGEST'}
+        </button>
+        {lastResult && (
+          <span className="text-xxs font-mono text-accent-cyan">
+            +{lastResult.count} chunks ingested
+          </span>
+        )}
       </div>
     </div>
   )
-}
-
-const styles = {
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  } as React.CSSProperties,
-  title: { fontSize: 18, fontWeight: 400, color: '#ccc', margin: 0 } as React.CSSProperties,
-  stats: { fontSize: 13, color: '#888' } as React.CSSProperties,
-  form: {} as React.CSSProperties,
-  typeSelector: {
-    display: 'flex',
-    gap: 4,
-    marginBottom: 12,
-  } as React.CSSProperties,
-  typeButton: (active: boolean) =>
-    ({
-      padding: '4px 12px',
-      border: `1px solid ${active ? '#4444aa' : '#333'}`,
-      borderRadius: 4,
-      backgroundColor: active ? '#1a1a3e' : 'transparent',
-      color: active ? '#8888ff' : '#666',
-      cursor: 'pointer',
-      fontSize: 12,
-    }) as React.CSSProperties,
-  textarea: {
-    width: '100%',
-    padding: 16,
-    fontSize: 14,
-    fontFamily: 'monospace',
-    border: '1px solid #2a2a3e',
-    borderRadius: 8,
-    backgroundColor: '#12121f',
-    color: '#e0e0e0',
-    outline: 'none',
-    resize: 'vertical' as const,
-    boxSizing: 'border-box' as const,
-  } as React.CSSProperties,
-  actions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-  } as React.CSSProperties,
-  ingestButton: {
-    padding: '10px 24px',
-    border: 'none',
-    borderRadius: 6,
-    backgroundColor: '#4444aa',
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 600,
-  } as React.CSSProperties,
-  result: { fontSize: 13, color: '#4caf50' } as React.CSSProperties,
 }
