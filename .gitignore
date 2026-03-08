@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.env
+data/
+*.pt
+*.bin
+node_modules/
+frontend/dist/
+.vite/
+venv/
+.venv/
