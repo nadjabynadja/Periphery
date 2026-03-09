@@ -8,6 +8,7 @@ budget tracking, and full pipeline integration (without SpaCy dependency).
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -582,6 +583,7 @@ class MockRelationshipStage(EnrichmentStage):
                 object_type="ORG",
                 confidence=0.85,
                 extraction_tier=2,
+                extraction_method="dependency_parse",
                 evidence="Company X acquired Firm Y.",
             ),
         ]
@@ -647,3 +649,460 @@ class TestFullPipelineIntegration:
         assert "source_credibility" in result.metadata.enrichment_stages_completed
         assert any("failing_stage" in f for f in result.metadata.enrichment_failures)
         assert len(result.entities) == 3  # entities still extracted
+
+
+# ── Relationship Extraction Tests ────────────────────────────────────────
+
+
+from periphery.enrichment.stages.relationship_extraction import (
+    RelationshipExtractionStage,
+    assign_extraction_tiers,
+    _deduplicate_relationships,
+    WEIGHT_SAME_SENTENCE,
+    WEIGHT_SAME_PARAGRAPH,
+    WEIGHT_SAME_DOCUMENT,
+)
+
+
+def _make_entities_for_rel_test():
+    """Create entities positioned in a known text layout."""
+    return [
+        ExtractedEntity(
+            text="Company X",
+            entity_type="ORG",
+            start_char=0,
+            end_char=9,
+            confidence=0.95,
+            extraction_method="spacy",
+            context_window="Company X acquired Firm Y for $5 billion.",
+        ),
+        ExtractedEntity(
+            text="Firm Y",
+            entity_type="ORG",
+            start_char=19,
+            end_char=25,
+            confidence=0.90,
+            extraction_method="spacy",
+            context_window="Company X acquired Firm Y for $5 billion.",
+        ),
+        ExtractedEntity(
+            text="Washington D.C.",
+            entity_type="GPE",
+            start_char=60,
+            end_char=75,
+            confidence=0.92,
+            extraction_method="spacy",
+            context_window="The deal was signed in Washington D.C.",
+        ),
+    ]
+
+
+class TestTierAssignment:
+    def test_low_priority_gets_tier1_only(self):
+        doc = _make_pipeline_doc(priority=5)
+        tiers = assign_extraction_tiers(doc, budget_available=True)
+        assert tiers == [1]
+
+    def test_medium_priority_gets_tier1_and_tier2(self):
+        doc = _make_pipeline_doc(priority=3)
+        tiers = assign_extraction_tiers(doc, budget_available=True)
+        assert 1 in tiers
+        assert 2 in tiers
+        assert 3 not in tiers
+
+    def test_high_priority_gets_all_tiers(self):
+        doc = _make_pipeline_doc(priority=1)
+        tiers = assign_extraction_tiers(doc, budget_available=True)
+        assert tiers == [1, 2, 3]
+
+    def test_high_priority_no_budget_skips_tier3(self):
+        doc = _make_pipeline_doc(priority=1)
+        tiers = assign_extraction_tiers(doc, budget_available=False)
+        assert 1 in tiers
+        assert 2 in tiers
+        assert 3 not in tiers
+
+    def test_crystallizer_flag_forces_all_tiers(self):
+        doc = _make_pipeline_doc(priority=5, crystallizer_priority_flag=True)
+        tiers = assign_extraction_tiers(doc, budget_available=True)
+        assert tiers == [1, 2, 3]
+
+    def test_crystallizer_flag_no_budget(self):
+        doc = _make_pipeline_doc(priority=5, crystallizer_priority_flag=True)
+        tiers = assign_extraction_tiers(doc, budget_available=False)
+        assert tiers == [1, 2]
+
+
+class TestTier1Cooccurrence:
+    @pytest.mark.asyncio
+    async def test_cooccurrence_basic(self):
+        """Two entities in the same document produce co-occurrence edges."""
+        stage = RelationshipExtractionStage()
+        doc = _make_pipeline_doc(
+            full_text="Company X acquired Firm Y for $5 billion.",
+            priority=5,  # only Tier 1
+        )
+        doc.extracted_entities = _make_entities_for_rel_test()[:2]
+
+        result = await stage.process(doc)
+        assert len(result.extracted_relationships) >= 1
+        rel = result.extracted_relationships[0]
+        assert rel.predicate == "co_occurs_with"
+        assert rel.extraction_tier == 1
+        assert rel.extraction_method == "co_occurrence"
+        assert rel.co_occurrence_weight is not None
+
+    @pytest.mark.asyncio
+    async def test_same_sentence_weight(self):
+        """Entities in the same sentence get weight 1.0."""
+        stage = RelationshipExtractionStage()
+        doc = _make_pipeline_doc(
+            full_text="Company X acquired Firm Y for $5 billion.",
+            priority=5,
+        )
+        # Both entities are in the same sentence (offsets within 0-41)
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Company X", entity_type="ORG",
+                start_char=0, end_char=9,
+                confidence=0.95, extraction_method="spacy",
+                context_window="Company X acquired Firm Y.",
+            ),
+            ExtractedEntity(
+                text="Firm Y", entity_type="ORG",
+                start_char=19, end_char=25,
+                confidence=0.90, extraction_method="spacy",
+                context_window="Company X acquired Firm Y.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+        rels = [r for r in result.extracted_relationships if r.co_occurrence_weight == WEIGHT_SAME_SENTENCE]
+        assert len(rels) >= 1
+
+    @pytest.mark.asyncio
+    async def test_document_level_weight(self):
+        """Entities in different paragraphs get weight 0.2."""
+        stage = RelationshipExtractionStage()
+        text = "Company X is a major corporation.\n\nFirm Y operates in Europe."
+        doc = _make_pipeline_doc(full_text=text, priority=5)
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Company X", entity_type="ORG",
+                start_char=0, end_char=9,
+                confidence=0.95, extraction_method="spacy",
+                context_window="Company X is a major corporation.",
+            ),
+            ExtractedEntity(
+                text="Firm Y", entity_type="ORG",
+                start_char=34, end_char=40,
+                confidence=0.90, extraction_method="spacy",
+                context_window="Firm Y operates in Europe.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+        # Should have at least one relationship
+        assert len(result.extracted_relationships) >= 1
+
+    @pytest.mark.asyncio
+    async def test_no_entities_skips(self):
+        """No entities means no relationships."""
+        stage = RelationshipExtractionStage()
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = []
+
+        result = await stage.process(doc)
+        assert result.extracted_relationships == []
+
+    @pytest.mark.asyncio
+    async def test_single_entity_no_cooccurrence(self):
+        """A single entity can't co-occur with anything."""
+        stage = RelationshipExtractionStage()
+        doc = _make_pipeline_doc(priority=5)
+        doc.extracted_entities = [_make_entities_for_rel_test()[0]]
+
+        result = await stage.process(doc)
+        assert result.extracted_relationships == []
+
+
+class TestRelationshipDeduplication:
+    def test_dedup_same_relationship(self):
+        """Duplicate relationships are merged, keeping highest confidence and tier."""
+        rels = [
+            ExtractedRelationship(
+                subject_text="Company X", subject_type="ORG",
+                predicate="acquired", object_text="Firm Y", object_type="ORG",
+                confidence=0.7, extraction_tier=2,
+                extraction_method="dependency_parse",
+                evidence="Company X acquired Firm Y.",
+            ),
+            ExtractedRelationship(
+                subject_text="Company X", subject_type="ORG",
+                predicate="acquired", object_text="Firm Y", object_type="ORG",
+                confidence=0.9, extraction_tier=3,
+                extraction_method="llm",
+                evidence="Company X acquired Firm Y for $5B.",
+                temporal_qualifier="historical",
+                implicit=False,
+            ),
+        ]
+
+        deduped = _deduplicate_relationships(rels)
+        assert len(deduped) == 1
+        assert deduped[0].confidence == 0.9
+        assert deduped[0].extraction_tier == 3
+        assert deduped[0].temporal_qualifier == "historical"
+
+    def test_dedup_different_relationships(self):
+        """Different relationships are not merged."""
+        rels = [
+            ExtractedRelationship(
+                subject_text="Company X", subject_type="ORG",
+                predicate="acquired", object_text="Firm Y", object_type="ORG",
+                confidence=0.7, extraction_tier=2,
+                extraction_method="dependency_parse",
+            ),
+            ExtractedRelationship(
+                subject_text="Company X", subject_type="ORG",
+                predicate="funded", object_text="Firm Y", object_type="ORG",
+                confidence=0.8, extraction_tier=3,
+                extraction_method="llm",
+            ),
+        ]
+        deduped = _deduplicate_relationships(rels)
+        assert len(deduped) == 2
+
+    def test_dedup_empty_list(self):
+        assert _deduplicate_relationships([]) == []
+
+    def test_dedup_case_insensitive(self):
+        """Dedup normalizes case."""
+        rels = [
+            ExtractedRelationship(
+                subject_text="company x", subject_type="ORG",
+                predicate="acquired", object_text="firm y", object_type="ORG",
+                confidence=0.7, extraction_tier=1,
+                extraction_method="co_occurrence",
+            ),
+            ExtractedRelationship(
+                subject_text="Company X", subject_type="ORG",
+                predicate="Acquired", object_text="Firm Y", object_type="ORG",
+                confidence=0.9, extraction_tier=2,
+                extraction_method="dependency_parse",
+            ),
+        ]
+        deduped = _deduplicate_relationships(rels)
+        assert len(deduped) == 1
+        assert deduped[0].confidence == 0.9
+
+
+class TestTier3LLMJsonParsing:
+    def test_parse_clean_json(self):
+        stage = RelationshipExtractionStage()
+        result = stage._parse_llm_json('[{"subject": {"name": "X"}}]')
+        assert result is not None
+        assert len(result) == 1
+
+    def test_parse_markdown_fenced_json(self):
+        stage = RelationshipExtractionStage()
+        content = '```json\n[{"subject": {"name": "X"}}]\n```'
+        result = stage._parse_llm_json(content)
+        assert result is not None
+        assert len(result) == 1
+
+    def test_parse_invalid_json(self):
+        stage = RelationshipExtractionStage()
+        result = stage._parse_llm_json("not valid json at all")
+        assert result is None
+
+    def test_parse_json_object_not_array(self):
+        stage = RelationshipExtractionStage()
+        result = stage._parse_llm_json('{"key": "value"}')
+        assert result is None
+
+
+class TestTier3LLMExtraction:
+    @pytest.mark.asyncio
+    async def test_llm_extraction_success(self):
+        """Tier 3 LLM extraction with mocked Anthropic client."""
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text=json.dumps([
+            {
+                "subject": {"name": "Company X", "type": "ORG"},
+                "predicate": "acquired",
+                "object": {"name": "Firm Y", "type": "ORG"},
+                "confidence": 0.95,
+                "temporal_qualifier": "historical",
+                "evidence": "Company X acquired Firm Y.",
+                "implicit": False,
+            }
+        ]))]
+        mock_response.usage = MagicMock(input_tokens=100, output_tokens=50)
+
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        budget = BudgetTracker(hourly_cap_usd=10.0, daily_cap_usd=100.0)
+        stage = RelationshipExtractionStage(
+            budget_tracker=budget,
+            anthropic_client=mock_client,
+            tier3_min_priority=5,  # allow all priorities
+        )
+
+        doc = _make_pipeline_doc(priority=1)
+        doc.extracted_entities = _make_entities_for_rel_test()
+
+        result = await stage.process(doc)
+
+        # Should have Tier 1 (co-occurrence) + Tier 3 (LLM) results
+        tier3_rels = [r for r in result.extracted_relationships if r.extraction_tier == 3]
+        assert len(tier3_rels) >= 1
+        assert tier3_rels[0].predicate == "acquired"
+        assert tier3_rels[0].extraction_method == "llm"
+        assert tier3_rels[0].temporal_qualifier == "historical"
+        assert result.llm_enrichment_status == "complete"
+
+    @pytest.mark.asyncio
+    async def test_llm_budget_exhausted(self):
+        """When budget is exhausted, Tier 3 is skipped."""
+        budget = BudgetTracker(hourly_cap_usd=0.01, daily_cap_usd=0.01)
+        budget.record_spend(0.02)  # exhaust the budget
+
+        mock_client = MagicMock()
+        stage = RelationshipExtractionStage(
+            budget_tracker=budget,
+            anthropic_client=mock_client,
+            tier3_min_priority=5,
+        )
+
+        doc = _make_pipeline_doc(priority=1, crystallizer_priority_flag=True)
+        doc.extracted_entities = _make_entities_for_rel_test()
+
+        result = await stage.process(doc)
+
+        # LLM should be skipped due to budget
+        assert result.llm_enrichment_status == "budget_exhausted"
+        tier3_rels = [r for r in result.extracted_relationships if r.extraction_tier == 3]
+        assert len(tier3_rels) == 0
+
+    @pytest.mark.asyncio
+    async def test_llm_no_client(self):
+        """Without an Anthropic client, Tier 3 is skipped."""
+        stage = RelationshipExtractionStage(
+            anthropic_client=None,
+            tier3_min_priority=5,
+        )
+
+        doc = _make_pipeline_doc(priority=1)
+        doc.extracted_entities = _make_entities_for_rel_test()
+
+        result = await stage.process(doc)
+        assert result.llm_enrichment_status == "skipped"
+
+
+class TestRelationshipExtractionOutput:
+    @pytest.mark.asyncio
+    async def test_output_schema_fields(self):
+        """All output schema fields are present."""
+        stage = RelationshipExtractionStage()
+        doc = _make_pipeline_doc(priority=5)
+        doc.extracted_entities = _make_entities_for_rel_test()[:2]
+
+        result = await stage.process(doc)
+        assert len(result.extracted_relationships) >= 1
+        rel = result.extracted_relationships[0]
+
+        # Verify all spec fields exist
+        assert hasattr(rel, "subject_text")
+        assert hasattr(rel, "subject_type")
+        assert hasattr(rel, "subject_canonical_id")
+        assert hasattr(rel, "predicate")
+        assert hasattr(rel, "object_text")
+        assert hasattr(rel, "object_type")
+        assert hasattr(rel, "object_canonical_id")
+        assert hasattr(rel, "confidence")
+        assert hasattr(rel, "extraction_tier")
+        assert hasattr(rel, "extraction_method")
+        assert hasattr(rel, "temporal_qualifier")
+        assert hasattr(rel, "evidence")
+        assert hasattr(rel, "implicit")
+        assert hasattr(rel, "co_occurrence_weight")
+
+    @pytest.mark.asyncio
+    async def test_metadata_tracks_relationship_counts(self):
+        """Enrichment metadata includes relationship tier counts."""
+        pipeline = EnrichmentPipeline(
+            stages=[MockEntityExtractionStage(), MockRelationshipStage()]
+        )
+        raw = _make_ingested_doc()
+        result = await pipeline.process_document(raw)
+
+        assert "tier_2" in result.metadata.relationship_counts
+        assert result.metadata.relationship_counts["tier_2"] == 1
+
+    @pytest.mark.asyncio
+    async def test_llm_enrichment_status_in_metadata(self):
+        """llm_enrichment_status is tracked in metadata."""
+        pipeline = EnrichmentPipeline(stages=[])
+        raw = _make_ingested_doc()
+        result = await pipeline.process_document(raw)
+
+        assert hasattr(result.metadata, "llm_enrichment_status")
+        assert result.metadata.llm_enrichment_status == "skipped"
+
+
+class TestPipelineDocumentNewFields:
+    def test_crystallizer_priority_flag_default(self):
+        doc = _make_pipeline_doc()
+        assert doc.crystallizer_priority_flag is False
+
+    def test_llm_enrichment_status_default(self):
+        doc = _make_pipeline_doc()
+        assert doc.llm_enrichment_status == "skipped"
+
+    def test_spacy_doc_default_none(self):
+        doc = _make_pipeline_doc()
+        assert doc.spacy_doc is None
+
+    def test_crystallizer_flag_settable(self):
+        doc = _make_pipeline_doc(crystallizer_priority_flag=True)
+        assert doc.crystallizer_priority_flag is True
+
+
+class TestExtractedRelationshipModel:
+    def test_all_fields(self):
+        rel = ExtractedRelationship(
+            subject_text="Company X",
+            subject_type="ORG",
+            subject_canonical_id="canon-1",
+            predicate="acquired",
+            object_text="Firm Y",
+            object_type="ORG",
+            object_canonical_id="canon-2",
+            confidence=0.9,
+            extraction_tier=3,
+            extraction_method="llm",
+            temporal_qualifier="historical",
+            evidence="Company X acquired Firm Y.",
+            implicit=False,
+            co_occurrence_weight=None,
+        )
+        assert rel.subject_canonical_id == "canon-1"
+        assert rel.extraction_method == "llm"
+        assert rel.implicit is False
+        assert rel.co_occurrence_weight is None
+
+    def test_defaults(self):
+        rel = ExtractedRelationship(
+            subject_text="A", subject_type="ORG",
+            predicate="co_occurs_with",
+            object_text="B", object_type="ORG",
+            confidence=1.0, extraction_tier=1,
+        )
+        assert rel.subject_canonical_id is None
+        assert rel.object_canonical_id is None
+        assert rel.extraction_method == ""
+        assert rel.temporal_qualifier == ""
+        assert rel.implicit is False
+        assert rel.co_occurrence_weight is None

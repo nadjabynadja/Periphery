@@ -122,8 +122,10 @@ class EntityExtractionStage(EnrichmentStage):
 
         entities: list[ExtractedEntity] = []
 
-        # SpaCy NER
-        entities.extend(self._extract_spacy(text))
+        # SpaCy NER — also stores the parsed Doc for downstream stages to reuse
+        spacy_entities, spacy_doc = self._extract_spacy(text)
+        entities.extend(spacy_entities)
+        doc.spacy_doc = spacy_doc
 
         # Regex/pattern layer
         entities.extend(self._extract_patterns(text))
@@ -140,8 +142,11 @@ class EntityExtractionStage(EnrichmentStage):
         )
         return doc
 
-    def _extract_spacy(self, text: str) -> list[ExtractedEntity]:
-        """Extract entities using SpaCy NER."""
+    def _extract_spacy(self, text: str) -> tuple[list[ExtractedEntity], object]:
+        """Extract entities using SpaCy NER.
+
+        Returns (entities, spacy_doc) so the Doc can be reused by later stages.
+        """
         nlp = self._get_nlp()
         # Process with a character limit to avoid OOM on huge docs
         max_chars = 1_000_000
@@ -163,7 +168,7 @@ class EntityExtractionStage(EnrichmentStage):
                     ),
                 )
             )
-        return entities
+        return entities, doc
 
     def _extract_patterns(self, text: str) -> list[ExtractedEntity]:
         """Extract OSINT-specific entities using regex patterns."""
