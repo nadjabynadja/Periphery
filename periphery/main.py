@@ -65,6 +65,12 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
     if analytical_engine is not None and worker is not None:
         analytical_engine.snapshot = worker.current_snapshot
 
+    # Broadcast new snapshot to WebSocket clients
+    if worker is not None and worker.current_snapshot is not None:
+        from periphery.ws.router import broadcast_snapshot, set_current_snapshot
+        set_current_snapshot(worker.current_snapshot)
+        await broadcast_snapshot(worker.current_snapshot)
+
     return scores
 
 
@@ -205,6 +211,8 @@ async def lifespan(app: FastAPI):
     )
     # Seed the snapshot from the crystallizer
     analytical_engine.snapshot = worker.current_snapshot
+    from periphery.ws.router import set_current_snapshot as _ws_set_snapshot
+    _ws_set_snapshot(worker.current_snapshot)
     await analytical_engine.initialize()
     set_analytical_engine(analytical_engine)
     set_crystallizer_worker(worker)
@@ -314,6 +322,7 @@ from periphery.critic.router import router as critic_router
 from periphery.query.router import router as query_router
 from periphery.query.api import router as query_api_router
 from periphery.pipeline.router import router as pipeline_router
+from periphery.ws.router import router as ws_router
 
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
@@ -321,6 +330,7 @@ app.include_router(critic_router)
 app.include_router(query_router)
 app.include_router(query_api_router)
 app.include_router(pipeline_router)
+app.include_router(ws_router)
 
 
 @app.get("/")
