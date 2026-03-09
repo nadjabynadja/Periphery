@@ -10,6 +10,12 @@ export default defineConfig({
       '/critic': 'http://localhost:8000',
       '/query': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
+      '/api': 'http://localhost:8000',
+      '/pipeline': 'http://localhost:8000',
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
     },
   },
 })

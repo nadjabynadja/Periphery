@@ -1,232 +1,211 @@
-import { useState, useCallback } from 'react'
+// ============================================
+// PERIPHERY — Intelligence Console
+// Main Application Layout
+// ============================================
+
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
-import { api } from './api'
-import { OntologyGraph } from './components/OntologyGraph'
-import { QueryInterface } from './components/QueryInterface'
+import { peripheryApi, wsManager } from './api'
+import { useStore } from './store'
+import type { ViewMode } from './api/types'
+
 import { SystemStatusBar } from './components/SystemStatusBar'
-import { DataFeed } from './components/DataFeed'
-import { ConfidenceDistribution } from './components/ConfidenceDistribution'
-import { EntityDetail } from './components/EntityDetail'
-import { IngestPanel } from './components/IngestPanel'
-import { CriticDashboard } from './components/CriticDashboard'
-import type { GraphNode, QueryResponse } from './api'
+import { DataFeedSidebar } from './components/DataFeedSidebar'
+import { OntologyGraph } from './components/graph/OntologyGraph'
+import { GeographicOverlay } from './components/graph/GeographicOverlay'
+import { TemporalTimeline } from './components/graph/TemporalTimeline'
+import { QueryBar } from './components/query/QueryBar'
+import { QueryResults } from './components/query/QueryResults'
+import { DetailPanel } from './components/detail/DetailPanel'
+
+const VIEW_MODES: { id: ViewMode; label: string }[] = [
+  { id: 'graph', label: 'GRAPH' },
+  { id: 'map', label: 'MAP' },
+  { id: 'timeline', label: 'TIMELINE' },
+]
 
 export default function App() {
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
-  const [queryResult, setQueryResult] = useState<QueryResponse | null>(null)
-  const [isQuerying, setIsQuerying] = useState(false)
-  const [rightPanel, setRightPanel] = useState<'feed' | 'ingest' | 'critic'>('feed')
+  const setSnapshot = useStore(s => s.setSnapshot)
+  const setHealth = useStore(s => s.setHealth)
+  const setPipelineStats = useStore(s => s.setPipelineStats)
+  const setCriticMonitoring = useStore(s => s.setCriticMonitoring)
+  const setConnectionStatus = useStore(s => s.setConnectionStatus)
+  const viewMode = useStore(s => s.viewMode)
+  const setViewMode = useStore(s => s.setViewMode)
+  const selectedElement = useStore(s => s.selectedElement)
+  const queryPanelExpanded = useStore(s => s.queryPanelExpanded)
+  const feedSidebarWidth = useStore(s => s.feedSidebarWidth)
+  const setFeedSidebarWidth = useStore(s => s.setFeedSidebarWidth)
+  const snapshot = useStore(s => s.snapshot)
 
-  const health = useQuery({
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+
+  // --- Data fetching ---
+  useQuery({
     queryKey: ['health'],
-    queryFn: api.getHealth,
+    queryFn: async () => {
+      const data = await peripheryApi.getHealth()
+      setHealth(data)
+      return data
+    },
     refetchInterval: 5000,
   })
 
-  const graph = useQuery({
-    queryKey: ['graph'],
-    queryFn: api.getGraph,
-    refetchInterval: 15000,
-  })
-
-  const clusters = useQuery({
-    queryKey: ['clusters'],
-    queryFn: api.getClusters,
+  useQuery({
+    queryKey: ['snapshot'],
+    queryFn: async () => {
+      const data = await peripheryApi.getSnapshot({ include_rendering: true })
+      setSnapshot(data)
+      return data
+    },
     refetchInterval: 30000,
   })
 
-  const criticScores = useQuery({
-    queryKey: ['criticScores'],
-    queryFn: api.getCriticScores,
+  useQuery({
+    queryKey: ['pipelineStats'],
+    queryFn: async () => {
+      try {
+        const data = await peripheryApi.getPipelineStats()
+        setPipelineStats(data)
+        return data
+      } catch {
+        return null
+      }
+    },
+    refetchInterval: 10000,
+  })
+
+  useQuery({
+    queryKey: ['criticMonitoring'],
+    queryFn: async () => {
+      try {
+        const data = await peripheryApi.getCriticMonitoring()
+        setCriticMonitoring(data)
+        return data
+      } catch {
+        return null
+      }
+    },
     refetchInterval: 30000,
   })
 
-  const handleQuery = useCallback(async (question: string) => {
-    setIsQuerying(true)
-    try {
-      const result = await api.query(question)
-      setQueryResult(result)
-    } finally {
-      setIsQuerying(false)
+  // --- WebSocket ---
+  useEffect(() => {
+    const unsubStatus = wsManager.onStatusChange(setConnectionStatus)
+    try { wsManager.connect('/ws/snapshot') } catch { /* fallback to polling */ }
+
+    const unsubDelta = wsManager.subscribe('snapshot_delta', () => {
+      peripheryApi.getSnapshot({ include_rendering: true }).then(setSnapshot).catch(() => {})
+    })
+
+    return () => {
+      unsubStatus()
+      unsubDelta()
+      wsManager.disconnect()
     }
-  }, [])
+  }, [setConnectionStatus, setSnapshot])
 
-  const handleNodeSelect = useCallback((node: GraphNode | null) => {
-    setSelectedNode(node)
-  }, [])
+  // --- Sidebar resize ---
+  const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    sidebarDragRef.current = { startX: e.clientX, startWidth: feedSidebarWidth }
+    setIsResizingSidebar(true)
+  }, [feedSidebarWidth])
+
+  useEffect(() => {
+    if (!isResizingSidebar) return
+    const handleMove = (e: MouseEvent) => {
+      if (!sidebarDragRef.current) return
+      const delta = e.clientX - sidebarDragRef.current.startX
+      setFeedSidebarWidth(Math.max(180, Math.min(400, sidebarDragRef.current.startWidth + delta)))
+    }
+    const handleUp = () => {
+      setIsResizingSidebar(false)
+      sidebarDragRef.current = null
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [isResizingSidebar, setFeedSidebarWidth])
+
+  const detailPanelWidth = selectedElement ? 360 : 0
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-base-900">
-      {/* Scanline overlay */}
+    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
       <div className="scanline-overlay" />
 
-      {/* Top bar: Title + Query Interface */}
-      <header className="flex items-center gap-4 px-3 py-1.5 border-b border-surface-border bg-base-800 shrink-0">
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-accent-cyan" style={{ boxShadow: '0 0 8px #00d4ff88' }} />
-            <h1 className="font-display text-sm font-bold tracking-[0.2em] text-text-bright uppercase m-0">
-              Periphery
-            </h1>
-          </div>
-          <span className="text-xxs text-text-dim font-mono tracking-wider">v0.2.0</span>
-        </div>
+      {/* System Status Bar — top, persistent */}
+      <SystemStatusBar />
 
-        <div className="h-4 w-px bg-surface-border mx-1" />
-
-        <div className="flex-1 max-w-2xl">
-          <QueryInterface
-            onSubmit={handleQuery}
-            isLoading={isQuerying}
-            result={queryResult}
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-hidden dashboard-layout" style={{ minHeight: 0 }}>
+        {/* Left: Data Feed Sidebar */}
+        <div className="shrink-0 overflow-hidden relative" style={{ width: feedSidebarWidth }}>
+          <DataFeedSidebar />
+          <div
+            className="resize-handle vertical"
+            style={{ right: 0 }}
+            onMouseDown={handleSidebarResizeStart}
           />
         </div>
 
-        <div className="h-4 w-px bg-surface-border mx-1" />
-
-        {/* Right panel switcher */}
-        <div className="flex gap-1 shrink-0">
-          {([
-            { id: 'feed' as const, label: 'FEED' },
-            { id: 'ingest' as const, label: 'INGEST' },
-            { id: 'critic' as const, label: 'CRITIC' },
-          ]).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setRightPanel(tab.id)}
-              className={`px-2 py-1 text-xxs font-display font-semibold tracking-wider uppercase border border-transparent transition-all duration-150 ${
-                rightPanel === tab.id
-                  ? 'text-accent-cyan border-accent-cyan/30 bg-accent-cyan/5'
-                  : 'text-text-dim hover:text-text-secondary'
-              }`}
-              style={{ borderRadius: '2px' }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Ontology Graph (hero) + Confidence Distribution */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Ontology Graph — centerpiece */}
-          <div className="flex-1 panel m-1.5 mb-0 flex flex-col" style={{ minHeight: 0 }}>
-            <div className="panel-header">
-              <div className="panel-title">
-                <div className="panel-indicator" />
-                <span>Crystallized Ontology</span>
-              </div>
-              <div className="flex items-center gap-3">
-                {graph.data && (
-                  <span className="data-readout">
-                    {graph.data.cluster_count} clusters / {graph.data.document_count} docs / {graph.data.edges.length} edges
-                  </span>
-                )}
+        {/* Center: Graph + Query */}
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
+          {/* View mode selector */}
+          <div className="flex items-center justify-between px-2 py-1 border-b border-surface-border bg-base-800 shrink-0">
+            <div className="flex items-center gap-1">
+              {VIEW_MODES.map(mode => (
                 <button
-                  className="btn-secondary"
-                  onClick={() => {
-                    api.triggerCrystallize().then(() => {
-                      graph.refetch()
-                      clusters.refetch()
-                    })
-                  }}
+                  key={mode.id}
+                  onClick={() => setViewMode(mode.id)}
+                  className={`px-2 py-0.5 text-xxs font-display font-semibold tracking-wider uppercase border transition-all ${
+                    viewMode === mode.id
+                      ? 'text-accent-cyan border-accent-cyan/30 bg-accent-cyan/5'
+                      : 'text-text-dim border-transparent hover:text-text-secondary'
+                  }`}
+                  style={{ borderRadius: '2px' }}
                 >
-                  Re-crystallize
+                  {mode.label}
                 </button>
-              </div>
+              ))}
             </div>
-            <div className="relative flex-1" style={{ minHeight: 0 }}>
-              <OntologyGraph
-                data={graph.data || null}
-                criticScores={criticScores.data || null}
-                onNodeSelect={handleNodeSelect}
-                selectedNodeId={selectedNode?.id || null}
-              />
-            </div>
+            <span className="data-readout">
+              {snapshot
+                ? `${snapshot.entity_count} entities · ${snapshot.relationship_count} rels · ${snapshot.cluster_count} clusters`
+                : 'Awaiting data...'}
+            </span>
           </div>
 
-          {/* Bottom: Confidence Distribution */}
-          <div className="panel m-1.5" style={{ height: '140px', flexShrink: 0 }}>
-            <div className="panel-header">
-              <div className="panel-title">
-                <div className="panel-indicator" style={{ backgroundColor: '#d4a000', boxShadow: '0 0 6px #d4a00066' }} />
-                <span>Confidence Distribution</span>
-              </div>
-            </div>
-            <div className="panel-body h-full">
-              <ConfidenceDistribution
-                clusters={clusters.data || []}
-                criticScores={criticScores.data || []}
-              />
-            </div>
+          {/* Graph/Map/Timeline */}
+          <div className="flex-1 relative" style={{ minHeight: 0 }}>
+            {viewMode === 'graph' && <OntologyGraph />}
+            {viewMode === 'map' && <GeographicOverlay />}
+            {viewMode === 'timeline' && <TemporalTimeline />}
           </div>
+
+          {/* Query Bar */}
+          <div className="shrink-0 border-t border-surface-border">
+            <QueryBar />
+          </div>
+
+          {/* Query Results Panel */}
+          {queryPanelExpanded && <QueryResults />}
         </div>
 
-        {/* Right sidebar */}
-        <div className="flex flex-col overflow-hidden" style={{ width: '340px', flexShrink: 0 }}>
-          {/* Entity Detail (when node selected) */}
-          <AnimatePresence>
-            {selectedNode && (
-              <EntityDetail
-                node={selectedNode}
-                graphData={graph.data || null}
-                onClose={() => setSelectedNode(null)}
-              />
-            )}
-          </AnimatePresence>
-
-          {/* Right panel content */}
-          <div className="flex-1 panel m-1.5 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-            {rightPanel === 'feed' && (
-              <>
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <div className="panel-indicator" />
-                    <span>Data Feed</span>
-                  </div>
-                </div>
-                <div className="panel-body flex-1 overflow-y-auto">
-                  <DataFeed />
-                </div>
-              </>
-            )}
-
-            {rightPanel === 'ingest' && (
-              <>
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <div className="panel-indicator" />
-                    <span>Data Ingestion</span>
-                  </div>
-                </div>
-                <div className="panel-body flex-1 overflow-y-auto">
-                  <IngestPanel />
-                </div>
-              </>
-            )}
-
-            {rightPanel === 'critic' && (
-              <>
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <div className="panel-indicator" style={{ backgroundColor: '#d4a000', boxShadow: '0 0 6px #d4a00066' }} />
-                    <span>Coherence Critic</span>
-                  </div>
-                </div>
-                <div className="panel-body flex-1 overflow-y-auto">
-                  <CriticDashboard />
-                </div>
-              </>
-            )}
+        {/* Right: Detail Panel */}
+        {selectedElement && (
+          <div
+            className="shrink-0 overflow-hidden border-l border-surface-border"
+            style={{ width: detailPanelWidth }}
+          >
+            <DetailPanel />
           </div>
-        </div>
+        )}
       </div>
-
-      {/* System Status Bar — persistent bottom */}
-      <SystemStatusBar health={health.data || null} graph={graph.data || null} />
     </div>
   )
 }
