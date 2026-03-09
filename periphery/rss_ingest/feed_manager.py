@@ -9,10 +9,39 @@ import structlog
 import yaml
 
 from .models import FeedConfig, FeedState
+from .rate_limiter import DomainRateLimitConfig, RateLimitConfig
 
 logger = structlog.get_logger(__name__)
 
 _DEFAULT_CONFIG = Path(__file__).parent / "feeds.yaml"
+
+
+def _parse_rate_limit_config(data: dict) -> RateLimitConfig:
+    """Parse the rate_limits section of the YAML config."""
+    rl = data.get("rate_limits", {})
+    defaults_raw = rl.get("defaults", {})
+    defaults = DomainRateLimitConfig(
+        requests_per_second=defaults_raw.get("requests_per_second", 0.1),
+        burst_size=defaults_raw.get("burst_size", 3),
+        max_concurrent=defaults_raw.get("max_concurrent_per_domain", 2),
+    )
+
+    overrides: dict[str, DomainRateLimitConfig] = {}
+    for domain, cfg in rl.get("overrides", {}).items():
+        overrides[domain] = DomainRateLimitConfig(
+            requests_per_second=cfg.get("requests_per_second", defaults.requests_per_second),
+            burst_size=cfg.get("burst_size", defaults.burst_size),
+            max_concurrent=cfg.get("max_concurrent_per_domain", defaults.max_concurrent),
+        )
+
+    global_limits = rl.get("global_limits", {})
+
+    return RateLimitConfig(
+        defaults=defaults,
+        overrides=overrides,
+        max_concurrent_requests=global_limits.get("max_concurrent_requests", 20),
+        max_requests_per_minute=global_limits.get("max_requests_per_minute", 300),
+    )
 
 
 class FeedManager:
@@ -32,6 +61,7 @@ class FeedManager:
         )
         self._feeds: dict[str, FeedConfig] = {}
         self._states: dict[str, FeedState] = {}
+        self.rate_limit_config: RateLimitConfig = RateLimitConfig()
         self.reload()
 
     # ── public API ──────────────────────────────────────────────────────
@@ -57,6 +87,10 @@ class FeedManager:
             self._states[url] = FeedState(url=url)
 
         self._feeds = new_feeds
+
+        # parse rate limit config
+        self.rate_limit_config = _parse_rate_limit_config(data)
+
         logger.info(
             "feeds_loaded",
             total=len(self._feeds),

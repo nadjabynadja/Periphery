@@ -1,7 +1,8 @@
 """RSS Ingest Daemon — the main orchestrator.
 
 Wires together FeedManager, PollingEngine, Deduplicator, OutputQueue,
-and the FastAPI status endpoint into a single long-running daemon.
+RateLimiterChain, RobotsChecker, and the FastAPI status endpoint into
+a single long-running daemon.
 
 Can be run standalone::
 
@@ -25,6 +26,8 @@ from .dedup import Deduplicator
 from .feed_manager import FeedManager
 from .poller import PollingEngine
 from .queue import InProcessQueue, OutputQueue
+from .rate_limiter import RateLimiterChain
+from .robots_checker import RobotsChecker
 from .status import register_daemon, router as status_router
 
 logger = structlog.get_logger(__name__)
@@ -43,10 +46,13 @@ class RSSIngestDaemon:
         self.feed_manager = FeedManager(config_path)
         self.deduplicator = Deduplicator()
         self.output_queue: OutputQueue = InProcessQueue(maxsize=queue_maxsize)
+        self.rate_limiter = RateLimiterChain(self.feed_manager.rate_limit_config)
+        self.robots_checker: RobotsChecker | None = None  # initialized on start()
         self.poller = PollingEngine(
             self.feed_manager,
             self.deduplicator,
             self.output_queue,
+            self.rate_limiter,
             fetch_full_articles=fetch_full_articles,
         )
         self._start_time: float = 0.0
@@ -60,12 +66,19 @@ class RSSIngestDaemon:
     async def start(self) -> None:
         """Start the polling engine."""
         self._start_time = time.time()
+        # create robots checker with the poller's session (created in start)
         register_daemon(self)
         await self.poller.start()
+        # attach robots checker now that the session exists
+        if self.poller._session:
+            self.robots_checker = RobotsChecker(self.poller._session)
+            self.poller._robots_checker = self.robots_checker
         logger.info(
             "rss_daemon_started",
             feeds=len(self.feed_manager.feeds),
             categories=self.feed_manager.categories,
+            max_concurrent=self.feed_manager.rate_limit_config.max_concurrent_requests,
+            max_rpm=self.feed_manager.rate_limit_config.max_requests_per_minute,
         )
 
     async def stop(self) -> None:
