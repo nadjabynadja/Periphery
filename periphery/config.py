@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Enrichment pipeline settings
     enrichment_concurrency: int = 4
-    enrichment_spacy_model: str = "en_core_web_trf"
+    enrichment_spacy_model: str = "en_core_web_sm"
     enrichment_llm_model: str = "claude-sonnet-4-20250514"
     enrichment_llm_hourly_cap_usd: float = 5.0
     enrichment_llm_daily_cap_usd: float = 50.0

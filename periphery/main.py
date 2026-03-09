@@ -86,6 +86,20 @@ async def lifespan(app: FastAPI):
 
     settings = get_settings()
 
+    # Ensure required data directories exist
+    for dir_path in [
+        Path(settings.faiss_index_path).parent,
+        Path(settings.embedding_index_dir),
+        Path(settings.critic_checkpoint_dir),
+        Path(settings.critic_training_dir),
+        Path(settings.pipeline_db_path).parent,
+    ]:
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+    # Initialize database schema before any component starts
+    from periphery.db import ensure_database
+    await ensure_database(settings.pipeline_db_path)
+
     # Layer 1: Initialize embedding model and vector store
     logger.info("Initializing embedding model: %s", settings.embedding_model)
     dim = embedder.get_dimension()
