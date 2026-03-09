@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     critic_ensemble_weight_cross_space: float = 0.15
     critic_ensemble_weight_stability: float = 0.15
 
+    # CORS settings
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
