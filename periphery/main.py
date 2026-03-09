@@ -17,6 +17,7 @@ from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore
 from periphery.pipeline.crystallization_consumer import CrystallizationConsumer
 from periphery.pipeline.embedding_consumer import EmbeddingConsumer
+from periphery.enrichment.pipeline import build_enrichment_pipeline
 from periphery.pipeline.enrichment_consumer import EnrichmentConsumer
 from periphery.pipeline.orchestrator import PipelineOrchestrator
 
@@ -99,8 +100,10 @@ async def lifespan(app: FastAPI):
 
     # Layer 5: Initialize processing pipeline
     db_path = settings.pipeline_db_path
+    enrichment_pipeline = build_enrichment_pipeline(settings)
     enrichment_consumer = EnrichmentConsumer(
         db_path,
+        pipeline=enrichment_pipeline,
         batch_size=settings.pipeline_enrichment_batch_size,
         poll_interval=settings.pipeline_enrichment_poll_interval,
         max_retries=settings.pipeline_max_retries,
