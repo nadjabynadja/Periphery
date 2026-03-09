@@ -11,6 +11,7 @@ import logging
 import structlog
 
 from periphery.config import get_settings
+from periphery.enrichment.pipeline import build_enrichment_pipeline
 
 from .crystallization_consumer import CrystallizationConsumer
 from .embedding_consumer import EmbeddingConsumer
@@ -27,8 +28,10 @@ async def main() -> None:
     settings = get_settings()
     db_path = settings.pipeline_db_path
 
+    enrichment_pipeline = build_enrichment_pipeline(settings)
     enrichment = EnrichmentConsumer(
         db_path,
+        pipeline=enrichment_pipeline,
         batch_size=settings.pipeline_enrichment_batch_size,
         poll_interval=settings.pipeline_enrichment_poll_interval,
         max_retries=settings.pipeline_max_retries,

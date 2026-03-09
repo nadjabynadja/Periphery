@@ -11,7 +11,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import time
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import structlog
 
@@ -26,6 +26,9 @@ from .models import (
     EnrichmentMetadata,
     PipelineDocument,
 )
+
+if TYPE_CHECKING:
+    from periphery.config import Settings
 
 logger = structlog.get_logger(__name__)
 
@@ -259,3 +262,69 @@ class EnrichmentPipeline:
                 processing_time_ms=elapsed_ms,
             ),
         )
+
+
+def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
+    """Build a fully configured EnrichmentPipeline from application settings.
+
+    Assembles all six stages in the correct order:
+      1. Entity Extraction (SpaCy NER + OSINT regex patterns)
+      2. Relationship Extraction (co-occurrence, dependency, LLM tiers)
+      3. Source Credibility Tagging
+      4. Temporal Tagging
+      5. Geospatial Resolution
+      6. Entity Resolution (must run after extraction stages)
+    """
+    from .budget import BudgetTracker
+    from .stages.entity_extraction import EntityExtractionStage
+    from .stages.entity_resolution import EntityResolutionStage
+    from .stages.geospatial_resolution import GeospatialResolutionStage
+    from .stages.relationship_extraction import RelationshipExtractionStage
+    from .stages.source_credibility import SourceCredibilityStage
+    from .stages.temporal_tagging import TemporalTaggingStage
+
+    budget_tracker = BudgetTracker(
+        hourly_cap_usd=settings.enrichment_llm_hourly_cap_usd,
+        daily_cap_usd=settings.enrichment_llm_daily_cap_usd,
+    )
+
+    # Build anthropic client only if API key is configured
+    anthropic_client = None
+    if settings.anthropic_api_key:
+        import anthropic
+
+        anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    stages: list[EnrichmentStage] = [
+        EntityExtractionStage(spacy_model=settings.enrichment_spacy_model),
+        RelationshipExtractionStage(
+            budget_tracker=budget_tracker,
+            anthropic_client=anthropic_client,
+            llm_model=settings.enrichment_llm_model,
+            tier2_min_priority=settings.enrichment_tier2_min_priority,
+            tier3_min_priority=settings.enrichment_tier3_min_priority,
+        ),
+        SourceCredibilityStage(),
+        TemporalTaggingStage(),
+        GeospatialResolutionStage(
+            geocoder=settings.enrichment_geocoder,
+            rate_limit_delay=settings.enrichment_geocode_rate_limit,
+        ),
+        EntityResolutionStage(
+            fuzzy_threshold=settings.enrichment_fuzzy_match_threshold,
+        ),
+    ]
+
+    pipeline = EnrichmentPipeline(
+        stages=stages,
+        concurrency=settings.enrichment_concurrency,
+    )
+
+    logger.info(
+        "enrichment_pipeline_built",
+        stages=[s.name for s in stages],
+        concurrency=settings.enrichment_concurrency,
+        llm_enabled=anthropic_client is not None,
+    )
+
+    return pipeline
