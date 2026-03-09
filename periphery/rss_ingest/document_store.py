@@ -74,10 +74,16 @@ _CREATE_DOCUMENT_EMBEDDINGS = """
 CREATE TABLE IF NOT EXISTS document_embeddings (
     document_id TEXT PRIMARY KEY REFERENCES documents(id),
     semantic_embedding BLOB,
+    semantic_chunks JSON,
     entity_embedding BLOB,
+    relational_embedding BLOB,
+    temporal_vector JSON,
+    geospatial_vector JSON,
     embedding_model TEXT,
     embedding_dimensions INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    completeness JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 )
 """
 
@@ -110,6 +116,7 @@ class DocumentStore:
         await self._db.execute(_CREATE_DOCUMENT_EMBEDDINGS)
         # Migrate legacy schema: rename old columns if they exist
         await self._migrate_legacy_columns()
+        await self._migrate_embeddings_schema()
         await self._db.commit()
         logger.info("document_store_initialized", db_path=str(self._db_path))
 
@@ -298,3 +305,24 @@ class DocumentStore:
                 END
             """)
             logger.info("migrated_legacy_status_columns")
+
+    async def _migrate_embeddings_schema(self) -> None:
+        """Add multi-space embedding columns if they don't exist yet."""
+        assert self._db is not None
+        cursor = await self._db.execute("PRAGMA table_info(document_embeddings)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+        new_cols = {
+            "semantic_chunks": "JSON",
+            "relational_embedding": "BLOB",
+            "temporal_vector": "JSON",
+            "geospatial_vector": "JSON",
+            "completeness": "JSON",
+            "updated_at": "TIMESTAMP",
+        }
+        for col_name, col_type in new_cols.items():
+            if col_name not in columns:
+                await self._db.execute(
+                    f"ALTER TABLE document_embeddings ADD COLUMN {col_name} {col_type}"
+                )
+                logger.info("embeddings_schema_migrated", column=col_name)

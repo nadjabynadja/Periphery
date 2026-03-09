@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     enrichment_geospatial_seed_file: str = "./data/geospatial_seeds.json"
     enrichment_fuzzy_match_threshold: float = 0.88
 
+    # Multi-space embedding settings
+    embedding_index_dir: str = "./data/indices"
+    embedding_chunk_size: int = 256  # tokens per chunk
+    embedding_chunk_overlap: int = 64  # overlap tokens between chunks
+    embedding_temporal_dim: int = 10
+    embedding_geospatial_base_dim: int = 7  # before region vector
+    embedding_region_count: int = 12  # number of fixed regions for one-hot
+    embedding_rebuild_interval: int = 10000  # rebuild indices every N docs
+
     # Processing pipeline settings
     pipeline_db_path: str = "./data/periphery_documents.db"
     pipeline_enrichment_batch_size: int = 10
