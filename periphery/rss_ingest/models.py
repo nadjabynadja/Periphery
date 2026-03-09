@@ -66,8 +66,7 @@ class IngestedDocument(BaseModel):
     content_quality: str = "full"  # full | summary_only | metadata_only
     full_content_blocked: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
-    enrichment_status: str = "pending"  # pending | in_progress | complete | failed
-    embedding_status: str = "pending"  # pending | complete | failed
+    processing_status: str = "pending"  # pending | enriching | enriched | embedding | embedded | crystallized | failed
 
 
 class DomainStatus(BaseModel):
