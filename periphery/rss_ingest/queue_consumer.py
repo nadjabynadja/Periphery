@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -60,6 +60,9 @@ class QueueConsumer:
         self._backpressure_threshold = backpressure_threshold
         self._task: asyncio.Task | None = None
         self._running = False
+        # Optional callback invoked with doc_id after successful persistence.
+        # Used to fast-path notify the enrichment consumer.
+        self._on_persist: Any = None
         # metrics
         self._consumed = 0
         self._persisted = 0
@@ -132,6 +135,11 @@ class QueueConsumer:
                     self._persisted += 1
                     if self._notifier:
                         await self._notifier.notify(doc.id)
+                    if self._on_persist is not None:
+                        try:
+                            self._on_persist(doc.id)
+                        except Exception:
+                            pass  # notification is optimization, not required
                     logger.debug(
                         "consumer_persisted",
                         doc_id=doc.id,

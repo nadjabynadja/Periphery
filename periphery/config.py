@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     critic_ensemble_weight_cross_space: float = 0.15
     critic_ensemble_weight_stability: float = 0.15
 
+    # RSS ingest settings
+    rss_enabled: bool = True
+    rss_feeds_config: str = ""  # path to feeds.yaml; empty = bundled default
+    rss_fetch_full_articles: bool = True
+    rss_queue_maxsize: int = 10_000
+
     # CORS settings
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
