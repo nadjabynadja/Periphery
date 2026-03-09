@@ -1,5 +1,8 @@
+import json
 import logging
+from datetime import datetime, timezone
 
+import aiosqlite
 import anthropic
 
 from periphery.config import get_settings
@@ -38,6 +41,7 @@ class QueryEngine:
         documents: dict[str, Document],
         graph: OntologyGraph,
         coherence_scores: dict[int, float] | None = None,
+        db_path: str | None = None,
     ):
         self.store = store
         self.documents = documents
@@ -45,6 +49,59 @@ class QueryEngine:
         self.coherence_scores = coherence_scores or {}
         settings = get_settings()
         self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else None
+        self._db_path = db_path or settings.pipeline_db_path
+
+    async def _fetch_document_from_db(self, doc_id: str) -> Document | None:
+        """Fall back to the SQLite document store for pipeline-ingested documents."""
+        try:
+            async with aiosqlite.connect(self._db_path) as db:
+                cursor = await db.execute(
+                    "SELECT id, content, title, url, metadata, published "
+                    "FROM documents WHERE id = ?",
+                    (doc_id,),
+                )
+                row = await cursor.fetchone()
+                if row is None:
+                    return None
+
+                row_id, content, title, url, metadata_json, published = row
+                metadata: dict = {}
+                if metadata_json:
+                    try:
+                        metadata = json.loads(metadata_json)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if title:
+                    metadata["title"] = title
+                if url:
+                    metadata["url"] = url
+
+                created_at = datetime.now(timezone.utc)
+                if published:
+                    try:
+                        created_at = datetime.fromisoformat(published)
+                    except (ValueError, TypeError):
+                        pass
+
+                doc = Document(
+                    id=row_id,
+                    content=content or "",
+                    metadata=metadata,
+                    created_at=created_at,
+                )
+                # Cache in memory for subsequent lookups
+                self.documents[doc_id] = doc
+                return doc
+        except Exception:
+            logger.debug("sqlite_fallback_failed", exc_info=True)
+            return None
+
+    async def _resolve_document(self, doc_id: str) -> Document | None:
+        """Look up a document by ID, falling back to SQLite if not in memory."""
+        doc = self.documents.get(doc_id)
+        if doc is not None:
+            return doc
+        return await self._fetch_document_from_db(doc_id)
 
     async def query(self, question: str, top_k: int = 10) -> QueryResponse:
         """Process a natural language query against the crystallized state."""
@@ -54,7 +111,7 @@ class QueryEngine:
 
         sources = []
         for doc_id, score in search_results:
-            doc = self.documents.get(doc_id)
+            doc = await self._resolve_document(doc_id)
             if doc:
                 sources.append(SearchResult(document=doc, score=float(score)))
 

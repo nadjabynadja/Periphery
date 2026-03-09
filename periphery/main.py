@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
         store=store,
         documents=documents,
         graph=worker.graph,
+        db_path=db_path,
     )
     set_engine(engine)
 
