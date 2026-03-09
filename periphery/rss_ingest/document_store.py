@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
+from periphery.db import get_persistent_connection
 import structlog
 
 from .models import IngestedDocument
@@ -106,7 +107,7 @@ class DocumentStore:
     async def initialize(self) -> None:
         """Create database directory, connect, and ensure schema exists."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = await aiosqlite.connect(str(self._db_path))
+        self._db = await get_persistent_connection(self._db_path)
         # Enable WAL mode for better concurrent read/write performance
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute(_CREATE_DOCUMENTS)

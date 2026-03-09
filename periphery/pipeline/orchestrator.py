@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 from .consumer import StageConsumer
@@ -48,7 +48,7 @@ class PipelineOrchestrator:
         self._started_at = datetime.now(timezone.utc)
 
         # Run stale claim recovery on startup
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             for consumer in self._consumers:
                 try:
@@ -107,7 +107,7 @@ class PipelineOrchestrator:
 
     async def get_pipeline_stats(self) -> dict[str, Any]:
         """Return full pipeline state for the stats endpoint."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             # Pipeline status counts

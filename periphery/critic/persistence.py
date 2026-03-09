@@ -10,7 +10,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -42,7 +42,7 @@ class CriticStore:
 
     async def initialize(self) -> None:
         """Create critic tables if they don't exist."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript(CRITIC_SCHEMA_SQL)
             await db.commit()
@@ -62,7 +62,7 @@ class CriticStore:
         scoring_time_ms: int,
     ) -> None:
         """Record a critic scoring run."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -100,7 +100,7 @@ class CriticStore:
 
     async def get_recent_runs(self, limit: int = 20) -> list[dict[str, Any]]:
         """Get the most recent critic runs."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT * FROM critic_runs ORDER BY timestamp DESC LIMIT ?",
@@ -112,7 +112,7 @@ class CriticStore:
 
     async def get_score_trend(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get mean confidence trend over recent runs."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 """

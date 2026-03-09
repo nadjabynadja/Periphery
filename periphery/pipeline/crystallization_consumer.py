@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 from .consumer import StageConsumer
@@ -52,7 +52,7 @@ class CrystallizationConsumer(StageConsumer):
 
     async def _run_cycle(self) -> int:
         """Override to check minimum batch threshold before claiming."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             # Check queue depth before claiming

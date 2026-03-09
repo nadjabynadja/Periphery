@@ -717,10 +717,10 @@ class CrystallizerWorker:
             return doc_entities, doc_relationships, doc_metadata
 
         try:
-            import aiosqlite
+            from periphery.db import get_connection
 
             db_path = self._store_db._db_path
-            async with aiosqlite.connect(db_path) as db:
+            async with get_connection(self_db_path) as db:
                 await db.execute("PRAGMA journal_mode=WAL")
 
                 cursor = await db.execute(

@@ -75,6 +75,7 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
 
     #await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA busy_timeout=5000")
 
 
     return scores

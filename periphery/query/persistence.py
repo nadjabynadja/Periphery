@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class QueryStore:
         self._initialized = False
 
     async def initialize(self) -> None:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript(QUERY_SCHEMA_SQL)
             await db.commit()
@@ -90,7 +90,7 @@ class QueryStore:
         session_id: str | None = None,
         response_time_ms: int = 0,
     ) -> None:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -117,7 +117,7 @@ class QueryStore:
     async def get_recent_queries(
         self, limit: int = 20, session_id: str | None = None
     ) -> list[dict[str, Any]]:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             if session_id:
                 cursor = await db.execute(
@@ -148,7 +148,7 @@ class QueryStore:
 
     async def save_session(self, session_id: str, state: dict[str, Any]) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -164,7 +164,7 @@ class QueryStore:
             await db.commit()
 
     async def load_session(self, session_id: str) -> dict[str, Any] | None:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT state FROM query_sessions WHERE session_id = ?",
@@ -178,7 +178,7 @@ class QueryStore:
     async def save_bookmark(
         self, query_id: str, session_id: str, label: str = ""
     ) -> None:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -190,7 +190,7 @@ class QueryStore:
             await db.commit()
 
     async def get_bookmarks(self, session_id: str) -> list[dict[str, Any]]:
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 """
@@ -221,7 +221,7 @@ class QueryStore:
         session_id: str = "",
     ) -> None:
         """Save an analyst annotation (entity merge, relationship confirmation, etc.)."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -245,7 +245,7 @@ class QueryStore:
         self, query_id: str, feedback: dict[str, Any]
     ) -> None:
         """Save analyst feedback on a query result."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 "UPDATE query_history SET analyst_feedback = ? WHERE query_id = ?",
@@ -255,7 +255,7 @@ class QueryStore:
 
     async def get_query_stats(self) -> dict[str, Any]:
         """Return aggregate query statistics."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT COUNT(*), AVG(response_time_ms), "

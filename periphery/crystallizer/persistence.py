@@ -15,7 +15,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 from periphery.crystallizer.models import (
@@ -113,7 +113,7 @@ class CrystallizerStore:
 
     async def initialize(self) -> None:
         """Create tables if they don't exist."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript(SCHEMA_SQL)
             await db.commit()
@@ -122,7 +122,7 @@ class CrystallizerStore:
 
     async def save_snapshot(self, snapshot: LivingOntologySnapshot) -> None:
         """Persist a full ontology snapshot."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -156,7 +156,7 @@ class CrystallizerStore:
 
     async def load_latest_snapshot(self) -> LivingOntologySnapshot | None:
         """Load the most recent ontology snapshot."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT snapshot_data FROM crystallizer_snapshots "
@@ -170,7 +170,7 @@ class CrystallizerStore:
     async def save_cluster(self, cluster: DetectedCluster) -> None:
         """Upsert a cluster record."""
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             # Check if cluster exists
@@ -226,7 +226,7 @@ class CrystallizerStore:
         if not clusters:
             return
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             for cluster in clusters:
@@ -280,7 +280,7 @@ class CrystallizerStore:
     async def save_trajectory(self, trajectory: Trajectory) -> None:
         """Upsert a trajectory record."""
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -308,7 +308,7 @@ class CrystallizerStore:
 
     async def save_anomaly(self, anomaly: Anomaly) -> None:
         """Upsert an anomaly record."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
@@ -336,7 +336,7 @@ class CrystallizerStore:
         """Save multiple anomalies in a single transaction."""
         if not anomalies:
             return
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             for anomaly in anomalies:
                 await db.execute(
@@ -363,7 +363,7 @@ class CrystallizerStore:
 
     async def save_gradients(self, gradients: list[RelationalGradient]) -> None:
         """Replace all gradient records with current set."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             # Clear old gradients (they're regenerated each run)
             await db.execute("DELETE FROM relational_gradients")
@@ -391,7 +391,7 @@ class CrystallizerStore:
         if not cluster_ids:
             return
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             placeholders = ",".join("?" for _ in cluster_ids)
             await db.execute(
@@ -403,7 +403,7 @@ class CrystallizerStore:
 
     async def get_cluster_history(self, cluster_id: str) -> list[dict[str, Any]]:
         """Get the size history for a cluster."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT timestamp, size, coherence FROM cluster_snapshots "
@@ -417,7 +417,7 @@ class CrystallizerStore:
 
     async def get_active_cluster_ids(self) -> set[str]:
         """Return IDs of all non-dissolved clusters."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT cluster_id FROM clusters WHERE status != 'dissolved'"
@@ -426,7 +426,7 @@ class CrystallizerStore:
 
     async def get_telemetry(self) -> dict[str, Any]:
         """Return monitoring telemetry for the Crystallizer."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             # Cluster counts by status

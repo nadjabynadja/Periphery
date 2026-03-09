@@ -15,12 +15,12 @@ Also handles:
 """
 
 from __future__ import annotations
-
+import sqlite3
 import asyncio
+from importlib.resources import path
 import json
 import math
 import re
-import sqlite3
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -39,6 +39,7 @@ from periphery.enrichment.models import (
     RelationshipGeospatial,
 )
 from periphery.enrichment.pipeline import EnrichmentStage
+
 
 logger = structlog.get_logger(__name__)
 
@@ -120,27 +121,8 @@ class GeocodingCache:
         path = Path(self._db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(path))
-        self._db.row_factory = sqlite3.Row
-        self._db.execute("""
-            CREATE TABLE IF NOT EXISTS geocoding_cache (
-                location_text TEXT,
-                country_context TEXT DEFAULT '',
-                latitude FLOAT,
-                longitude FLOAT,
-                display_name TEXT DEFAULT '',
-                location_type TEXT DEFAULT '',
-                bounding_box JSON,
-                hierarchy JSON,
-                confidence FLOAT DEFAULT 0.0,
-                source TEXT DEFAULT '',
-                candidates JSON,
-                needs_crystallizer_resolution INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (location_text, country_context)
-            )
-        """)
-        self._db.commit()
-
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA busy_timeout=5000")
     def get(self, location: str, country_context: str = "") -> GeospatialData | None:
         """Look up a location in cache (memory first, then SQLite).
 
@@ -312,8 +294,9 @@ class GeoNamesIndex:
         self._db: sqlite3.Connection | None = None
         if db_path and Path(db_path).exists():
             try:
-                self._db = sqlite3.connect(db_path)
-                self._db.row_factory = sqlite3.Row
+                self._db = sqlite3.connect(str(path))
+                self._db.execute("PRAGMA journal_mode=WAL")
+                self._db.execute("PRAGMA busy_timeout=5000")  
             except Exception:
                 logger.warning("geonames_db_open_failed", path=db_path)
                 self._db = None

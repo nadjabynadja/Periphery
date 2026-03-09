@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import aiosqlite
 import time
 from datetime import datetime, timezone
 from typing import Any
 
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -159,7 +160,7 @@ class StageConsumer(abc.ABC):
 
     async def _run_cycle(self) -> int:
         """Run one polling + processing cycle. Returns count of docs processed."""
-        async with aiosqlite.connect(self._db_path) as db:
+        async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             db.row_factory = aiosqlite.Row
 
