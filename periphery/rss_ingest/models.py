@@ -34,6 +34,21 @@ class FeedState(BaseModel):
     last_error: str | None = None
 
 
+class BackoffState(BaseModel):
+    """Adaptive backoff state tracked per feed."""
+
+    feed_url: str
+    domain: str = ""
+    consecutive_failures: int = 0
+    last_failure_type: str | None = None
+    current_backoff_seconds: float = 0.0
+    next_allowed_poll: datetime | None = None
+    status: str = "active"  # active | degraded | dormant
+    total_429s_lifetime: int = 0
+    total_5xx_lifetime: int = 0
+    consecutive_304s: int = 0
+
+
 class IngestedDocument(BaseModel):
     """Standardized document produced by the RSS ingest pipeline."""
 
@@ -46,7 +61,29 @@ class IngestedDocument(BaseModel):
     ingested: datetime = Field(default_factory=_utcnow)
     content: str
     raw_html: str = ""
+    full_content_blocked: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DomainStatus(BaseModel):
+    """Rate limiting status for a single domain."""
+
+    domain: str
+    bucket_tokens: float = 0.0
+    requests_last_minute: int = 0
+    total_429s: int = 0
+    total_5xx: int = 0
+    active_backoff: bool = False
+
+
+class HealthStatus(BaseModel):
+    """Aggregate health status for the /health endpoint."""
+
+    active_feeds: int = 0
+    degraded_feeds: int = 0
+    dormant_feeds: int = 0
+    critical_feeds_non_active: list[str] = Field(default_factory=list)
+    healthy: bool = True
 
 
 class DaemonStatus(BaseModel):
@@ -59,3 +96,11 @@ class DaemonStatus(BaseModel):
     total_entries_ingested: int = 0
     queue_depth: int = 0
     uptime_seconds: float = 0.0
+    # rate limiting telemetry
+    current_concurrent_requests: int = 0
+    global_requests_per_minute: int = 0
+    degraded_feed_count: int = 0
+    dormant_feed_count: int = 0
+    domain_stats: dict[str, DomainStatus] = Field(default_factory=dict)
+    backoff_states: list[BackoffState] = Field(default_factory=list)
+    alerts: list[str] = Field(default_factory=list)

@@ -1,4 +1,4 @@
-"""FastAPI status endpoint for the RSS ingest daemon."""
+"""FastAPI status and health endpoints for the RSS ingest daemon."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
-from .models import DaemonStatus, FeedState
+from .models import BackoffState, DaemonStatus, DomainStatus, FeedState, HealthStatus
 
 if TYPE_CHECKING:
     from .daemon import RSSIngestDaemon
@@ -30,6 +30,24 @@ async def rss_status() -> DaemonStatus:
     d = _daemon_ref
     states: list[FeedState] = d.feed_manager.all_states()
 
+    # rate limiting telemetry
+    domain_stats: dict[str, DomainStatus] = {}
+    if d.rate_limiter:
+        for domain, stats in d.rate_limiter.domain_stats().items():
+            domain_stats[domain] = DomainStatus(
+                domain=domain,
+                bucket_tokens=stats["bucket_tokens"],
+                requests_last_minute=stats["requests_last_minute"],
+                total_429s=stats["total_429s"],
+                total_5xx=stats["total_5xx"],
+                active_backoff=stats["active_backoff"],
+            )
+
+    # backoff states
+    backoff_states = d.poller.get_all_backoff_states()
+    status_counts = d.poller.feeds_by_status()
+    alerts = d.poller.get_alerts()
+
     return DaemonStatus(
         active_feeds=len(d.feed_manager.feeds),
         feeds=states,
@@ -38,6 +56,41 @@ async def rss_status() -> DaemonStatus:
         total_entries_ingested=sum(s.entries_ingested for s in states),
         queue_depth=d.output_queue.depth(),
         uptime_seconds=d.uptime,
+        current_concurrent_requests=d.rate_limiter.current_concurrent if d.rate_limiter else 0,
+        global_requests_per_minute=d.rate_limiter.global_rpm if d.rate_limiter else 0,
+        degraded_feed_count=status_counts.get("degraded", 0),
+        dormant_feed_count=status_counts.get("dormant", 0),
+        domain_stats=domain_stats,
+        backoff_states=backoff_states,
+        alerts=alerts,
+    )
+
+
+@router.get("/health", response_model=HealthStatus)
+async def rss_health() -> HealthStatus:
+    """Aggregate health check for the RSS daemon."""
+    if _daemon_ref is None:
+        return HealthStatus(healthy=False)
+
+    d = _daemon_ref
+    status_counts = d.poller.feeds_by_status()
+
+    # find critical feeds (priority 1) in non-active state
+    critical_non_active: list[str] = []
+    for bs in d.poller.get_all_backoff_states():
+        if bs.status != "active":
+            cfg = d.feed_manager.get_config(bs.feed_url)
+            if cfg and cfg.priority == 1:
+                critical_non_active.append(cfg.name)
+
+    healthy = len(critical_non_active) == 0
+
+    return HealthStatus(
+        active_feeds=status_counts.get("active", 0),
+        degraded_feeds=status_counts.get("degraded", 0),
+        dormant_feeds=status_counts.get("dormant", 0),
+        critical_feeds_non_active=critical_non_active,
+        healthy=healthy,
     )
 
 

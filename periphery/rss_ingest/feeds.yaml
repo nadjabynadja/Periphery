@@ -1,6 +1,30 @@
 # Periphery RSS Ingest — Default Feed Configuration
 # Each feed has: url, category, poll_interval (seconds), priority (1=highest, 5=lowest)
 
+rate_limits:
+  defaults:
+    requests_per_second: 0.1       # 1 req per 10 sec
+    burst_size: 3                   # allow short bursts
+    max_concurrent_per_domain: 2    # concurrent connections per domain
+
+  overrides:
+    "feeds.reuters.com":
+      requests_per_second: 0.2
+      burst_size: 5
+    "nvd.nist.gov":
+      requests_per_second: 0.05    # government sites, be extra polite
+      burst_size: 1
+    "ofac.treasury.gov":
+      requests_per_second: 0.05
+      burst_size: 1
+    "www.federalregister.gov":
+      requests_per_second: 0.05
+      burst_size: 1
+
+  global_limits:
+    max_concurrent_requests: 20
+    max_requests_per_minute: 300
+
 feeds:
   # ── Government & Regulatory ──────────────────────────────────────────
   - url: "https://www.federalregister.gov/documents/search.atom"
