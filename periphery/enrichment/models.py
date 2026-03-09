@@ -1,0 +1,219 @@
+"""Pydantic models for the enrichment pipeline.
+
+Defines the data structures that flow through every stage — from raw
+IngestedDocument to fully enriched output ready for the embedding layer.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+# ── Stage 1: Entity Extraction ───────────────────────────────────────────
+
+
+class ExtractedEntity(BaseModel):
+    """A single entity extracted from a document."""
+
+    text: str
+    entity_type: str
+    start_char: int
+    end_char: int
+    confidence: float
+    extraction_method: str  # "spacy" or "pattern"
+    context_window: str  # surrounding sentence
+
+
+# ── Stage 2: Relationship Extraction ─────────────────────────────────────
+
+
+class ExtractedRelationship(BaseModel):
+    """A relationship between two entities."""
+
+    subject_text: str
+    subject_type: str
+    predicate: str
+    object_text: str
+    object_type: str
+    confidence: float
+    extraction_tier: int  # 1=co-occurrence, 2=dependency, 3=LLM
+    evidence: str = ""
+    temporal_qualifier: str = ""  # current | historical | speculative
+
+
+# ── Stage 3: Temporal Tagging ────────────────────────────────────────────
+
+
+class TemporalContext(BaseModel):
+    """Temporal metadata attached to entities and relationships."""
+
+    status: str  # current | historical | speculative | unresolved
+    explicit_date: Optional[datetime] = None
+    date_range_start: Optional[datetime] = None
+    date_range_end: Optional[datetime] = None
+    document_date: Optional[datetime] = None
+    tense_confidence: float = 0.0
+
+
+# ── Stage 4: Geospatial Resolution ───────────────────────────────────────
+
+
+class GeoCandidate(BaseModel):
+    """A candidate geocoding result."""
+
+    latitude: float
+    longitude: float
+    display_name: str
+    confidence: float
+
+
+class GeospatialData(BaseModel):
+    """Geospatial metadata for location entities."""
+
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    resolution_confidence: float = 0.0
+    geo_candidates: list[GeoCandidate] = Field(default_factory=list)
+    geo_source: str = ""  # nominatim | geonames | context_inferred
+
+
+# ── Stage 5: Source Credibility ──────────────────────────────────────────
+
+
+class SourceCredibility(BaseModel):
+    """Source credibility metadata."""
+
+    source_credibility_tier: int  # 1-4
+    source_name: str
+    source_url: str
+    source_category: str
+
+
+# ── Stage 6: Entity Resolution ──────────────────────────────────────────
+
+
+class CanonicalEntity(BaseModel):
+    """A resolved canonical entity in the entity index."""
+
+    canonical_id: str
+    canonical_name: str
+    entity_type: str
+    aliases: list[str] = Field(default_factory=list)
+    first_seen: datetime = Field(default_factory=_utcnow)
+    last_seen: datetime = Field(default_factory=_utcnow)
+    source_documents: list[str] = Field(default_factory=list)
+    credibility_floor: int = 4
+    merge_confidence: float = 1.0
+
+
+# ── Enriched Entity (post-pipeline) ─────────────────────────────────────
+
+
+class EnrichedEntity(BaseModel):
+    """An entity after all enrichment stages."""
+
+    canonical_id: str = ""
+    text: str
+    entity_type: str
+    confidence: float
+    temporal_context: Optional[TemporalContext] = None
+    geospatial: Optional[GeospatialData] = None
+    credibility_tier: int = 4
+
+
+# ── Enriched Relationship (post-pipeline) ────────────────────────────────
+
+
+class EnrichedRelationship(BaseModel):
+    """A relationship after all enrichment stages."""
+
+    subject_id: str  # canonical entity ID
+    predicate: str
+    object_id: str  # canonical entity ID
+    confidence: float
+    extraction_tier: int
+    temporal_context: Optional[TemporalContext] = None
+    evidence: str = ""
+    credibility_tier: int = 4
+
+
+# ── Enriched Document (final output) ────────────────────────────────────
+
+
+class EnrichedDocumentSource(BaseModel):
+    """Source metadata for an enriched document."""
+
+    feed_url: str
+    source_name: str
+    source_category: str
+    credibility_tier: int = 4
+
+
+class EnrichedDocumentContent(BaseModel):
+    """Content fields of an enriched document."""
+
+    title: str
+    full_text: str
+    url: str
+    published: Optional[datetime] = None
+    ingested: datetime = Field(default_factory=_utcnow)
+
+
+class EnrichmentMetadata(BaseModel):
+    """Pipeline metadata about the enrichment process."""
+
+    enrichment_stages_completed: list[str] = Field(default_factory=list)
+    enrichment_failures: list[str] = Field(default_factory=list)
+    processing_time_ms: int = 0
+
+
+class EnrichedDocument(BaseModel):
+    """The final enriched document handed to the embedding layer."""
+
+    id: str
+    source: EnrichedDocumentSource
+    content: EnrichedDocumentContent
+    entities: list[EnrichedEntity] = Field(default_factory=list)
+    relationships: list[EnrichedRelationship] = Field(default_factory=list)
+    metadata: EnrichmentMetadata = Field(default_factory=EnrichmentMetadata)
+
+
+# ── Pipeline Internal: document flowing through stages ───────────────────
+
+
+class PipelineDocument(BaseModel):
+    """Internal document representation flowing through pipeline stages.
+
+    Accumulates enrichment results as it passes through each stage.
+    Gets transformed into EnrichedDocument at the end.
+    """
+
+    id: str
+    source_feed: str
+    source_name: str = ""
+    source_category: str
+    title: str
+    url: str
+    full_text: str
+    published: Optional[datetime] = None
+    ingested: datetime = Field(default_factory=_utcnow)
+
+    # Stage outputs accumulate here
+    extracted_entities: list[ExtractedEntity] = Field(default_factory=list)
+    extracted_relationships: list[ExtractedRelationship] = Field(default_factory=list)
+    temporal_contexts: dict[str, TemporalContext] = Field(default_factory=dict)
+    geospatial_data: dict[str, GeospatialData] = Field(default_factory=dict)
+    source_credibility: Optional[SourceCredibility] = None
+    resolved_entity_map: dict[str, str] = Field(default_factory=dict)
+
+    # Pipeline metadata
+    enrichment_stages_completed: list[str] = Field(default_factory=list)
+    enrichment_failures: list[str] = Field(default_factory=list)
+    priority: int = 3
