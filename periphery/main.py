@@ -73,11 +73,6 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
         set_current_snapshot(worker.current_snapshot)
         await broadcast_snapshot(worker.current_snapshot)
 
-    #await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA busy_timeout=5000")
-
-
     return scores
 
 
@@ -293,6 +288,9 @@ async def lifespan(app: FastAPI):
         # Wire fast-path: queue consumer → enrichment consumer notification
         if rss_daemon.queue_consumer is not None:
             rss_daemon.queue_consumer._on_persist = enrichment_consumer.notify
+            # Wire WebSocket broadcast for document ingestion events
+            from periphery.ws.router import broadcast_document_ingested
+            rss_daemon.queue_consumer._on_ws_broadcast = broadcast_document_ingested
 
         # Mount RSS status endpoints
         from periphery.rss_ingest.status import router as rss_router

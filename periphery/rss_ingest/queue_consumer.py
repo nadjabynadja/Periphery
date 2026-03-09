@@ -63,6 +63,8 @@ class QueueConsumer:
         # Optional callback invoked with doc_id after successful persistence.
         # Used to fast-path notify the enrichment consumer.
         self._on_persist: Any = None
+        # Optional async callback for WebSocket broadcast on document ingestion.
+        self._on_ws_broadcast: Any = None
         # metrics
         self._consumed = 0
         self._persisted = 0
@@ -140,6 +142,20 @@ class QueueConsumer:
                             self._on_persist(doc.id)
                         except Exception:
                             pass  # notification is optimization, not required
+                    if self._on_ws_broadcast is not None:
+                        try:
+                            await self._on_ws_broadcast({
+                                "id": doc.id,
+                                "title": doc.title,
+                                "source": {
+                                    "source_name": doc.source_feed,
+                                    "source_category": doc.source_category,
+                                },
+                                "content_quality": doc.content_quality,
+                                "ingested": doc.ingested.isoformat() if doc.ingested else None,
+                            })
+                        except Exception:
+                            pass  # WS broadcast is best-effort
                     logger.debug(
                         "consumer_persisted",
                         doc_id=doc.id,
