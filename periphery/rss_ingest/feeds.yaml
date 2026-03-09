@@ -1,0 +1,182 @@
+# Periphery RSS Ingest — Default Feed Configuration
+# Each feed has: url, category, poll_interval (seconds), priority (1=highest, 5=lowest)
+
+feeds:
+  # ── Government & Regulatory ──────────────────────────────────────────
+  - url: "https://www.federalregister.gov/documents/search.atom"
+    name: "US Federal Register"
+    category: "government"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://ofac.treasury.gov/system/files/126/ofac_rss.xml"
+    name: "OFAC Sanctions Updates"
+    category: "sanctions"
+    poll_interval: 900
+    priority: 1
+
+  - url: "https://www.consilium.europa.eu/en/press/press-releases/rss/?category=sanctions"
+    name: "EU Council Sanctions"
+    category: "sanctions"
+    poll_interval: 900
+    priority: 1
+
+  - url: "https://efts.sec.gov/LATEST/search-index?q=%22&dateRange=custom&startdt=2024-01-01&forms=10-K,10-Q,8-K&rss=true"
+    name: "SEC EDGAR Filings"
+    category: "government"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://www.govinfo.gov/rss/uscourts.xml"
+    name: "US Courts via GovInfo"
+    category: "government"
+    poll_interval: 900
+    priority: 3
+
+  - url: "https://www.treasury.gov/resource-center/sanctions/OFAC-Enforcement/Pages/OFAC-Recent-Actions.aspx?rss=true"
+    name: "Treasury OFAC Recent Actions"
+    category: "sanctions"
+    poll_interval: 900
+    priority: 1
+
+  # ── Cybersecurity ────────────────────────────────────────────────────
+  - url: "https://nvd.nist.gov/feeds/xml/cve/misc/nvd-rss.xml"
+    name: "NIST NVD CVE Feed"
+    category: "CVE"
+    poll_interval: 300
+    priority: 1
+
+  - url: "https://www.cisa.gov/cybersecurity-advisories/all.xml"
+    name: "CISA Cybersecurity Advisories"
+    category: "CVE"
+    poll_interval: 300
+    priority: 1
+
+  - url: "https://www.us-cert.gov/ncas/alerts.xml"
+    name: "US-CERT Alerts"
+    category: "CVE"
+    poll_interval: 300
+    priority: 1
+
+  - url: "https://krebsonsecurity.com/feed/"
+    name: "Krebs on Security"
+    category: "CVE"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://feeds.feedburner.com/TheHackersNews"
+    name: "The Hacker News"
+    category: "CVE"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://www.bleepingcomputer.com/feed/"
+    name: "Bleeping Computer"
+    category: "CVE"
+    poll_interval: 600
+    priority: 3
+
+  # ── News & Wire Services ─────────────────────────────────────────────
+  - url: "https://feeds.reuters.com/reuters/topNews"
+    name: "Reuters Top News"
+    category: "news"
+    poll_interval: 300
+    priority: 2
+
+  - url: "https://feeds.reuters.com/Reuters/worldNews"
+    name: "Reuters World News"
+    category: "news"
+    poll_interval: 300
+    priority: 2
+
+  - url: "https://rss.app/feeds/v1.1/tpGOD9mViIbDqiSr.xml"
+    name: "AP News Top Stories"
+    category: "news"
+    poll_interval: 300
+    priority: 2
+
+  - url: "https://www.aljazeera.com/xml/rss/all.xml"
+    name: "Al Jazeera"
+    category: "news"
+    poll_interval: 300
+    priority: 2
+
+  - url: "https://feeds.bbci.co.uk/news/world/rss.xml"
+    name: "BBC World News"
+    category: "news"
+    poll_interval: 300
+    priority: 2
+
+  - url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+    name: "NYT World"
+    category: "news"
+    poll_interval: 300
+    priority: 3
+
+  # ── Academic & Research ──────────────────────────────────────────────
+  - url: "https://rss.arxiv.org/rss/cs.AI"
+    name: "arXiv cs.AI"
+    category: "academic"
+    poll_interval: 3600
+    priority: 3
+
+  - url: "https://rss.arxiv.org/rss/cs.CR"
+    name: "arXiv cs.CR (Cryptography & Security)"
+    category: "academic"
+    poll_interval: 3600
+    priority: 3
+
+  - url: "https://rss.arxiv.org/rss/cs.CL"
+    name: "arXiv cs.CL (Computation & Language)"
+    category: "academic"
+    poll_interval: 3600
+    priority: 3
+
+  - url: "https://papers.ssrn.com/sol3/Jeljour_results.cfm?form_name=journalBrowse&journal_id=3526423&Network=no&lim=false&npage=1&SortOrder=ab_approval_date&stype=rss"
+    name: "SSRN Recent Papers"
+    category: "academic"
+    poll_interval: 3600
+    priority: 4
+
+  # ── Conflict & Geopolitical ──────────────────────────────────────────
+  - url: "https://reliefweb.int/updates/rss.xml"
+    name: "ReliefWeb (UN OCHA)"
+    category: "geopolitical"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://reliefweb.int/disasters/rss.xml"
+    name: "ReliefWeb Disasters"
+    category: "geopolitical"
+    poll_interval: 600
+    priority: 2
+
+  - url: "https://www.crisisgroup.org/rss.xml"
+    name: "International Crisis Group"
+    category: "geopolitical"
+    poll_interval: 1800
+    priority: 3
+
+  - url: "https://www.sipri.org/rss.xml"
+    name: "SIPRI (Peace Research)"
+    category: "geopolitical"
+    poll_interval: 3600
+    priority: 4
+
+  - url: "https://www.iiss.org/rss"
+    name: "IISS Strategic Analysis"
+    category: "geopolitical"
+    poll_interval: 3600
+    priority: 4
+
+  - url: "https://www.foreignaffairs.com/rss.xml"
+    name: "Foreign Affairs"
+    category: "geopolitical"
+    poll_interval: 1800
+    priority: 3
+
+  - url: "https://warontherocks.com/feed/"
+    name: "War on the Rocks"
+    category: "geopolitical"
+    poll_interval: 1800
+    priority: 3
