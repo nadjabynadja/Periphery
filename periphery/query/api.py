@@ -1,0 +1,417 @@
+"""Component 6 — API Endpoints for the Query Interface.
+
+Exposes the full analytical query pipeline, ontology snapshot, entity
+detail, cluster detail, query history, streaming, and analyst annotations
+through a FastAPI router.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+from typing import Any
+
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
+from periphery.query.models import (
+    AnalyticalQueryRequest,
+    AnalyticalQueryResponse,
+    StreamUpdate,
+)
+from periphery.query.renderer import ConfidenceRenderer, confidence_to_rendering
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["query-interface"])
+
+# Set by main.py during initialization
+_analytical_engine = None
+_crystallizer_worker = None
+
+
+def set_analytical_engine(engine) -> None:
+    global _analytical_engine
+    _analytical_engine = engine
+
+
+def set_crystallizer_worker(worker) -> None:
+    global _crystallizer_worker
+    _crystallizer_worker = worker
+
+
+def _get_engine():
+    assert _analytical_engine is not None, "Analytical query engine not initialized"
+    return _analytical_engine
+
+
+# ── Primary Query Endpoint ───────────────────────────────────────────────
+
+
+@router.post("/query", response_model=AnalyticalQueryResponse)
+async def analytical_query(request: AnalyticalQueryRequest):
+    """Execute a natural language analytical query against the living ontology.
+
+    This is the primary query endpoint. It resolves analytical intent,
+    executes multi-space retrieval, synthesizes results into a coherent
+    narrative, and returns everything with legibility gradient rendering.
+    """
+    engine = _get_engine()
+    return await engine.query(request)
+
+
+# ── Ontology Snapshot Endpoint ───────────────────────────────────────────
+
+
+@router.get("/snapshot")
+async def get_snapshot(
+    confidence_floor: float = Query(0.0, ge=0.0, le=1.0),
+    cluster_ids: str | None = Query(None, description="Comma-separated cluster IDs"),
+    include_rendering: bool = Query(True),
+):
+    """Return the current ontology snapshot for frontend graph rendering.
+
+    Filters by confidence floor and optional cluster IDs.
+    """
+    engine = _get_engine()
+    snapshot = engine.snapshot
+
+    if snapshot is None:
+        return {
+            "snapshot_id": None,
+            "generated_at": None,
+            "clusters": [],
+            "entities": [],
+            "relationships": [],
+            "trajectories": [],
+            "anomalies": [],
+            "emerging_structures": [],
+        }
+
+    renderer = ConfidenceRenderer()
+    filter_ids = set(cluster_ids.split(",")) if cluster_ids else None
+
+    # Filter clusters
+    clusters = snapshot.clusters
+    if filter_ids:
+        clusters = [c for c in clusters if c.cluster_id in filter_ids]
+    if confidence_floor > 0:
+        clusters = [c for c in clusters if c.confidence >= confidence_floor]
+
+    # Filter trajectories to matching clusters
+    cluster_id_set = {c.cluster_id for c in clusters}
+    trajectories = [
+        t for t in snapshot.trajectories
+        if t.cluster_id in cluster_id_set
+    ]
+
+    # Filter anomalies
+    anomalies = [a for a in snapshot.anomalies if not a.resolved]
+    if confidence_floor > 0:
+        anomalies = [a for a in anomalies if a.anomaly_score >= confidence_floor]
+
+    # Filter gradients to matching clusters
+    gradients = [
+        g for g in snapshot.relational_gradients
+        if g.source_cluster in cluster_id_set or g.target_cluster in cluster_id_set
+    ]
+
+    result: dict[str, Any] = {
+        "snapshot_id": snapshot.snapshot_id,
+        "generated_at": snapshot.generated_at.isoformat(),
+        "corpus_stats": snapshot.corpus_stats.model_dump(),
+    }
+
+    if include_rendering:
+        result["clusters"] = [
+            {
+                "cluster": c.model_dump(mode="json"),
+                "rendering": confidence_to_rendering(c.confidence).model_dump(),
+            }
+            for c in clusters
+        ]
+        result["trajectories"] = [
+            {
+                "trajectory": t.model_dump(mode="json"),
+                "rendering": confidence_to_rendering(t.confidence).model_dump(),
+            }
+            for t in trajectories
+        ]
+        result["anomalies"] = [
+            {
+                "anomaly": a.model_dump(mode="json"),
+                "rendering": confidence_to_rendering(min(1.0, a.anomaly_score)).model_dump(),
+            }
+            for a in anomalies
+        ]
+        result["relational_gradients"] = [
+            {
+                "gradient": g.model_dump(mode="json"),
+                "rendering": confidence_to_rendering(g.gradient_score).model_dump(),
+            }
+            for g in gradients
+        ]
+        result["emerging_structures"] = [
+            {
+                "structure": e.model_dump(mode="json"),
+                "rendering": confidence_to_rendering(e.formation_confidence).model_dump(),
+            }
+            for e in snapshot.emerging_structures
+        ]
+    else:
+        result["clusters"] = [c.model_dump(mode="json") for c in clusters]
+        result["trajectories"] = [t.model_dump(mode="json") for t in trajectories]
+        result["anomalies"] = [a.model_dump(mode="json") for a in anomalies]
+        result["relational_gradients"] = [g.model_dump(mode="json") for g in gradients]
+        result["emerging_structures"] = [
+            e.model_dump(mode="json") for e in snapshot.emerging_structures
+        ]
+
+    return result
+
+
+# ── Entity Detail Endpoint ───────────────────────────────────────────────
+
+
+@router.get("/entity/{canonical_id}")
+async def get_entity(canonical_id: str):
+    """Return full entity detail with relationships and cluster memberships."""
+    engine = _get_engine()
+    snapshot = engine.snapshot
+
+    if snapshot is None:
+        return {"error": "No snapshot available", "entity": None}
+
+    # Search for entity across clusters
+    cluster_memberships = []
+    relationships = []
+    source_documents: set[str] = set()
+
+    for cluster in snapshot.clusters:
+        for entity_name in cluster.key_entities:
+            if canonical_id in entity_name or entity_name in canonical_id:
+                cluster_memberships.append({
+                    "cluster_id": cluster.cluster_id,
+                    "label": cluster.label,
+                    "confidence": cluster.confidence,
+                    "size": cluster.size,
+                })
+                source_documents.update(cluster.member_document_ids[:10])
+                relationships.extend(cluster.key_relationships[:5])
+                break
+
+    entity_data = {
+        "canonical_id": canonical_id,
+        "cluster_memberships": cluster_memberships,
+        "relationships": relationships,
+        "source_documents": list(source_documents)[:50],
+        "rendering": confidence_to_rendering(
+            max((cm["confidence"] for cm in cluster_memberships), default=0.0)
+        ).model_dump(),
+    }
+
+    return {"entity": entity_data}
+
+
+# ── Cluster Detail Endpoint ──────────────────────────────────────────────
+
+
+@router.get("/cluster/{cluster_id}")
+async def get_cluster(cluster_id: str):
+    """Return full cluster detail with members, relationships, and trajectories."""
+    engine = _get_engine()
+    snapshot = engine.snapshot
+
+    if snapshot is None:
+        return {"error": "No snapshot available", "cluster": None}
+
+    target = None
+    for c in snapshot.clusters:
+        if c.cluster_id == cluster_id:
+            target = c
+            break
+
+    if target is None:
+        return {"error": f"Cluster {cluster_id} not found", "cluster": None}
+
+    # Find internal relationships (within cluster)
+    internal_rels = target.key_relationships
+
+    # Find external relationships (gradients to other clusters)
+    external_rels = [
+        {
+            "source": g.source_cluster,
+            "target": g.target_cluster,
+            "score": g.gradient_score,
+            "trend": g.gradient_trend,
+            "bridge_entities": g.components.bridge_entities,
+        }
+        for g in snapshot.relational_gradients
+        if g.source_cluster == cluster_id or g.target_cluster == cluster_id
+    ]
+
+    # Find trajectories
+    trajectories = [
+        t.model_dump(mode="json")
+        for t in snapshot.trajectories
+        if t.cluster_id == cluster_id
+    ]
+
+    return {
+        "cluster": target.model_dump(mode="json"),
+        "members": [
+            {"document_id": did} for did in target.member_document_ids
+        ],
+        "internal_relationships": internal_rels,
+        "external_relationships": external_rels,
+        "trajectories": trajectories,
+        "confidence": target.confidence,
+        "confidence_explanation": {
+            "cross_space_coherence": target.cross_space_coherence,
+            "density": target.density,
+            "stability": target.stability,
+            "status": target.status,
+        },
+        "rendering": confidence_to_rendering(target.confidence).model_dump(),
+    }
+
+
+# ── Query History Endpoint ───────────────────────────────────────────────
+
+
+@router.get("/history")
+async def get_query_history(
+    limit: int = Query(20, ge=1, le=100),
+    session_id: str | None = None,
+):
+    """Return recent query history."""
+    engine = _get_engine()
+    if engine.query_store is None:
+        return {"queries": [], "stats": {}}
+
+    queries = await engine.query_store.get_recent_queries(limit, session_id)
+    stats = await engine.query_store.get_query_stats()
+    return {"queries": queries, "stats": stats}
+
+
+# ── Feedback Endpoint ────────────────────────────────────────────────────
+
+
+@router.post("/feedback/{query_id}")
+async def submit_feedback(query_id: str, feedback: dict[str, Any]):
+    """Submit analyst feedback on a query result (thumbs up/down, notes)."""
+    engine = _get_engine()
+    if engine.query_store:
+        await engine.query_store.save_feedback(query_id, feedback)
+    return {"status": "ok", "query_id": query_id}
+
+
+# ── Bookmark Endpoint ────────────────────────────────────────────────────
+
+
+@router.post("/bookmark")
+async def create_bookmark(
+    query_id: str,
+    session_id: str,
+    label: str = "",
+):
+    """Bookmark a query for persistent monitoring."""
+    engine = _get_engine()
+    if engine.query_store:
+        await engine.query_store.save_bookmark(query_id, session_id, label)
+    return {"status": "ok", "query_id": query_id}
+
+
+@router.get("/bookmarks/{session_id}")
+async def get_bookmarks(session_id: str):
+    """List bookmarked queries for a session."""
+    engine = _get_engine()
+    if engine.query_store is None:
+        return {"bookmarks": []}
+    bookmarks = await engine.query_store.get_bookmarks(session_id)
+    return {"bookmarks": bookmarks}
+
+
+# ── Annotation Endpoint ──────────────────────────────────────────────────
+
+
+@router.post("/annotate")
+async def submit_annotation(body: dict[str, Any]):
+    """Submit an analyst annotation (entity merge, relationship confirmation, etc.).
+
+    Body format:
+    {
+        "annotation_type": "entity_merge" | "relationship_confirm" | "relationship_deny",
+        "target_type": "entity" | "relationship" | "cluster",
+        "target_id": str,
+        "data": dict,
+        "session_id": str
+    }
+    """
+    engine = _get_engine()
+    if engine.query_store:
+        await engine.query_store.save_annotation(
+            annotation_type=body.get("annotation_type", ""),
+            target_type=body.get("target_type", ""),
+            target_id=body.get("target_id", ""),
+            annotation_data=body.get("data", {}),
+            session_id=body.get("session_id", ""),
+        )
+    return {"status": "ok"}
+
+
+# ── Streaming Query Endpoint ─────────────────────────────────────────────
+
+
+@router.websocket("/query/{query_id}/stream")
+async def query_stream(websocket: WebSocket, query_id: str):
+    """WebSocket endpoint for real-time updates on a subscribed query.
+
+    After an analyst submits a query, the frontend can connect to this
+    WebSocket to receive live updates as new data flows in that's
+    relevant to the query's scope.
+    """
+    await websocket.accept()
+    engine = _get_engine()
+
+    logger.info("websocket_connected query_id=%s", query_id)
+
+    try:
+        while True:
+            # Check for updates relevant to this query
+            updates = engine.check_updates(query_id)
+            for update in updates:
+                await websocket.send_json(update)
+
+            # Also check for incoming messages (unsubscribe, ping)
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=5.0
+                )
+                if data == "unsubscribe":
+                    engine.unsubscribe(query_id)
+                    await websocket.send_json({"type": "unsubscribed", "query_id": query_id})
+                    break
+                elif data == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                # No incoming message — continue polling
+                pass
+
+    except WebSocketDisconnect:
+        logger.info("websocket_disconnected query_id=%s", query_id)
+        engine.unsubscribe(query_id)
+    except Exception:
+        logger.exception("websocket_error query_id=%s", query_id)
+        engine.unsubscribe(query_id)
+
+
+# ── Legibility Gradient Reference ────────────────────────────────────────
+
+
+@router.get("/legibility-gradient")
+async def get_legibility_gradient():
+    """Return the legibility gradient specification for frontend reference."""
+    from periphery.query.renderer import LEGIBILITY_GRADIENT
+    return {"gradient": LEGIBILITY_GRADIENT}
