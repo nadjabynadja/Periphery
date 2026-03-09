@@ -59,6 +59,22 @@ class Settings(BaseSettings):
     pipeline_consumer_restart_delay: float = 5.0
     pipeline_max_retries: int = 3
 
+    # Critic settings
+    critic_checkpoint_dir: str = "./data/critic_checkpoints"
+    critic_training_dir: str = "./data/critic_training"
+    critic_max_checkpoints: int = 5
+    critic_retraining_interval_runs: int = 10
+    critic_retraining_interval_hours: float = 24.0
+    critic_fine_tune_epochs: int = 20
+    critic_perturbation_variants: int = 4
+    critic_validation_split: float = 0.2
+    critic_initial_training_epochs: int = 50
+    critic_ensemble_weight_neural: float = 0.4
+    critic_ensemble_weight_source_diversity: float = 0.15
+    critic_ensemble_weight_temporal: float = 0.15
+    critic_ensemble_weight_cross_space: float = 0.15
+    critic_ensemble_weight_stability: float = 0.15
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

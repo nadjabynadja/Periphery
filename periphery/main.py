@@ -9,9 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from periphery.config import get_settings
-from periphery.critic.network import CoherenceNet
+from periphery.critic.network import CoherenceCritic, CoherenceNet
+from periphery.critic.persistence import CriticStore
+from periphery.critic.runner import CriticRunner
 from periphery.critic.scoring import score_all_clusters
-from periphery.critic.trainer import AdversarialTrainer
+from periphery.critic.trainer import AdversarialTrainer, CriticTrainer
 from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore, MultiSpaceIndexManager
@@ -29,6 +31,10 @@ multi_space_manager: MultiSpaceIndexManager | None = None
 worker: CrystallizerWorker | None = None
 coherence_net: CoherenceNet | None = None
 trainer: AdversarialTrainer | None = None
+critic_model: CoherenceCritic | None = None
+critic_trainer: CriticTrainer | None = None
+critic_runner: CriticRunner | None = None
+critic_store: CriticStore | None = None
 pipeline_orchestrator: PipelineOrchestrator | None = None
 _pipeline_task: asyncio.Task | None = None
 
@@ -38,19 +44,30 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
     if coherence_net is None or trainer is None:
         return {}
 
-    # Train on current structure
+    # Legacy pair-based training
     train_results = trainer.train_multiple(vectors, labels, epochs=5)
     logger.info("Critic training: %s", train_results[-1] if train_results else "no results")
 
-    # Score all clusters
+    # Score all clusters (legacy)
     scores = score_all_clusters(coherence_net, vectors, labels)
+
+    # Run new Critic scoring on current snapshot if available
+    if critic_runner is not None and worker is not None and worker.current_snapshot is not None:
+        try:
+            await critic_runner.score_snapshot(worker.current_snapshot)
+            await critic_runner.maybe_retrain(worker.current_snapshot)
+        except Exception:
+            logger.exception("critic_runner_scoring_failed")
+
     return scores
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — initialize all layers on startup, cleanup on shutdown."""
-    global store, multi_space_manager, worker, coherence_net, trainer, pipeline_orchestrator, _pipeline_task
+    global store, multi_space_manager, worker, coherence_net, trainer
+    global critic_model, critic_trainer, critic_runner, critic_store
+    global pipeline_orchestrator, _pipeline_task
 
     settings = get_settings()
 
@@ -80,9 +97,49 @@ async def lifespan(app: FastAPI):
     set_store(store)
     documents = get_documents()
 
-    # Layer 3: Initialize critic network
+    # Layer 3: Initialize critic network (legacy pair-based)
     coherence_net = CoherenceNet(dim=dim)
     trainer = AdversarialTrainer(coherence_net, device=settings.device)
+
+    # Layer 3b: Initialize new Continuous Critic
+    ensemble_weights = {
+        "critic_neural": settings.critic_ensemble_weight_neural,
+        "source_diversity": settings.critic_ensemble_weight_source_diversity,
+        "temporal_consistency": settings.critic_ensemble_weight_temporal,
+        "cross_space_agreement": settings.critic_ensemble_weight_cross_space,
+        "stability": settings.critic_ensemble_weight_stability,
+    }
+
+    critic_model = CoherenceCritic()
+    critic_trainer = CriticTrainer(
+        model=critic_model,
+        device=settings.device,
+        checkpoint_dir=settings.critic_checkpoint_dir,
+        training_dir=settings.critic_training_dir,
+        max_checkpoints=settings.critic_max_checkpoints,
+    )
+
+    # Try to load existing checkpoint
+    checkpoint_result = critic_trainer.load_checkpoint()
+    if checkpoint_result.get("status") == "loaded":
+        logger.info("Loaded Critic checkpoint v%s", checkpoint_result.get("version"))
+
+    # Initialize critic persistence
+    critic_store = CriticStore(settings.crystallizer_db_path)
+    await critic_store.initialize()
+
+    critic_runner = CriticRunner(
+        model=critic_model,
+        trainer=critic_trainer,
+        store=critic_store,
+        device=settings.device,
+        retraining_interval_runs=settings.critic_retraining_interval_runs,
+        retraining_interval_hours=settings.critic_retraining_interval_hours,
+        fine_tune_epochs=settings.critic_fine_tune_epochs,
+        perturbation_variants=settings.critic_perturbation_variants,
+        ensemble_weights=ensemble_weights,
+    )
+    logger.info("Continuous Critic initialized")
 
     # Layer 2: Start crystallizer worker (full analytical engine)
     db_path = settings.pipeline_db_path
@@ -111,7 +168,10 @@ async def lifespan(app: FastAPI):
     from periphery.critic.router import set_critic_state
     set_critic_state({
         "model": coherence_net,
-        "trainer": trainer,
+        "legacy_trainer": trainer,
+        "trainer": critic_trainer,
+        "runner": critic_runner,
+        "critic_store": critic_store,
         "worker": worker,
         "store": store,
     })
