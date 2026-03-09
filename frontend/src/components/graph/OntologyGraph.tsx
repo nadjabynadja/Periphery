@@ -208,17 +208,18 @@ export function OntologyGraph() {
   useEffect(() => {
     if (!snapshot) return
 
-    const entities = snapshot.entities ?? []
+    const entities = snapshot?.entities ?? []
     const nodes = buildSimNodes(entities)
     const nodeMap = new Map(nodes.map((n) => [n.id, n]))
-    const links = buildSimLinks(snapshot.relationships, nodeMap ?? [])
+    const links = buildSimLinks(snapshot?.relationships ?? [], nodeMap)
 
     nodesRef.current = nodes
     linksRef.current = links
 
     // Compute cluster centroids for cluster force
+    const clusters = snapshot?.clusters ?? []
     const clusterCentroids = new Map<string, { x: number; y: number; count: number }>()
-    for (const cluster of snapshot.clusters) {
+    for (const cluster of clusters) {
       clusterCentroids.set(cluster.cluster_id, { x: 0, y: 0, count: 0 })
     }
 

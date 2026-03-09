@@ -1,4 +1,18 @@
-export { peripheryApi, wsManager, getCachedSnapshot, setCachedSnapshot, computeRendering } from './client'
+export {
+  peripheryApi,
+  wsManager,
+  getCachedSnapshot,
+  setCachedSnapshot,
+  computeRendering,
+  snapshotPWS,
+  onSnapshotUpdate,
+  onNewDocument,
+  subscribeToQuery,
+  getConnectionStatus,
+  onConnectionStatusChange,
+} from './client'
+export { PeripheryWebSocket } from './websocket'
+export type { WSMessage, MessageType } from './websocket'
 
 // Re-export all types explicitly
 export type {
