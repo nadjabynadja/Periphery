@@ -75,13 +75,21 @@ export interface DetectedCluster {
   label: string
   status: string // "forming" | "stable" | "growing" | "shrinking"
   confidence: number
-  member_ids: string[]
+  member_ids?: string[]
+  member_document_ids?: string[]
   key_entities: string[]
-  coherence_score: number
+  coherence_score?: number
+  cross_space_coherence?: number
+  size?: number
+  density?: number
+  stability?: number
   centroid_position?: number[]
+  centroid?: number[]
   geographic_footprint?: { lat: number; lon: number; name?: string }[]
-  formed_at: string
-  last_updated: string
+  geographic_center?: { lat: number; lon: number } | null
+  formed_at?: string
+  last_updated?: string
+  rendering?: RenderingMetadata
 }
 
 export interface Trajectory {
@@ -162,8 +170,11 @@ export interface QueryOptions {
 
 export interface AnalyticalQueryResponse {
   query_id: string
-  original_query: string
   parsed_intent: ParsedIntent
+  synthesis: SynthesisOutput
+  results: QueryResults
+  execution_stats: ExecutionStats
+  // Computed convenience accessors (populated by client adapter)
   narrative: string
   key_findings: Finding[]
   entities: EntityResult[]
@@ -177,13 +188,52 @@ export interface AnalyticalQueryResponse {
   processing_time_ms: number
 }
 
+export interface SynthesisOutput {
+  summary: string
+  analysis: string
+  confidence_assessment: string
+  key_findings: string[]
+  gaps_and_limitations: string[]
+  suggested_followups: string[]
+  sources_used: number
+  highest_confidence_finding: string
+  lowest_confidence_finding: string
+}
+
+export interface ExecutionStats {
+  total_time_ms: number
+  intent_parsing_ms: number
+  planning_ms: number
+  retrieval_ms: number
+  synthesis_ms: number
+  operations_executed: number
+  documents_searched: number
+  cached: boolean
+}
+
+export interface QueryResults {
+  entities: EntityResult[]
+  clusters: ClusterResult[]
+  relationships: RelationshipResult[]
+  trajectories: TrajectoryResult[]
+  anomalies: AnomalyResult[]
+  [key: string]: unknown
+}
+
 export interface ParsedIntent {
-  intent_type: string
-  entity_mentions: string[]
-  geographic_filter?: string
-  temporal_filter?: string
-  confidence_floor?: number
-  raw_interpretation: string
+  query_type: string
+  entities_referenced: string[]
+  entity_types_requested: string[]
+  relationships_requested: string[]
+  geographic_scope?: Record<string, unknown>
+  temporal_scope?: Record<string, unknown>
+  confidence_threshold: number
+  analytical_focus: string
+  implied_subqueries: string[]
+  clusters_likely_relevant: string[]
+  // Aliases for backward compat in UI
+  intent_type?: string
+  entity_mentions?: string[]
 }
 
 export interface Finding {

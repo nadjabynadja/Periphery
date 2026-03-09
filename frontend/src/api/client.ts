@@ -287,22 +287,24 @@ export const peripheryApi = {
   },
 
   // --- Query ---
-  query(
+  async query(
     text: string,
     options?: { top_k?: number; session_id?: string },
   ): Promise<AnalyticalQueryResponse> {
-    return requestWithRetry<AnalyticalQueryResponse>('/api/query', {
+    const raw = await requestWithRetry<any>('/api/query', {
       method: 'POST',
-      body: JSON.stringify({ question: text, ...options }),
+      body: JSON.stringify({ query: text, ...options }),
       timeout: QUERY_TIMEOUT,
     })
+    return adaptQueryResponse(raw)
   },
 
   // --- Query History ---
-  getQueryHistory(limit = 20, sessionId?: string): Promise<QueryHistoryEntry[]> {
+  async getQueryHistory(limit = 20, sessionId?: string): Promise<QueryHistoryEntry[]> {
     const params = new URLSearchParams({ limit: String(limit) })
     if (sessionId) params.set('session_id', sessionId)
-    return requestWithRetry<QueryHistoryEntry[]>(`/api/history?${params}`)
+    const res = await requestWithRetry<{ queries: QueryHistoryEntry[]; stats: Record<string, unknown> }>(`/api/history?${params}`)
+    return res.queries ?? []
   },
 
   // --- Pipeline Stats ---
@@ -404,6 +406,97 @@ export const peripheryApi = {
 // --- Helpers ---
 
 import type { Anomaly, EmergingStructure, Trajectory } from './types'
+
+/**
+ * Adapt the backend AnalyticalQueryResponse (which uses synthesis/results/execution_stats)
+ * into the flattened shape the frontend components expect.
+ */
+function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
+  const synthesis = raw.synthesis ?? {}
+  const results = raw.results ?? {}
+  const stats = raw.execution_stats ?? {}
+
+  // Map synthesis key_findings (strings) to Finding objects
+  const keyFindings = (synthesis.key_findings ?? []).map((text: string) => ({
+    text,
+    confidence: 0.5,
+    supporting_entity_ids: [],
+  }))
+
+  // Map backend EntityResult to frontend EntityResult shape
+  const entities = (results.entities ?? []).map((e: any) => ({
+    canonical_id: e.canonical_id ?? '',
+    name: e.name ?? '',
+    entity_type: e.type ?? e.entity_type ?? '',
+    confidence: e.confidence ?? 0,
+    relevance_score: e.relevance_score ?? 0,
+    source_count: e.source_documents?.length ?? e.source_count ?? 0,
+    temporal_context: e.temporal_context?.temporal_focus ?? e.temporal_context ?? '',
+  }))
+
+  // Map backend RelationshipResult to frontend shape
+  const relationships = (results.relationships ?? []).map((r: any) => ({
+    subject_name: r.subject?.name ?? r.subject_name ?? '',
+    predicate: r.predicate ?? '',
+    object_name: r.object?.name ?? r.object_name ?? '',
+    confidence: r.confidence ?? 0,
+    relevance_score: r.relevance_score ?? 0,
+    evidence_snippet: (r.evidence ?? [])[0] ?? r.evidence_snippet ?? '',
+  }))
+
+  // Map backend ClusterResult to frontend shape
+  const clusters = (results.clusters ?? []).map((c: any) => ({
+    cluster_id: c.cluster_id ?? '',
+    label: c.label ?? '',
+    confidence: c.confidence ?? 0,
+    relevance_score: c.relevance_score ?? 0,
+    member_count: c.size ?? c.member_count ?? 0,
+  }))
+
+  // Map backend TrajectoryResult
+  const trajectories = (results.trajectories ?? []).map((t: any) => ({
+    trajectory_id: t.trajectory_id ?? '',
+    cluster_label: t.cluster_label ?? '',
+    pattern: t.pattern ?? '',
+    velocity: t.velocity ?? 0,
+  }))
+
+  // Map backend AnomalyResult
+  const anomalies = (results.anomalies ?? []).map((a: any) => ({
+    anomaly_id: a.anomaly_id ?? '',
+    anomaly_type: a.type ?? a.anomaly_type ?? '',
+    anomaly_score: a.score ?? a.anomaly_score ?? 0,
+    description: a.description ?? '',
+  }))
+
+  const parsedIntent = {
+    ...raw.parsed_intent,
+    intent_type: raw.parsed_intent?.query_type ?? raw.parsed_intent?.intent_type ?? 'unknown',
+    entity_mentions: raw.parsed_intent?.entities_referenced ?? raw.parsed_intent?.entity_mentions ?? [],
+  }
+
+  return {
+    query_id: raw.query_id,
+    parsed_intent: parsedIntent,
+    synthesis,
+    results,
+    execution_stats: stats,
+    // Flattened convenience fields
+    narrative: synthesis.summary ?? '',
+    key_findings: keyFindings,
+    entities,
+    relationships,
+    clusters,
+    trajectories,
+    anomalies,
+    gaps: synthesis.gaps_and_limitations ?? [],
+    suggested_followups: synthesis.suggested_followups ?? [],
+    confidence: entities.length > 0
+      ? entities.reduce((sum: number, e: any) => sum + e.confidence, 0) / entities.length
+      : 0,
+    processing_time_ms: stats.total_time_ms ?? 0,
+  }
+}
 
 function convertLegacySnapshot(legacy: LegacyOntologySnapshot): OntologySnapshot {
   return {
