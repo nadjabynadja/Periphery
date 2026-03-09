@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     enrichment_llm_hourly_cap_usd: float = 5.0
     enrichment_llm_daily_cap_usd: float = 50.0
     enrichment_tier2_min_priority: int = 3
-    enrichment_tier3_min_priority: int = 1
+    enrichment_tier3_min_priority: int = 2
+    enrichment_llm_timeout_seconds: float = 30.0
+    enrichment_llm_max_tokens_per_request: int = 4000
     enrichment_geocoder: str = "nominatim"
     enrichment_geocode_rate_limit: float = 1.0
     enrichment_fuzzy_match_threshold: float = 0.88

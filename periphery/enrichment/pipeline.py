@@ -222,6 +222,7 @@ class EnrichmentPipeline:
 
         # Build enriched relationships
         relationships: list[EnrichedRelationship] = []
+        relationship_counts: dict[str, int] = {}
         for rel in doc.extracted_relationships:
             subj_key = f"{rel.subject_text}:{rel.subject_type}"
             obj_key = f"{rel.object_text}:{rel.object_type}"
@@ -231,13 +232,21 @@ class EnrichmentPipeline:
                 object_id=doc.resolved_entity_map.get(obj_key, rel.object_text),
                 confidence=rel.confidence,
                 extraction_tier=rel.extraction_tier,
+                extraction_method=rel.extraction_method,
                 temporal_context=doc.temporal_contexts.get(
                     f"{rel.subject_text}-{rel.predicate}-{rel.object_text}"
                 ),
+                temporal_qualifier=rel.temporal_qualifier,
                 evidence=rel.evidence,
+                implicit=rel.implicit,
+                co_occurrence_weight=rel.co_occurrence_weight,
                 credibility_tier=credibility_tier,
             )
             relationships.append(enriched_rel)
+
+            # Track tier counts
+            tier_key = f"tier_{rel.extraction_tier}"
+            relationship_counts[tier_key] = relationship_counts.get(tier_key, 0) + 1
 
         return EnrichedDocument(
             id=doc.id,
@@ -260,6 +269,8 @@ class EnrichmentPipeline:
                 enrichment_stages_completed=doc.enrichment_stages_completed,
                 enrichment_failures=doc.enrichment_failures,
                 processing_time_ms=elapsed_ms,
+                llm_enrichment_status=doc.llm_enrichment_status,
+                relationship_counts=relationship_counts,
             ),
         )
 
@@ -303,6 +314,8 @@ def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
             llm_model=settings.enrichment_llm_model,
             tier2_min_priority=settings.enrichment_tier2_min_priority,
             tier3_min_priority=settings.enrichment_tier3_min_priority,
+            llm_timeout_seconds=settings.enrichment_llm_timeout_seconds,
+            llm_max_tokens_per_request=settings.enrichment_llm_max_tokens_per_request,
         ),
         SourceCredibilityStage(),
         TemporalTaggingStage(),

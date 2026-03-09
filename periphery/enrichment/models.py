@@ -39,13 +39,18 @@ class ExtractedRelationship(BaseModel):
 
     subject_text: str
     subject_type: str
+    subject_canonical_id: Optional[str] = None
     predicate: str
     object_text: str
     object_type: str
+    object_canonical_id: Optional[str] = None
     confidence: float
     extraction_tier: int  # 1=co-occurrence, 2=dependency, 3=LLM
+    extraction_method: str = ""  # co_occurrence | dependency_parse | llm
+    temporal_qualifier: str = ""  # current | historical | speculative | unresolved
     evidence: str = ""
-    temporal_qualifier: str = ""  # current | historical | speculative
+    implicit: bool = False
+    co_occurrence_weight: Optional[float] = None  # only for Tier 1
 
 
 # ── Stage 3: Temporal Tagging ────────────────────────────────────────────
@@ -139,8 +144,12 @@ class EnrichedRelationship(BaseModel):
     object_id: str  # canonical entity ID
     confidence: float
     extraction_tier: int
+    extraction_method: str = ""
     temporal_context: Optional[TemporalContext] = None
+    temporal_qualifier: str = ""
     evidence: str = ""
+    implicit: bool = False
+    co_occurrence_weight: Optional[float] = None
     credibility_tier: int = 4
 
 
@@ -172,6 +181,8 @@ class EnrichmentMetadata(BaseModel):
     enrichment_stages_completed: list[str] = Field(default_factory=list)
     enrichment_failures: list[str] = Field(default_factory=list)
     processing_time_ms: int = 0
+    llm_enrichment_status: str = "skipped"  # pending | complete | skipped | budget_exhausted
+    relationship_counts: dict[str, int] = Field(default_factory=dict)  # tier -> count
 
 
 class EnrichedDocument(BaseModel):
@@ -195,6 +206,8 @@ class PipelineDocument(BaseModel):
     Gets transformed into EnrichedDocument at the end.
     """
 
+    model_config = {"arbitrary_types_allowed": True}
+
     id: str
     source_feed: str
     source_name: str = ""
@@ -212,6 +225,15 @@ class PipelineDocument(BaseModel):
     geospatial_data: dict[str, GeospatialData] = Field(default_factory=dict)
     source_credibility: Optional[SourceCredibility] = None
     resolved_entity_map: dict[str, str] = Field(default_factory=dict)
+
+    # SpaCy Doc object — shared between entity extraction and relationship extraction
+    spacy_doc: Any = None
+
+    # Crystallizer flag — documents flagged by the crystallizer get all tiers
+    crystallizer_priority_flag: bool = False
+
+    # LLM enrichment status tracking for async Tier 3
+    llm_enrichment_status: str = "skipped"  # pending | complete | skipped | budget_exhausted
 
     # Pipeline metadata
     enrichment_stages_completed: list[str] = Field(default_factory=list)
