@@ -73,6 +73,10 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
         set_current_snapshot(worker.current_snapshot)
         await broadcast_snapshot(worker.current_snapshot)
 
+    #await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA journal_mode=WAL")
+
+
     return scores
 
 
@@ -250,13 +254,15 @@ async def lifespan(app: FastAPI):
         stale_claim_timeout=settings.pipeline_stale_claim_timeout_seconds,
     )
 
+
     # Wire entity index from enrichment pipeline to analytical engine
-    for stage in enrichment_pipeline.stages:
+    for stage in enrichment_pipeline._stages:
         if hasattr(stage, 'entity_index'):
             analytical_engine._preprocessor._entity_index = stage.entity_index
             analytical_engine._retriever._entity_index = stage.entity_index
             logger.info("Wired entity index to analytical engine (%d entities)", len(stage.entity_index))
             break
+
 
     # Wire inter-stage notifications
     enrichment_consumer._on_advance = embedding_consumer.notify
@@ -282,7 +288,7 @@ async def lifespan(app: FastAPI):
             db_path=db_path,
         )
         await rss_daemon.start()
-
+        
         # Wire fast-path: queue consumer → enrichment consumer notification
         if rss_daemon.queue_consumer is not None:
             rss_daemon.queue_consumer._on_persist = enrichment_consumer.notify
@@ -321,6 +327,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     await worker.stop()
+    
     store.save()
     if multi_space_manager:
         multi_space_manager.save()
