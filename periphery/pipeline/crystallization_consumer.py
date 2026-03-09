@@ -39,7 +39,7 @@ class CrystallizationConsumer(StageConsumer):
         db_path: str,
         crystallizer_worker: CrystallizerWorker | None = None,
         *,
-        min_batch_threshold: int = 10,
+        min_batch_threshold: int = 1,
         **kwargs: Any,
     ) -> None:
         super().__init__(db_path, **kwargs)
@@ -93,10 +93,7 @@ class CrystallizationConsumer(StageConsumer):
                 batch_size=len(doc_ids),
                 stats=stats,
             )
+            return doc_ids
         except Exception:
             logger.exception("crystallization_failed", batch_size=len(doc_ids))
-            # Crystallization failure is not a per-document failure — the docs
-            # were already successfully embedded. Advance them so they don't
-            # accumulate as permanently failed.
-
-        return doc_ids
+            return doc_ids

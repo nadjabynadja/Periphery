@@ -76,17 +76,14 @@ async def get_snapshot(
     """
     engine = _get_engine()
     snapshot = engine.snapshot
-
+    if snapshot is None and _crystallizer_worker is not None:
+        snapshot = _crystallizer_worker.current_snapshot
     if snapshot is None:
         return {
             "snapshot_id": None,
             "generated_at": None,
             "clusters": [],
             "entities": [],
-            "relationships": [],
-            "trajectories": [],
-            "anomalies": [],
-            "emerging_structures": [],
         }
 
     renderer = ConfidenceRenderer()

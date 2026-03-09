@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     faiss_index_path: str = "data/faiss/index.bin"
     device: str = "cpu"
     crystallizer_interval: int = 300  # seconds
-    crystallizer_db_path: str = "./data/crystallizer.db"
+    crystallizer_db_path: str = "./data/periphery_documents.db"
     crystallizer_full_recluster_interval_docs: int = 100
     crystallizer_full_recluster_interval_seconds: int = 3600
     crystallizer_incremental_interval_seconds: int = 60
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     pipeline_embedding_poll_interval: float = 15.0
     pipeline_crystallization_batch_size: int = 50
     pipeline_crystallization_poll_interval: float = 30.0
-    pipeline_crystallization_min_batch: int = 10
+    pipeline_crystallization_min_batch: int = 1
     pipeline_stale_claim_timeout_seconds: float = 600.0
     pipeline_consumer_restart_delay: float = 5.0
     pipeline_max_retries: int = 3

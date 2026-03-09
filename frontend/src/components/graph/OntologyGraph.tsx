@@ -152,6 +152,8 @@ function buildSimNodes(entities: EntityNode[]): SimNode[] {
     cluster_ids: e.cluster_ids,
     tier: getTier(e.confidence),
     baseRadius: 6 + e.source_count * 0.5,
+    x: (Math.random() - 0.5) * 200,
+    y: (Math.random() - 0.5) * 200,
   }))
 }
 
@@ -206,9 +208,10 @@ export function OntologyGraph() {
   useEffect(() => {
     if (!snapshot) return
 
-    const nodes = buildSimNodes(snapshot.entities)
+    const entities = snapshot.entities ?? []
+    const nodes = buildSimNodes(entities)
     const nodeMap = new Map(nodes.map((n) => [n.id, n]))
-    const links = buildSimLinks(snapshot.relationships, nodeMap)
+    const links = buildSimLinks(snapshot.relationships, nodeMap ?? [])
 
     nodesRef.current = nodes
     linksRef.current = links

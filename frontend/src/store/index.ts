@@ -92,9 +92,9 @@ export interface GraphSettings {
 
 const defaultGraphSettings: GraphSettings = {
   linkStrength: 0.5,
-  chargeStrength: -30,
-  centerStrength: 0.1,
-  collideRadius: 4,
+  chargeStrength: -15,
+  centerStrength: 0.5,
+  collideRadius: 2,
   clusterForce: 0.3,
   showLabels: true,
   showEdgeLabels: false,

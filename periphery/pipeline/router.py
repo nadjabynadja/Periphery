@@ -56,7 +56,7 @@ async def embedding_stats() -> dict[str, Any]:
     # Completeness distribution from SQLite
     if _orchestrator is not None:
         db_path = _orchestrator._db_path
-        async with get_connection(self_db_path) as db:
+        async with get_connection(db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
             # Total embedded

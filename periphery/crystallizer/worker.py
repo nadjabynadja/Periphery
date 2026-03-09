@@ -246,9 +246,12 @@ class CrystallizerWorker:
             self._docs_since_last_full = 0
         else:
             # Incremental: predict new points against existing clusters
-            self._cluster_engine.predict_incremental(space_vectors)
+            incremental_results = self._cluster_engine.predict_incremental(space_vectors)
+            for space, (labels, strengths) in incremental_results.items():
+                clusterer = self._cluster_engine.clusterers.get(space)
+                if clusterer is not None:
+                    clusterer._labels = labels
             cluster_stats = {"mode": "incremental"}
-
         # Phase 3: Cross-space correlation
         correlations = self._cluster_engine.correlate_clusters(space_doc_ids)
 
@@ -258,10 +261,16 @@ class CrystallizerWorker:
         )
 
         # Phase 5: Build detected clusters
-        detected_clusters = self._build_detected_clusters(
-            correlations, space_vectors, space_doc_ids,
-            doc_entities, doc_relationships,
-        )
+        try:
+            detected_clusters = self._build_detected_clusters(
+                correlations, space_vectors, space_doc_ids,
+                doc_entities, doc_relationships,
+            )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"BUILD DETECTED CLUSTERS FAILED: {type(e).__name__}: {e}", flush=True)
+            raise
 
         # Phase 6: Cluster lifecycle tracking
         self._track_cluster_lifecycle(detected_clusters)
@@ -324,16 +333,13 @@ class CrystallizerWorker:
             noise_doc_ids, space_vectors, space_doc_ids, all_centroids,
         )
 
-        # Phase 11: Run critic scoring if available
+        
+#         Phase 11: Run critic scoring if available
         coherence_scores = {}
         if self.on_crystallize and "semantic" in space_vectors:
             semantic_vectors = space_vectors["semantic"]
             semantic_clusterer = self._cluster_engine.clusterers.get("semantic")
-            if semantic_clusterer and semantic_clusterer.labels is not None:
-                coherence_scores = await self.on_crystallize(
-                    semantic_vectors, semantic_clusterer.labels
-                )
-
+            
         # Phase 12: Build legacy cluster objects for backward compatibility
         self._build_legacy_clusters(
             space_vectors, space_doc_ids, coherence_scores,
@@ -481,8 +487,7 @@ class CrystallizerWorker:
 
     def _should_full_recluster(self) -> bool:
         """Determine if a full reclustering is needed."""
-        if self._last_full_recluster is None:
-            return True
+        return True
 
         if self._docs_since_last_full >= self._full_recluster_interval_docs:
             return True
@@ -576,7 +581,7 @@ class CrystallizerWorker:
                 centroid=centroid,
                 label=label,
                 status=status,
-                key_entities=[e.get("text", "") for e in key_ents[:10]],
+                key_entities=key_ents[:10],
                 key_relationships=key_rels[:5],
             )
 
@@ -720,7 +725,7 @@ class CrystallizerWorker:
             from periphery.db import get_connection
 
             db_path = self._store_db._db_path
-            async with get_connection(self_db_path) as db:
+            async with get_connection(db_path) as db:
                 await db.execute("PRAGMA journal_mode=WAL")
 
                 cursor = await db.execute(
