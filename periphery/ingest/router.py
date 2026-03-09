@@ -94,15 +94,18 @@ async def ingest_file(
 @router.post("/search", response_model=list[SearchResult])
 async def search(request: SearchRequest):
     """Search the embedding space by natural language query."""
-    store = get_store()
-    query_vec = embedder.embed([request.query])
-    results = store.search(query_vec[0], top_k=request.top_k)
+    from periphery.query.router import get_engine
 
-    return [
-        SearchResult(document=_documents[doc_id], score=score)
-        for doc_id, score in results
-        if doc_id in _documents
-    ]
+    engine = get_engine()
+    query_vec = embedder.embed([request.query])
+    results = engine.store.search(query_vec[0], top_k=request.top_k)
+
+    sources = []
+    for doc_id, score in results:
+        doc = await engine._resolve_document(doc_id)
+        if doc:
+            sources.append(SearchResult(document=doc, score=float(score)))
+    return sources
 
 
 @router.get("/stats")

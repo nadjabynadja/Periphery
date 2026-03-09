@@ -5,6 +5,7 @@ from periphery.models import (
 )
 from periphery.ingest import embedder
 
+
 router = APIRouter(prefix="/query", tags=["query"])
 
 # Set by main.py
@@ -31,16 +32,14 @@ async def query(request: QueryRequest):
 @router.post("/similar", response_model=list[SearchResult])
 async def find_similar(request: SearchRequest):
     """Find similar documents without Claude synthesis (pure vector search)."""
-    from periphery.ingest.router import get_store, get_documents
-
-    store = get_store()
-    documents = get_documents()
+    engine = get_engine()
 
     query_vec = embedder.embed([request.query])
-    results = store.search(query_vec[0], top_k=request.top_k)
+    results = engine.store.search(query_vec[0], top_k=request.top_k)
 
-    return [
-        SearchResult(document=documents[doc_id], score=score)
-        for doc_id, score in results
-        if doc_id in documents
-    ]
+    sources = []
+    for doc_id, score in results:
+        doc = await engine._resolve_document(doc_id)
+        if doc:
+            sources.append(SearchResult(document=doc, score=float(score)))
+    return sources
