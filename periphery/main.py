@@ -84,11 +84,23 @@ async def lifespan(app: FastAPI):
     coherence_net = CoherenceNet(dim=dim)
     trainer = AdversarialTrainer(coherence_net, device=settings.device)
 
-    # Layer 2: Start crystallizer worker
+    # Layer 2: Start crystallizer worker (full analytical engine)
+    db_path = settings.pipeline_db_path
     worker = CrystallizerWorker(
         store=store,
         documents=documents,
         interval=settings.crystallizer_interval,
+        multi_space_manager=multi_space_manager,
+        db_path=settings.crystallizer_db_path,
+        full_recluster_interval_docs=settings.crystallizer_full_recluster_interval_docs,
+        full_recluster_interval_seconds=settings.crystallizer_full_recluster_interval_seconds,
+        incremental_update_interval_seconds=settings.crystallizer_incremental_interval_seconds,
+        min_cluster_size=settings.crystallizer_min_cluster_size,
+        min_samples=settings.crystallizer_min_samples,
+        cluster_selection_epsilon=settings.crystallizer_cluster_selection_epsilon,
+        trajectory_min_snapshots=settings.crystallizer_trajectory_min_snapshots,
+        auto_label_with_llm=settings.crystallizer_auto_label_with_llm,
+        anthropic_api_key=settings.anthropic_api_key,
     )
     worker.on_crystallize = critic_callback
 
@@ -116,7 +128,6 @@ async def lifespan(app: FastAPI):
     set_engine(engine)
 
     # Layer 5: Initialize processing pipeline
-    db_path = settings.pipeline_db_path
     enrichment_pipeline = build_enrichment_pipeline(settings)
     enrichment_consumer = EnrichmentConsumer(
         db_path,

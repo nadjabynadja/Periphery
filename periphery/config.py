@@ -9,6 +9,16 @@ class Settings(BaseSettings):
     faiss_index_path: str = "data/faiss/index.bin"
     device: str = "cpu"
     crystallizer_interval: int = 300  # seconds
+    crystallizer_db_path: str = "./data/crystallizer.db"
+    crystallizer_full_recluster_interval_docs: int = 100
+    crystallizer_full_recluster_interval_seconds: int = 3600
+    crystallizer_incremental_interval_seconds: int = 60
+    crystallizer_min_cluster_size: int = 5
+    crystallizer_min_samples: int = 3
+    crystallizer_cluster_selection_epsilon: float = 0.0
+    crystallizer_trajectory_min_snapshots: int = 5
+    crystallizer_auto_label_with_llm: bool = True
+    crystallizer_auto_label_budget_hourly_usd: float = 2.0
 
     # Enrichment pipeline settings
     enrichment_concurrency: int = 4
