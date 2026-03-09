@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     enrichment_llm_max_tokens_per_request: int = 4000
     enrichment_geocoder: str = "nominatim"
     enrichment_geocode_rate_limit: float = 1.0
+    enrichment_geocode_cache_db: str = "./data/geocoding_cache.db"
+    enrichment_geonames_db: str = "./data/geonames.db"
+    enrichment_geospatial_seed_file: str = "./data/geospatial_seeds.json"
     enrichment_fuzzy_match_threshold: float = 0.88
 
     # Processing pipeline settings
