@@ -22,6 +22,7 @@ from periphery.pipeline.embedding_consumer import EmbeddingConsumer
 from periphery.enrichment.pipeline import build_enrichment_pipeline
 from periphery.pipeline.enrichment_consumer import EnrichmentConsumer
 from periphery.pipeline.orchestrator import PipelineOrchestrator
+from periphery.query.analytical_engine import AnalyticalQueryEngine
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ critic_trainer: CriticTrainer | None = None
 critic_runner: CriticRunner | None = None
 critic_store: CriticStore | None = None
 pipeline_orchestrator: PipelineOrchestrator | None = None
+analytical_engine: AnalyticalQueryEngine | None = None
 _pipeline_task: asyncio.Task | None = None
 
 
@@ -59,6 +61,10 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
         except Exception:
             logger.exception("critic_runner_scoring_failed")
 
+    # Keep the analytical query engine's snapshot in sync
+    if analytical_engine is not None and worker is not None:
+        analytical_engine.snapshot = worker.current_snapshot
+
     return scores
 
 
@@ -67,7 +73,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan — initialize all layers on startup, cleanup on shutdown."""
     global store, multi_space_manager, worker, coherence_net, trainer
     global critic_model, critic_trainer, critic_runner, critic_store
-    global pipeline_orchestrator, _pipeline_task
+    global pipeline_orchestrator, analytical_engine, _pipeline_task
 
     settings = get_settings()
 
@@ -176,7 +182,7 @@ async def lifespan(app: FastAPI):
         "store": store,
     })
 
-    # Layer 4: Initialize query engine
+    # Layer 4: Initialize query engine (legacy)
     from periphery.query.engine import QueryEngine
     from periphery.query.router import set_engine
     engine = QueryEngine(
@@ -186,6 +192,23 @@ async def lifespan(app: FastAPI):
         db_path=db_path,
     )
     set_engine(engine)
+
+    # Layer 4b: Initialize analytical query engine (new NLP-powered pipeline)
+    from periphery.query.api import set_analytical_engine, set_crystallizer_worker
+    analytical_engine = AnalyticalQueryEngine(
+        faiss_store=store,
+        multi_space=multi_space_manager,
+        entity_index=None,  # wired below after enrichment pipeline is built
+        anthropic_api_key=settings.anthropic_api_key,
+        db_path=db_path,
+        llm_model=settings.enrichment_llm_model,
+    )
+    # Seed the snapshot from the crystallizer
+    analytical_engine.snapshot = worker.current_snapshot
+    await analytical_engine.initialize()
+    set_analytical_engine(analytical_engine)
+    set_crystallizer_worker(worker)
+    logger.info("Analytical query engine initialized")
 
     # Layer 5: Initialize processing pipeline
     enrichment_pipeline = build_enrichment_pipeline(settings)
@@ -215,6 +238,14 @@ async def lifespan(app: FastAPI):
         max_retries=settings.pipeline_max_retries,
         stale_claim_timeout=settings.pipeline_stale_claim_timeout_seconds,
     )
+
+    # Wire entity index from enrichment pipeline to analytical engine
+    for stage in enrichment_pipeline.stages:
+        if hasattr(stage, 'entity_index'):
+            analytical_engine._preprocessor._entity_index = stage.entity_index
+            analytical_engine._retriever._entity_index = stage.entity_index
+            logger.info("Wired entity index to analytical engine (%d entities)", len(stage.entity_index))
+            break
 
     # Wire inter-stage notifications
     enrichment_consumer._on_advance = embedding_consumer.notify
@@ -279,12 +310,14 @@ from periphery.ingest.router import router as ingest_router
 from periphery.crystallizer.router import router as crystallizer_router
 from periphery.critic.router import router as critic_router
 from periphery.query.router import router as query_router
+from periphery.query.api import router as query_api_router
 from periphery.pipeline.router import router as pipeline_router
 
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
 app.include_router(critic_router)
 app.include_router(query_router)
+app.include_router(query_api_router)
 app.include_router(pipeline_router)
 
 
@@ -299,6 +332,7 @@ async def root():
             "crystallizer": "/crystallizer",
             "critic": "/critic",
             "query": "/query",
+            "api": "/api",
             "pipeline": "/pipeline",
         },
     }
