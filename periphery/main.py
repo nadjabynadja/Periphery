@@ -14,7 +14,7 @@ from periphery.critic.scoring import score_all_clusters
 from periphery.critic.trainer import AdversarialTrainer
 from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.ingest import embedder
-from periphery.ingest.store import FAISSStore
+from periphery.ingest.store import FAISSStore, MultiSpaceIndexManager
 from periphery.pipeline.crystallization_consumer import CrystallizationConsumer
 from periphery.pipeline.embedding_consumer import EmbeddingConsumer
 from periphery.enrichment.pipeline import build_enrichment_pipeline
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # App-level singletons
 store: FAISSStore | None = None
+multi_space_manager: MultiSpaceIndexManager | None = None
 worker: CrystallizerWorker | None = None
 coherence_net: CoherenceNet | None = None
 trainer: AdversarialTrainer | None = None
@@ -49,7 +50,7 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — initialize all layers on startup, cleanup on shutdown."""
-    global store, worker, coherence_net, trainer, pipeline_orchestrator, _pipeline_task
+    global store, multi_space_manager, worker, coherence_net, trainer, pipeline_orchestrator, _pipeline_task
 
     settings = get_settings()
 
@@ -58,6 +59,21 @@ async def lifespan(app: FastAPI):
     dim = embedder.get_dimension()
     store = FAISSStore(dim=dim, index_path=settings.faiss_index_path)
     logger.info("FAISS store ready (dim=%d, vectors=%d)", dim, store.total)
+
+    # Layer 1b: Initialize multi-space embedding indices
+    geo_dim = settings.embedding_geospatial_base_dim + settings.embedding_region_count
+    multi_space_manager = MultiSpaceIndexManager(
+        index_dir=settings.embedding_index_dir,
+        rebuild_interval=settings.embedding_rebuild_interval,
+    )
+    multi_space_manager.initialize({
+        "semantic": dim,
+        "entity": dim,
+        "relational": dim,
+        "temporal": settings.embedding_temporal_dim,
+        "geospatial": geo_dim,
+    })
+    logger.info("Multi-space indices ready: %s", multi_space_manager.stats())
 
     # Wire up ingest router
     from periphery.ingest.router import set_store, get_documents
@@ -113,6 +129,7 @@ async def lifespan(app: FastAPI):
     embedding_consumer = EmbeddingConsumer(
         db_path,
         faiss_store=store,
+        multi_space_manager=multi_space_manager,
         batch_size=settings.pipeline_embedding_batch_size,
         poll_interval=settings.pipeline_embedding_poll_interval,
         max_retries=settings.pipeline_max_retries,
@@ -138,8 +155,9 @@ async def lifespan(app: FastAPI):
         restart_delay=settings.pipeline_consumer_restart_delay,
     )
 
-    from periphery.pipeline.router import set_orchestrator
+    from periphery.pipeline.router import set_orchestrator, set_multi_space_manager
     set_orchestrator(pipeline_orchestrator)
+    set_multi_space_manager(multi_space_manager)
 
     # Start background crystallizer
     await worker.start()
@@ -164,6 +182,8 @@ async def lifespan(app: FastAPI):
             pass
     await worker.stop()
     store.save()
+    if multi_space_manager:
+        multi_space_manager.save()
     logger.info("Periphery system shut down")
 
 
