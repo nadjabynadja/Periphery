@@ -72,7 +72,14 @@ class CrystallizationConsumer(StageConsumer):
     async def process(
         self, db: aiosqlite.Connection, doc_rows: list[dict[str, Any]]
     ) -> list[str]:
-        """Trigger crystallization for the batch of embedded documents."""
+        """Trigger crystallization for the batch of embedded documents.
+
+        Crystallization is a global operation over the entire embedding space,
+        not a per-document transformation. If the crystallizer encounters an
+        error, the documents themselves are not at fault — they have already
+        been successfully embedded. We still advance them so they don't get
+        permanently stuck as 'failed'.
+        """
         if self._worker is None:
             logger.warning("crystallizer_worker_not_configured")
             return []
@@ -86,7 +93,10 @@ class CrystallizationConsumer(StageConsumer):
                 batch_size=len(doc_ids),
                 stats=stats,
             )
-            return doc_ids
         except Exception:
             logger.exception("crystallization_failed", batch_size=len(doc_ids))
-            return []
+            # Crystallization failure is not a per-document failure — the docs
+            # were already successfully embedded. Advance them so they don't
+            # accumulate as permanently failed.
+
+        return doc_ids

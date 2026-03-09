@@ -180,12 +180,17 @@ class StageConsumer(abc.ABC):
 
             elapsed = time.monotonic() - start
 
+            # Normalize success_ids to a set of strings for robust matching
+            if success_ids is None:
+                success_ids = []
+            success_set = set(str(sid) for sid in success_ids)
+
             # Advance successful documents
             for doc in claimed:
-                doc_id = doc["id"]
-                if doc_id in success_ids:
+                doc_id = str(doc["id"])
+                if doc_id in success_set:
                     await self._advance(db, doc_id)
-                    self._docs_processed_times.append(elapsed / len(success_ids))
+                    self._docs_processed_times.append(elapsed / max(len(success_set), 1))
                     self._docs_processed_last_hour += 1
                 else:
                     await self._handle_failure(

@@ -391,6 +391,7 @@ class CrystallizerWorker:
 
     async def _crystallize_legacy(self) -> dict:
         """Legacy single-space crystallization for backward compatibility."""
+        start_time = time.monotonic()
         vectors = self.store.get_all_vectors()
         if vectors.shape[0] < 2:
             return {"status": "skipped", "reason": "insufficient_data"}
@@ -426,6 +427,56 @@ class CrystallizerWorker:
         self.graph.build_from_clusters(docs, doc_ids, labels, vectors, coherence_scores)
 
         self.last_run = datetime.now(timezone.utc)
+
+        # Build and persist a living ontology snapshot (same as multi-space path)
+        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+        detected_clusters = [
+            DetectedCluster(
+                cluster_id=f"semantic_{cid}",
+                primary_space="semantic",
+                size=len(members),
+                member_document_ids=members,
+                label=f"Cluster {cid} ({len(members)} documents)",
+                status="stable",
+            )
+            for cid, members in cluster_map.items()
+        ]
+
+        noise_count = int(np.sum(labels == -1))
+        anomalies: list[Anomaly] = []
+        for i, label in enumerate(labels):
+            if int(label) == -1:
+                anomalies.append(Anomaly(
+                    anomaly_id=f"legacy_noise_{doc_ids[i][:8]}",
+                    document_id=doc_ids[i],
+                    anomaly_type="structural",
+                    anomaly_score=0.5,
+                    outlier_spaces=["semantic"],
+                ))
+
+        snapshot = LivingOntologySnapshot(
+            snapshot_id=str(uuid.uuid4())[:16],
+            generated_at=datetime.now(timezone.utc),
+            corpus_stats=CorpusStats(
+                total_documents=len(doc_ids),
+                total_entities=0,
+                total_relationships=0,
+                documents_since_last_snapshot=self._docs_since_last_full,
+            ),
+            clusters=detected_clusters,
+            anomalies=anomalies[:100],
+            processing_time_ms=elapsed_ms,
+        )
+        self._current_snapshot = snapshot
+
+        if self._store_db:
+            try:
+                await self._store_db.save_snapshot(snapshot)
+                await self._store_db.save_clusters_batch(detected_clusters)
+                await self._store_db.save_anomalies_batch(anomalies[:100])
+            except Exception:
+                logger.exception("legacy_crystallizer_persist_failed")
+
         return stats
 
     def _should_full_recluster(self) -> bool:
