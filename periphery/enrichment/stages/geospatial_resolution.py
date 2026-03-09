@@ -123,6 +123,25 @@ class GeocodingCache:
         self._db = sqlite3.connect(str(path))
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA busy_timeout=5000")
+        self._db.execute("""
+            CREATE TABLE IF NOT EXISTS geocoding_cache (
+                location_text TEXT,
+                country_context TEXT DEFAULT '',
+                latitude FLOAT,
+                longitude FLOAT,
+                display_name TEXT DEFAULT '',
+                location_type TEXT DEFAULT '',
+                bounding_box JSON,
+                hierarchy JSON,
+                confidence FLOAT DEFAULT 0.0,
+                source TEXT DEFAULT '',
+                candidates JSON,
+                needs_crystallizer_resolution INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (location_text, country_context)
+            )
+        """)
+        self._db.commit()
     def get(self, location: str, country_context: str = "") -> GeospatialData | None:
         """Look up a location in cache (memory first, then SQLite).
 
