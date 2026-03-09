@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     rss_queue_maxsize: int = 10_000
 
     # CORS settings
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:8000"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
