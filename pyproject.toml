@@ -14,6 +14,12 @@ dependencies = [
     "torch>=2.2",
     "anthropic>=0.25",
     "python-multipart>=0.0.9",
+    "aiohttp>=3.9",
+    "feedparser>=6.0",
+    "trafilatura>=1.6",
+    "beautifulsoup4>=4.12",
+    "structlog>=24.1",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
