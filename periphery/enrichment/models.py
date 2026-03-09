@@ -71,22 +71,82 @@ class TemporalContext(BaseModel):
 
 
 class GeoCandidate(BaseModel):
-    """A candidate geocoding result."""
+    """A candidate geocoding result for ambiguous locations."""
 
     latitude: float
     longitude: float
     display_name: str
     confidence: float
+    population: Optional[int] = None
+
+
+class GeoHierarchy(BaseModel):
+    """Hierarchical geographic containment."""
+
+    city: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    continent: Optional[str] = None
+
+
+class BoundingBox(BaseModel):
+    """Geographic bounding box for area entities."""
+
+    north: float
+    south: float
+    east: float
+    west: float
 
 
 class GeospatialData(BaseModel):
     """Geospatial metadata for location entities."""
 
+    resolved: bool = False
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    resolution_confidence: float = 0.0
-    geo_candidates: list[GeoCandidate] = Field(default_factory=list)
-    geo_source: str = ""  # nominatim | geonames | context_inferred
+    display_name: str = ""
+    location_type: str = ""  # city | country | region | facility | maritime_chokepoint | etc.
+    bounding_box: Optional[BoundingBox] = None
+    hierarchy: GeoHierarchy = Field(default_factory=GeoHierarchy)
+    confidence: float = 0.0
+    geocoding_source: str = ""  # cache | geonames | nominatim
+    candidates: list[GeoCandidate] = Field(default_factory=list)
+    needs_crystallizer_resolution: bool = False
+    geocoding_pending: bool = False
+
+    # Legacy aliases for backward compatibility
+    @property
+    def resolution_confidence(self) -> float:
+        return self.confidence
+
+    @property
+    def geo_candidates(self) -> list[GeoCandidate]:
+        return self.candidates
+
+    @property
+    def geo_source(self) -> str:
+        return self.geocoding_source
+
+
+class RelationshipGeospatial(BaseModel):
+    """Spatial metadata for relationships between geocoded entities."""
+
+    distance_km: Optional[float] = None
+    cross_border: bool = False
+    subject_country: Optional[str] = None
+    object_country: Optional[str] = None
+    chokepoint_proximity: Optional[str] = None  # nearest chokepoint if path crosses one
+
+
+class DocumentGeospatialSummary(BaseModel):
+    """Document-level geospatial summary."""
+
+    locations_found: int = 0
+    locations_resolved: int = 0
+    geographic_centroid: Optional[dict] = None  # {"lat": float, "lon": float}
+    geographic_spread_km: Optional[float] = None
+    primary_region: Optional[str] = None
+    countries_referenced: list[str] = Field(default_factory=list)
 
 
 # ── Stage 5: Source Credibility ──────────────────────────────────────────
@@ -150,6 +210,7 @@ class EnrichedRelationship(BaseModel):
     evidence: str = ""
     implicit: bool = False
     co_occurrence_weight: Optional[float] = None
+    geospatial: Optional[RelationshipGeospatial] = None
     credibility_tier: int = 4
 
 
@@ -193,6 +254,7 @@ class EnrichedDocument(BaseModel):
     content: EnrichedDocumentContent
     entities: list[EnrichedEntity] = Field(default_factory=list)
     relationships: list[EnrichedRelationship] = Field(default_factory=list)
+    document_geospatial: Optional[DocumentGeospatialSummary] = None
     metadata: EnrichmentMetadata = Field(default_factory=EnrichmentMetadata)
 
 
@@ -223,6 +285,8 @@ class PipelineDocument(BaseModel):
     extracted_relationships: list[ExtractedRelationship] = Field(default_factory=list)
     temporal_contexts: dict[str, TemporalContext] = Field(default_factory=dict)
     geospatial_data: dict[str, GeospatialData] = Field(default_factory=dict)
+    document_geospatial: Optional[DocumentGeospatialSummary] = None
+    relationship_geospatial: dict[str, RelationshipGeospatial] = Field(default_factory=dict)
     source_credibility: Optional[SourceCredibility] = None
     resolved_entity_map: dict[str, str] = Field(default_factory=dict)
 

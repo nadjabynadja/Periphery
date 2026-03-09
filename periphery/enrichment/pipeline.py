@@ -240,6 +240,9 @@ class EnrichmentPipeline:
                 evidence=rel.evidence,
                 implicit=rel.implicit,
                 co_occurrence_weight=rel.co_occurrence_weight,
+                geospatial=doc.relationship_geospatial.get(
+                    f"{rel.subject_text}-{rel.predicate}-{rel.object_text}"
+                ),
                 credibility_tier=credibility_tier,
             )
             relationships.append(enriched_rel)
@@ -265,6 +268,7 @@ class EnrichmentPipeline:
             ),
             entities=entities,
             relationships=relationships,
+            document_geospatial=doc.document_geospatial,
             metadata=EnrichmentMetadata(
                 enrichment_stages_completed=doc.enrichment_stages_completed,
                 enrichment_failures=doc.enrichment_failures,
@@ -322,6 +326,9 @@ def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
         GeospatialResolutionStage(
             geocoder=settings.enrichment_geocoder,
             rate_limit_delay=settings.enrichment_geocode_rate_limit,
+            cache_db_path=settings.enrichment_geocode_cache_db,
+            geonames_db_path=settings.enrichment_geonames_db,
+            seed_file_path=settings.enrichment_geospatial_seed_file,
         ),
         EntityResolutionStage(
             fuzzy_threshold=settings.enrichment_fuzzy_match_threshold,

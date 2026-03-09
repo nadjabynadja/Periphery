@@ -11,13 +11,16 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from periphery.enrichment.budget import BudgetTracker
 from periphery.enrichment.models import (
+    BoundingBox,
     CanonicalEntity,
+    DocumentGeospatialSummary,
     EnrichedDocument,
     EnrichedEntity,
     EnrichedRelationship,
@@ -25,8 +28,10 @@ from periphery.enrichment.models import (
     ExtractedEntity,
     ExtractedRelationship,
     GeoCandidate,
+    GeoHierarchy,
     GeospatialData,
     PipelineDocument,
+    RelationshipGeospatial,
     SourceCredibility,
     TemporalContext,
 )
@@ -461,10 +466,11 @@ class TestModels:
 
     def test_geospatial_data(self):
         g = GeospatialData(
+            resolved=True,
             latitude=38.9072,
             longitude=-77.0369,
-            resolution_confidence=0.95,
-            geo_source="nominatim",
+            confidence=0.95,
+            geocoding_source="nominatim",
         )
         assert g.latitude == 38.9072
 
@@ -504,10 +510,11 @@ class TestGeocodingCache:
 
         cache = GeocodingCache()
         data = GeospatialData(
+            resolved=True,
             latitude=38.9,
             longitude=-77.0,
-            resolution_confidence=0.9,
-            geo_source="test",
+            confidence=0.9,
+            geocoding_source="test",
         )
         cache.put("Washington D.C.", data)
         assert cache.get("Washington D.C.") is not None
@@ -519,8 +526,804 @@ class TestGeocodingCache:
 
         cache = GeocodingCache()
         assert len(cache) == 0
-        cache.put("A", GeospatialData(geo_source="test"))
+        cache.put("A", GeospatialData(geocoding_source="test"))
         assert len(cache) == 1
+
+    def test_cache_with_country_context(self):
+        from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
+
+        cache = GeocodingCache()
+        data_russia = GeospatialData(
+            resolved=True,
+            latitude=59.93,
+            longitude=30.34,
+            confidence=1.0,
+            geocoding_source="test",
+        )
+        data_florida = GeospatialData(
+            resolved=True,
+            latitude=27.77,
+            longitude=-82.64,
+            confidence=1.0,
+            geocoding_source="test",
+        )
+        cache.put("St. Petersburg", data_russia, country_context="Russia")
+        cache.put("St. Petersburg", data_florida, country_context="United States")
+
+        result_russia = cache.get("St. Petersburg", "Russia")
+        result_us = cache.get("St. Petersburg", "United States")
+        assert result_russia is not None
+        assert result_us is not None
+        assert result_russia.latitude != result_us.latitude
+
+    def test_persistent_cache(self, tmp_path):
+        """Test SQLite-backed persistent cache."""
+        from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
+
+        db_path = str(tmp_path / "test_geocache.db")
+        cache = GeocodingCache(db_path=db_path)
+        data = GeospatialData(
+            resolved=True,
+            latitude=51.5074,
+            longitude=-0.1278,
+            display_name="London, UK",
+            location_type="city",
+            hierarchy=GeoHierarchy(city="London", country="United Kingdom", continent="Europe"),
+            confidence=1.0,
+            geocoding_source="test",
+        )
+        cache.put("London", data, country_context="United Kingdom")
+        cache.close()
+
+        # Reopen and verify persistence
+        cache2 = GeocodingCache(db_path=db_path)
+        result = cache2.get("London", "United Kingdom")
+        assert result is not None
+        assert result.latitude == 51.5074
+        assert result.display_name == "London, UK"
+        assert result.hierarchy.country == "United Kingdom"
+        cache2.close()
+
+    def test_seed_from_file(self):
+        """Test seeding cache from the geospatial_seeds.json file."""
+        from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
+
+        seed_path = Path(__file__).parent.parent / "data" / "geospatial_seeds.json"
+        if not seed_path.exists():
+            pytest.skip("Seed file not found")
+
+        cache = GeocodingCache()
+        count = cache.seed_from_file(str(seed_path))
+        assert count > 100  # Should have 200+ entries
+
+        # Check some well-known locations
+        dc = cache.get("Washington D.C.")
+        assert dc is not None
+        assert dc.resolved is True
+        assert abs(dc.latitude - 38.9072) < 0.01
+
+        hormuz = cache.get("Strait of Hormuz")
+        assert hormuz is not None
+        assert hormuz.location_type == "maritime_chokepoint"
+        assert hormuz.bounding_box is not None
+
+        kremlin = cache.get("Kremlin")
+        assert kremlin is not None
+        assert kremlin.location_type == "facility"
+
+
+# ── Geospatial Model Tests ───────────────────────────────────────────────
+
+
+class TestGeospatialModels:
+    def test_geospatial_data_full(self):
+        g = GeospatialData(
+            resolved=True,
+            latitude=33.8938,
+            longitude=35.5018,
+            display_name="Beirut, Lebanon",
+            location_type="city",
+            bounding_box=BoundingBox(north=33.92, south=33.87, east=35.53, west=35.47),
+            hierarchy=GeoHierarchy(
+                city="Beirut", region="Beirut Governorate",
+                country="Lebanon", continent="Asia"
+            ),
+            confidence=0.95,
+            geocoding_source="cache",
+            needs_crystallizer_resolution=False,
+        )
+        assert g.resolved is True
+        assert g.location_type == "city"
+        assert g.hierarchy.country == "Lebanon"
+        assert g.bounding_box.north == 33.92
+
+    def test_geospatial_data_legacy_properties(self):
+        """Legacy property aliases still work."""
+        g = GeospatialData(
+            confidence=0.9,
+            geocoding_source="nominatim",
+            candidates=[
+                GeoCandidate(latitude=1.0, longitude=2.0, display_name="A", confidence=0.8)
+            ],
+        )
+        assert g.resolution_confidence == 0.9
+        assert g.geo_source == "nominatim"
+        assert len(g.geo_candidates) == 1
+
+    def test_geo_candidate_with_population(self):
+        c = GeoCandidate(
+            latitude=39.78, longitude=-89.65,
+            display_name="Springfield, IL",
+            confidence=0.3, population=114394,
+        )
+        assert c.population == 114394
+
+    def test_document_geospatial_summary(self):
+        s = DocumentGeospatialSummary(
+            locations_found=5,
+            locations_resolved=4,
+            geographic_centroid={"lat": 33.5, "lon": 36.0},
+            geographic_spread_km=250.0,
+            primary_region="Middle East",
+            countries_referenced=["Lebanon", "Syria"],
+        )
+        assert s.locations_found == 5
+        assert len(s.countries_referenced) == 2
+
+    def test_relationship_geospatial(self):
+        r = RelationshipGeospatial(
+            distance_km=350.5,
+            cross_border=True,
+            subject_country="Lebanon",
+            object_country="Syria",
+            chokepoint_proximity="Suez Canal (800km)",
+        )
+        assert r.cross_border is True
+        assert r.distance_km == 350.5
+
+    def test_bounding_box(self):
+        bb = BoundingBox(north=33.92, south=33.87, east=35.53, west=35.47)
+        assert bb.north > bb.south
+        assert bb.east > bb.west
+
+    def test_enriched_document_has_document_geospatial(self):
+        doc = EnrichedDocument(
+            id="test",
+            source={"feed_url": "x", "source_name": "y", "source_category": "z"},
+            content={"title": "t", "full_text": "f", "url": "u"},
+            document_geospatial=DocumentGeospatialSummary(
+                locations_found=3, locations_resolved=2,
+                countries_referenced=["Syria"],
+            ),
+        )
+        assert doc.document_geospatial is not None
+        assert doc.document_geospatial.locations_found == 3
+
+    def test_enriched_relationship_has_geospatial(self):
+        rel = EnrichedRelationship(
+            subject_id="ent-1", predicate="sanctioned_by", object_id="ent-2",
+            confidence=0.9, extraction_tier=2,
+            geospatial=RelationshipGeospatial(
+                distance_km=1500.0, cross_border=True,
+                subject_country="Iran", object_country="United States",
+            ),
+        )
+        assert rel.geospatial is not None
+        assert rel.geospatial.cross_border is True
+
+
+# ── Geospatial Utility Tests ─────────────────────────────────────────────
+
+
+class TestGeospatialUtils:
+    def test_haversine_km(self):
+        from periphery.enrichment.stages.geospatial_resolution import _haversine_km
+
+        # London to Paris ~ 344 km
+        dist = _haversine_km(51.5074, -0.1278, 48.8566, 2.3522)
+        assert 340 < dist < 350
+
+    def test_haversine_same_point(self):
+        from periphery.enrichment.stages.geospatial_resolution import _haversine_km
+
+        dist = _haversine_km(51.5074, -0.1278, 51.5074, -0.1278)
+        assert dist == 0.0
+
+    def test_dms_to_decimal(self):
+        from periphery.enrichment.stages.geospatial_resolution import _dms_to_decimal
+
+        # 38 53' 51.6" N = 38.8977
+        result = _dms_to_decimal(38, 53, 51.6, "N")
+        assert abs(result - 38.8977) < 0.001
+
+        # 77 2' 11.4" W = -77.0365
+        result = _dms_to_decimal(77, 2, 11.4, "W")
+        assert abs(result - (-77.0365)) < 0.001
+
+    def test_nearest_chokepoint(self):
+        from periphery.enrichment.stages.geospatial_resolution import _nearest_chokepoint
+
+        # Riyadh is near Strait of Hormuz
+        result = _nearest_chokepoint(24.7136, 46.6753)
+        assert result is not None
+        cp_name, dist = result
+        assert cp_name == "Strait of Hormuz"
+
+    def test_nearest_chokepoint_far_away(self):
+        from periphery.enrichment.stages.geospatial_resolution import _nearest_chokepoint
+
+        # Buenos Aires is far from any chokepoint
+        result = _nearest_chokepoint(-34.6037, -58.3816)
+        assert result is None
+
+    def test_coord_decimal_regex(self):
+        from periphery.enrichment.stages.geospatial_resolution import _COORD_DECIMAL
+
+        text = "Coordinates: 38.9072, -77.0369"
+        m = _COORD_DECIMAL.search(text)
+        assert m is not None
+        assert float(m.group("lat")) == 38.9072
+        assert float(m.group("lon")) == -77.0369
+
+    def test_coord_dms_regex(self):
+        from periphery.enrichment.stages.geospatial_resolution import _COORD_DMS
+
+        text = "Located at 38°53'52\"N, 77°02'11\"W"
+        m = _COORD_DMS.search(text)
+        assert m is not None
+
+    def test_classify_location_type(self):
+        from periphery.enrichment.stages.geospatial_resolution import _classify_location_type
+
+        assert _classify_location_type("city", "place", "London") == "city"
+        assert _classify_location_type("country", "boundary", "France") == "country"
+        assert _classify_location_type("", "", "Strait of Hormuz") == "maritime_chokepoint"
+        assert _classify_location_type("", "", "Port of Rotterdam") == "port"
+
+
+# ── Location Entity Identification Tests ──────────────────────────────────
+
+
+class TestLocationIdentification:
+    def test_direct_location_entities(self):
+        from periphery.enrichment.stages.geospatial_resolution import _identify_geocoding_targets
+
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=0, end_char=8, confidence=0.9,
+                extraction_method="spacy", context_window="Damascus is the capital.",
+            ),
+            ExtractedEntity(
+                text="Beirut", entity_type="GPE",
+                start_char=30, end_char=36, confidence=0.9,
+                extraction_method="spacy", context_window="Located near Beirut.",
+            ),
+        ]
+        targets = _identify_geocoding_targets(doc)
+        assert len(targets) == 2
+        assert targets[0]["text"] == "Damascus"
+        assert targets[0]["source"] == "direct"
+
+    def test_coordinate_detection(self):
+        from periphery.enrichment.stages.geospatial_resolution import _identify_geocoding_targets
+
+        doc = _make_pipeline_doc(full_text="Strike at 33.5138, 36.2765 confirmed.")
+        doc.extracted_entities = []
+        targets = _identify_geocoding_targets(doc)
+
+        coord_targets = [t for t in targets if t["source"] == "coordinate"]
+        assert len(coord_targets) == 1
+        assert abs(coord_targets[0]["latitude"] - 33.5138) < 0.001
+
+    def test_org_with_location_modifier(self):
+        from periphery.enrichment.stages.geospatial_resolution import _identify_geocoding_targets
+
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Gazprom", entity_type="ORG",
+                start_char=0, end_char=7, confidence=0.9,
+                extraction_method="spacy",
+                context_window="the Moscow office of Gazprom",
+            ),
+        ]
+        # Without spacy_doc, modifier extraction won't run via dep parse,
+        # but the regex fallback should catch "in Moscow" style patterns
+        targets = _identify_geocoding_targets(doc)
+        # At minimum, ORGs without spacy_doc won't extract location modifiers
+        # (no dep parse available), which is the expected behavior
+        direct = [t for t in targets if t["source"] == "direct"]
+        assert len(direct) == 0  # ORG is not a direct geo entity
+
+    def test_no_duplicate_targets(self):
+        from periphery.enrichment.stages.geospatial_resolution import _identify_geocoding_targets
+
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=0, end_char=8, confidence=0.9,
+                extraction_method="spacy", context_window="Damascus is...",
+            ),
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=50, end_char=58, confidence=0.85,
+                extraction_method="spacy", context_window="...in Damascus.",
+            ),
+        ]
+        targets = _identify_geocoding_targets(doc)
+        # Should deduplicate by entity_key
+        assert len(targets) == 1
+
+
+# ── Ambiguity Resolution Tests ────────────────────────────────────────────
+
+
+class TestAmbiguityResolution:
+    def test_single_candidate_no_ambiguity(self):
+        from periphery.enrichment.stages.geospatial_resolution import AmbiguityResolver
+
+        resolver = AmbiguityResolver()
+        candidates = [
+            GeoCandidate(latitude=48.86, longitude=2.35,
+                         display_name="Paris, France", confidence=0.9),
+        ]
+        best, all_cands, needs_cryst = resolver.resolve("Paris", candidates, {})
+        assert best is not None
+        assert best.display_name == "Paris, France"
+        assert needs_cryst is False
+
+    def test_country_context_disambiguation(self):
+        from periphery.enrichment.stages.geospatial_resolution import AmbiguityResolver
+
+        resolver = AmbiguityResolver()
+        candidates = [
+            GeoCandidate(latitude=39.78, longitude=-89.65,
+                         display_name="Springfield, Illinois, United States",
+                         confidence=0.5, population=114394),
+            GeoCandidate(latitude=37.21, longitude=-93.29,
+                         display_name="Springfield, Missouri, United States",
+                         confidence=0.5, population=169176),
+        ]
+        context = {"country_context": ["United States"]}
+        best, all_cands, needs_cryst = resolver.resolve("Springfield", candidates, context)
+        assert best is not None
+        # Both are in the US, so country context doesn't disambiguate much
+
+    def test_centroid_proximity_boost(self):
+        from periphery.enrichment.stages.geospatial_resolution import AmbiguityResolver
+
+        resolver = AmbiguityResolver()
+        candidates = [
+            GeoCandidate(latitude=42.3154, longitude=43.3569,
+                         display_name="Georgia (country)", confidence=0.5),
+            GeoCandidate(latitude=32.1656, longitude=-82.9001,
+                         display_name="Georgia, United States", confidence=0.5),
+        ]
+        # Document centroid near Middle East -> should boost the country
+        context = {
+            "centroid": {"lat": 40.0, "lon": 44.0},
+            "country_context": [],
+        }
+        best, _, _ = resolver.resolve("Georgia", candidates, context)
+        assert best is not None
+        assert "country" in best.display_name.lower()
+
+    def test_population_bias(self):
+        from periphery.enrichment.stages.geospatial_resolution import AmbiguityResolver
+
+        resolver = AmbiguityResolver()
+        candidates = [
+            GeoCandidate(latitude=48.86, longitude=2.35,
+                         display_name="Paris, France", confidence=0.5,
+                         population=2_161_000),
+            GeoCandidate(latitude=33.66, longitude=-95.56,
+                         display_name="Paris, Texas, US", confidence=0.5,
+                         population=25_171),
+        ]
+        best, _, _ = resolver.resolve("Paris", candidates, {})
+        assert best is not None
+        assert "France" in best.display_name
+
+    def test_ambiguous_flags_crystallizer(self):
+        from periphery.enrichment.stages.geospatial_resolution import AmbiguityResolver
+
+        resolver = AmbiguityResolver()
+        candidates = [
+            GeoCandidate(latitude=39.78, longitude=-89.65,
+                         display_name="Springfield, IL", confidence=0.5,
+                         population=114394),
+            GeoCandidate(latitude=37.21, longitude=-93.29,
+                         display_name="Springfield, MO", confidence=0.5,
+                         population=169176),
+            GeoCandidate(latitude=42.10, longitude=-72.59,
+                         display_name="Springfield, MA", confidence=0.5,
+                         population=155929),
+        ]
+        best, all_cands, needs_cryst = resolver.resolve("Springfield", candidates, {})
+        # Multiple US cities with similar populations -> should flag for crystallizer
+        assert needs_cryst is True
+        assert len(all_cands) == 3
+
+
+# ── GeospatialResolutionStage Integration Tests ──────────────────────────
+
+
+class TestGeospatialResolutionStage:
+    @pytest.mark.asyncio
+    async def test_process_resolves_from_cache(self):
+        """Entities found in seed cache are resolved without external calls."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        cache = GeocodingCache()
+        cache.put("Damascus", GeospatialData(
+            resolved=True, latitude=33.5138, longitude=36.2765,
+            display_name="Damascus, Syria", location_type="city",
+            hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+        cache.put("Beirut", GeospatialData(
+            resolved=True, latitude=33.8938, longitude=35.5018,
+            display_name="Beirut, Lebanon", location_type="city",
+            hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+
+        stage = GeospatialResolutionStage(cache=cache)
+        doc = _make_pipeline_doc(full_text="Fighting between Damascus and Beirut.")
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=18, end_char=26, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Fighting between Damascus and Beirut.",
+            ),
+            ExtractedEntity(
+                text="Beirut", entity_type="GPE",
+                start_char=31, end_char=37, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Fighting between Damascus and Beirut.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+
+        # Both locations should be resolved
+        damascus_key = "Damascus:GPE"
+        beirut_key = "Beirut:GPE"
+        assert damascus_key in result.geospatial_data
+        assert beirut_key in result.geospatial_data
+        assert result.geospatial_data[damascus_key].resolved is True
+        assert result.geospatial_data[beirut_key].resolved is True
+        assert result.geospatial_data[damascus_key].location_type == "city"
+
+    @pytest.mark.asyncio
+    async def test_process_builds_document_summary(self):
+        """Document-level geospatial summary is computed."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        cache = GeocodingCache()
+        cache.put("Damascus", GeospatialData(
+            resolved=True, latitude=33.5138, longitude=36.2765,
+            display_name="Damascus, Syria", location_type="city",
+            hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+        cache.put("Beirut", GeospatialData(
+            resolved=True, latitude=33.8938, longitude=35.5018,
+            display_name="Beirut, Lebanon", location_type="city",
+            hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+
+        stage = GeospatialResolutionStage(cache=cache)
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=0, end_char=8, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Damascus and Beirut are cities.",
+            ),
+            ExtractedEntity(
+                text="Beirut", entity_type="GPE",
+                start_char=13, end_char=19, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Damascus and Beirut are cities.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+
+        assert result.document_geospatial is not None
+        summary = result.document_geospatial
+        assert summary.locations_found == 2
+        assert summary.locations_resolved == 2
+        assert summary.geographic_centroid is not None
+        assert summary.geographic_spread_km is not None
+        assert summary.geographic_spread_km > 0
+        assert "Syria" in summary.countries_referenced
+        assert "Lebanon" in summary.countries_referenced
+
+    @pytest.mark.asyncio
+    async def test_process_handles_coordinates(self):
+        """Coordinate mentions are parsed without geocoding."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        stage = GeospatialResolutionStage(cache=GeocodingCache())
+        doc = _make_pipeline_doc(full_text="Strike at 33.5138, 36.2765 confirmed.")
+        doc.extracted_entities = []
+
+        result = await stage.process(doc)
+
+        coord_entries = [
+            (k, v) for k, v in result.geospatial_data.items()
+            if v.geocoding_source == "parsed"
+        ]
+        assert len(coord_entries) == 1
+        assert coord_entries[0][1].resolved is True
+        assert abs(coord_entries[0][1].latitude - 33.5138) < 0.001
+
+    @pytest.mark.asyncio
+    async def test_process_no_entities_returns_empty_summary(self):
+        """Documents with no location entities get an empty summary."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        stage = GeospatialResolutionStage(cache=GeocodingCache())
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = []
+
+        result = await stage.process(doc)
+        assert result.document_geospatial is not None
+        assert result.document_geospatial.locations_found == 0
+
+    @pytest.mark.asyncio
+    async def test_process_enriches_relationships(self):
+        """Relationships between geocoded entities get spatial metadata."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        cache = GeocodingCache()
+        cache.put("Damascus", GeospatialData(
+            resolved=True, latitude=33.5138, longitude=36.2765,
+            display_name="Damascus, Syria", location_type="city",
+            hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+        cache.put("Beirut", GeospatialData(
+            resolved=True, latitude=33.8938, longitude=35.5018,
+            display_name="Beirut, Lebanon", location_type="city",
+            hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+
+        stage = GeospatialResolutionStage(cache=cache)
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Damascus", entity_type="GPE",
+                start_char=0, end_char=8, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Damascus attacked Beirut.",
+            ),
+            ExtractedEntity(
+                text="Beirut", entity_type="GPE",
+                start_char=18, end_char=24, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Damascus attacked Beirut.",
+            ),
+        ]
+        doc.extracted_relationships = [
+            ExtractedRelationship(
+                subject_text="Damascus", subject_type="GPE",
+                predicate="attacked",
+                object_text="Beirut", object_type="GPE",
+                confidence=0.8, extraction_tier=2,
+            ),
+        ]
+
+        result = await stage.process(doc)
+
+        rel_key = "Damascus-attacked-Beirut"
+        assert rel_key in result.relationship_geospatial
+        rel_geo = result.relationship_geospatial[rel_key]
+        assert rel_geo.distance_km is not None
+        assert rel_geo.distance_km > 0
+        assert rel_geo.cross_border is True
+        assert rel_geo.subject_country == "Syria"
+        assert rel_geo.object_country == "Lebanon"
+
+    @pytest.mark.asyncio
+    async def test_seed_file_loads(self):
+        """Verify the stage loads seed data on init."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        seed_path = Path(__file__).parent.parent / "data" / "geospatial_seeds.json"
+        if not seed_path.exists():
+            pytest.skip("Seed file not found")
+
+        stage = GeospatialResolutionStage(
+            cache=GeocodingCache(),
+            seed_file_path=str(seed_path),
+        )
+
+        # Should have seeded entries in cache
+        assert len(stage._cache) > 100
+
+        # Process a doc with a seeded location
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Moscow", entity_type="GPE",
+                start_char=0, end_char=6, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Events in Moscow.",
+            ),
+        ]
+        result = await stage.process(doc)
+        moscow_data = result.geospatial_data.get("Moscow:GPE")
+        assert moscow_data is not None
+        assert moscow_data.resolved is True
+        assert moscow_data.geocoding_source == "cache"
+
+    @pytest.mark.asyncio
+    async def test_nominatim_fallback(self):
+        """When cache misses, falls back to Nominatim (mocked)."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+            NominatimClient,
+        )
+
+        mock_nominatim = NominatimClient()
+        # Mock the geocode method
+        original_geocode = mock_nominatim.geocode
+
+        async def mock_geocode(location, country_context=""):
+            return [{
+                "latitude": 40.7128,
+                "longitude": -74.0060,
+                "display_name": "New York, NY, United States",
+                "type": "city",
+                "class": "place",
+                "importance": 0.9,
+                "boundingbox": ["40.4774", "40.9176", "-74.2591", "-73.7004"],
+                "address": {
+                    "city": "New York",
+                    "state": "New York",
+                    "country": "United States",
+                    "country_code": "us",
+                },
+                "country": "United States",
+                "country_code": "us",
+                "state": "New York",
+                "city": "New York",
+            }]
+
+        mock_nominatim.geocode = mock_geocode
+
+        stage = GeospatialResolutionStage(
+            cache=GeocodingCache(),
+            nominatim=mock_nominatim,
+        )
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Sometown", entity_type="GPE",
+                start_char=0, end_char=8, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Events in Sometown.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+        data = result.geospatial_data.get("Sometown:GPE")
+        assert data is not None
+        assert data.resolved is True
+        assert data.geocoding_source == "nominatim"
+
+    @pytest.mark.asyncio
+    async def test_nominatim_failure_returns_unresolved(self):
+        """When Nominatim returns nothing, entity is marked unresolved."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+            NominatimClient,
+        )
+
+        mock_nominatim = NominatimClient()
+
+        async def mock_geocode(location, country_context=""):
+            return []
+
+        mock_nominatim.geocode = mock_geocode
+
+        stage = GeospatialResolutionStage(
+            cache=GeocodingCache(),
+            nominatim=mock_nominatim,
+        )
+        doc = _make_pipeline_doc()
+        doc.extracted_entities = [
+            ExtractedEntity(
+                text="Nonexistentville", entity_type="GPE",
+                start_char=0, end_char=16, confidence=0.9,
+                extraction_method="spacy",
+                context_window="Located in Nonexistentville.",
+            ),
+        ]
+
+        result = await stage.process(doc)
+        data = result.geospatial_data.get("Nonexistentville:GPE")
+        assert data is not None
+        assert data.resolved is False
+        assert data.needs_crystallizer_resolution is True
+
+
+# ── Full Pipeline with Geospatial Integration Tests ──────────────────────
+
+
+class TestGeospatialPipelineIntegration:
+    @pytest.mark.asyncio
+    async def test_geospatial_stage_in_pipeline(self):
+        """Geospatial stage works correctly within the full pipeline."""
+        from periphery.enrichment.stages.geospatial_resolution import (
+            GeocodingCache,
+            GeospatialResolutionStage,
+        )
+
+        cache = GeocodingCache()
+        cache.put("Washington D.C.", GeospatialData(
+            resolved=True, latitude=38.9072, longitude=-77.0369,
+            display_name="Washington, D.C., United States", location_type="city",
+            hierarchy=GeoHierarchy(city="Washington", country="United States", continent="North America"),
+            confidence=1.0, geocoding_source="cache",
+        ))
+
+        pipeline = EnrichmentPipeline(
+            stages=[
+                MockEntityExtractionStage(),
+                MockRelationshipStage(),
+                GeospatialResolutionStage(cache=cache),
+            ]
+        )
+
+        raw = _make_ingested_doc(
+            content="Company X acquired Firm Y in Washington D.C."
+        )
+        result = await pipeline.process_document(raw)
+
+        assert "geospatial_resolution" in result.metadata.enrichment_stages_completed
+        # Washington D.C. entity should be geocoded
+        geo_entities = [e for e in result.entities if e.geospatial is not None]
+        assert len(geo_entities) >= 1
+        dc_entity = next(
+            (e for e in geo_entities if "Washington" in e.text), None
+        )
+        assert dc_entity is not None
+        assert dc_entity.geospatial.resolved is True
+
+        # Document geospatial summary should be present
+        assert result.document_geospatial is not None
+        assert result.document_geospatial.locations_found >= 1
 
 
 # ── Integration: Full Pipeline Without SpaCy ─────────────────────────────
