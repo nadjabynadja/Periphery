@@ -12,6 +12,7 @@ Full-page fetches go through the rate limiter chain and robots.txt checker.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -34,14 +35,30 @@ _POLITE_HEADERS = {
 }
 
 
+@dataclass
+class ContentResult:
+    """Result of content extraction from an article fetch."""
+
+    text: str = ""
+    raw_html: str = ""
+    content_quality: str = "full"  # full | summary_only | metadata_only
+    blocked_by_robots: bool = False
+    fetch_failed: bool = False
+
+
 def clean_html(html: str) -> str:
     """Extract plain text from HTML using trafilatura, falling back to BS4."""
     if not html:
         return ""
-    text = trafilatura.extract(html, include_comments=False, include_tables=True)
+    text = trafilatura.extract(
+        html,
+        include_comments=False,
+        include_tables=True,
+        no_fallback=False,
+    )
     if text:
         return text.strip()
-    # fallback
+    # fallback to BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     return soup.get_text(separator="\n", strip=True)
 
@@ -52,20 +69,21 @@ async def fetch_full_article(
     *,
     rate_limiter: RateLimiterChain | None = None,
     robots_checker: RobotsChecker | None = None,
-) -> tuple[str, str, bool]:
+) -> ContentResult:
     """Fetch a URL and extract article text.
 
-    Returns (clean_text, raw_html, blocked_by_robots).
-
-    If robots.txt disallows the URL, returns empty content with
-    blocked_by_robots=True.
+    Returns a ContentResult with extracted text, raw HTML, content quality tag,
+    and status flags.
     """
     # check robots.txt before article fetches
     if robots_checker is not None:
         allowed = await robots_checker.is_allowed(url)
         if not allowed:
             logger.info("robots_blocked", url=url)
-            return "", "", True
+            return ContentResult(
+                blocked_by_robots=True,
+                content_quality="metadata_only",
+            )
 
     try:
         if rate_limiter is not None:
@@ -78,7 +96,10 @@ async def fetch_full_article(
                 ) as resp:
                     if resp.status != 200:
                         logger.warning("article_fetch_failed", url=url, status=resp.status)
-                        return "", "", False
+                        return ContentResult(
+                            fetch_failed=True,
+                            content_quality="metadata_only",
+                        )
                     raw_html = await resp.text()
         else:
             async with session.get(
@@ -89,11 +110,28 @@ async def fetch_full_article(
             ) as resp:
                 if resp.status != 200:
                     logger.warning("article_fetch_failed", url=url, status=resp.status)
-                    return "", "", False
+                    return ContentResult(
+                        fetch_failed=True,
+                        content_quality="metadata_only",
+                    )
                 raw_html = await resp.text()
     except Exception as exc:
         logger.warning("article_fetch_error", url=url, error=str(exc))
-        return "", "", False
+        return ContentResult(
+            fetch_failed=True,
+            content_quality="metadata_only",
+        )
 
     clean = clean_html(raw_html)
-    return clean, raw_html, False
+    if clean:
+        return ContentResult(
+            text=clean,
+            raw_html=raw_html,
+            content_quality="full",
+        )
+
+    # trafilatura and bs4 both failed to extract meaningful content
+    return ContentResult(
+        raw_html=raw_html,
+        content_quality="summary_only",
+    )

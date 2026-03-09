@@ -22,15 +22,16 @@ import aiohttp
 import feedparser
 import structlog
 
-from .content import clean_html, fetch_full_article
+from .content import ContentResult, clean_html, fetch_full_article
 from .dedup import Deduplicator
 from .feed_manager import FeedManager
-from .models import BackoffState, FeedConfig, IngestedDocument
+from .models import BackoffState, FeedConfig, FeedState, IngestedDocument
 from .priority_scheduler import PriorityScheduler
 from .queue import OutputQueue
 from .rate_limiter import RateLimiterChain, extract_domain
 
 if TYPE_CHECKING:
+    from .document_store import DocumentStore
     from .robots_checker import RobotsChecker
 
 logger = structlog.get_logger(__name__)
@@ -105,6 +106,7 @@ class PollingEngine:
         rate_limiter: RateLimiterChain,
         *,
         robots_checker: RobotsChecker | None = None,
+        document_store: DocumentStore | None = None,
         fetch_full_articles: bool = True,
     ) -> None:
         self._fm = feed_manager
@@ -112,6 +114,7 @@ class PollingEngine:
         self._queue = output_queue
         self._rate_limiter = rate_limiter
         self._robots_checker = robots_checker
+        self._document_store = document_store
         self._fetch_full = fetch_full_articles
         self._running = False
         self._tasks: dict[str, asyncio.Task] = {}
@@ -121,6 +124,13 @@ class PollingEngine:
         self._backoff: dict[str, BackoffState] = {}
         # metrics
         self._recent_ingests: list[float] = []  # timestamps
+        # first-poll-cycle summary counters
+        self._first_cycle_complete = False
+        self._cycle_feeds_polled = 0
+        self._cycle_entries_found = 0
+        self._cycle_articles_fetched = 0
+        self._cycle_docs_persisted = 0
+        self._cycle_failures = 0
 
     # ── lifecycle ───────────────────────────────────────────────────────
 
@@ -493,48 +503,100 @@ class PollingEngine:
         parsed = feedparser.parse(raw_body)
 
         new_count = 0
+        self._cycle_feeds_polled += 1
+        self._cycle_entries_found += len(parsed.entries)
+
         for entry in parsed.entries:
             eid = _entry_id(entry, feed.url)
-            html = _entry_html(entry)
-            text = clean_html(html)
-
-            # if content is too short, try fetching the full article
             link = entry.get("link", "")
-            raw_html = html
+            summary_html = _entry_html(entry)
+            summary_text = clean_html(summary_html)
+
+            # check dedup against SQLite (survives restarts) + in-memory
+            if await self._dedup.is_known(eid, link):
+                logger.debug("dedup_skip", entry_id=eid, feed=feed.name)
+                continue
+
+            # determine content quality and fetch full article if needed
+            content_quality = "full"
+            text = summary_text
+            raw_html = summary_html
             full_content_blocked = False
-            if len(text) < 200 and link and self._fetch_full:
-                full_text, full_html, blocked = await fetch_full_article(
+
+            if len(summary_text) < 200 and link and self._fetch_full:
+                result: ContentResult = await fetch_full_article(
                     link,
                     self._session,
                     rate_limiter=self._rate_limiter,
                     robots_checker=self._robots_checker,
                 )
-                if blocked:
+
+                if result.blocked_by_robots:
                     full_content_blocked = True
-                elif full_text:
-                    text = full_text
-                    raw_html = full_html
+                    content_quality = "metadata_only"
+                elif result.fetch_failed:
+                    # fetch failed (timeout, 403, paywall) — keep summary
+                    content_quality = "metadata_only" if not summary_text else "summary_only"
+                    self._cycle_failures += 1
+                elif result.text:
+                    text = result.text
+                    raw_html = result.raw_html
+                    content_quality = "full"
+                    self._cycle_articles_fetched += 1
+                else:
+                    # trafilatura + bs4 both failed on fetched HTML
+                    content_quality = "summary_only" if summary_text else "metadata_only"
+            elif text:
+                # we have inline content from the feed
+                content_quality = "full" if len(text) >= 200 else "summary_only"
+            else:
+                # no text at all
+                content_quality = "metadata_only"
 
-            if not text:
+            # even metadata_only documents are worth persisting
+            if not text and content_quality == "metadata_only":
+                text = ""  # explicit empty — still persist
+
+            # full dedup check including content hash
+            if text and await self._dedup.is_duplicate_persistent(eid, link, text):
+                logger.debug("dedup_content_skip", entry_id=eid, feed=feed.name)
                 continue
 
-            if self._dedup.is_duplicate(eid, text):
-                continue
-
-            self._dedup.record(eid, text)
+            self._dedup.record(eid, text if text else eid)
 
             doc = IngestedDocument(
                 id=eid,
                 source_feed=feed.url,
                 source_category=feed.category,
+                source_credibility_tier=feed.priority,
                 title=entry.get("title", ""),
                 url=link,
                 published=_parse_published(entry),
                 content=text,
                 raw_html=raw_html,
+                summary=summary_text,
+                content_quality=content_quality,
                 full_content_blocked=full_content_blocked,
                 metadata=_entry_metadata(entry),
             )
+
+            # persist to SQLite immediately — durability over throughput
+            if self._document_store is not None:
+                try:
+                    inserted = await self._document_store.insert(doc)
+                    if inserted:
+                        await self._document_store.enqueue_for_enrichment(doc.id)
+                        self._cycle_docs_persisted += 1
+                    else:
+                        # already in DB (race or restart)
+                        continue
+                except Exception as exc:
+                    logger.error(
+                        "document_persist_failed",
+                        doc_id=doc.id,
+                        error=str(exc),
+                    )
+                    self._cycle_failures += 1
 
             await self._queue.put(doc)
             new_count += 1
@@ -542,6 +604,19 @@ class PollingEngine:
             self._recent_ingests.append(time.time())
 
         state.last_success = datetime.now(timezone.utc)
+
+        # log first cycle summary after first successful poll
+        if not self._first_cycle_complete:
+            self._first_cycle_complete = True
+            logger.info(
+                "first_poll_cycle_summary",
+                feeds_polled=self._cycle_feeds_polled,
+                entries_found=self._cycle_entries_found,
+                articles_fetched=self._cycle_articles_fetched,
+                docs_persisted=self._cycle_docs_persisted,
+                failures=self._cycle_failures,
+            )
+
         if new_count:
             logger.info(
                 "feed_polled",

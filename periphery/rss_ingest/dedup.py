@@ -1,22 +1,25 @@
-"""Deduplication layer — in-memory rolling hash sets.
+"""Deduplication layer — in-memory rolling hash sets with SQLite backing.
 
 Deduplicates on two axes:
   1. Feed-provided entry IDs / GUIDs.
   2. Content hashes (SHA-256 of cleaned text body) to catch the same
      wire story syndicated across many feeds.
 
-The implementation uses plain Python sets with a bounded size and LRU-style
-eviction via an ``OrderedDict``.  This is simple, correct, and sufficient for
-single-process operation.  For multi-process / distributed deployments,
-swap to a Redis set behind the same interface.
+The in-memory layer uses plain Python sets with a bounded size and LRU-style
+eviction via an ``OrderedDict``.  The SQLite-backed check queries the document
+store so deduplication survives daemon restarts.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    from .document_store import DocumentStore
 
 logger = structlog.get_logger(__name__)
 
@@ -55,11 +58,16 @@ class DeduplicationStore:
 
 
 class Deduplicator:
-    """Two-layer deduplicator: entry ID + content hash."""
+    """Two-layer deduplicator: entry ID + content hash, with optional SQLite backing."""
 
-    def __init__(self, max_size: int = _DEFAULT_MAX_SIZE) -> None:
+    def __init__(
+        self,
+        max_size: int = _DEFAULT_MAX_SIZE,
+        document_store: DocumentStore | None = None,
+    ) -> None:
         self._id_store = DeduplicationStore(max_size)
         self._content_store = DeduplicationStore(max_size)
+        self._document_store = document_store
 
     @staticmethod
     def content_hash(text: str) -> str:
@@ -68,12 +76,46 @@ class Deduplicator:
         return hashlib.sha256(normalized.encode()).hexdigest()
 
     def is_duplicate(self, entry_id: str, content: str) -> bool:
-        """Check if an entry is a duplicate by ID or content hash."""
+        """Check if an entry is a duplicate by ID or content hash (in-memory only)."""
         if self._id_store.is_seen(entry_id):
             return True
         chash = self.content_hash(content)
         if self._content_store.is_seen(chash):
             return True
+        return False
+
+    async def is_duplicate_persistent(self, entry_id: str, url: str, content: str) -> bool:
+        """Check dedup against both in-memory store and SQLite.
+
+        This is the primary dedup check — it survives daemon restarts because
+        it queries the durable document store.
+        """
+        # fast in-memory check first
+        if self._id_store.is_seen(entry_id):
+            return True
+        chash = self.content_hash(content)
+        if self._content_store.is_seen(chash):
+            return True
+        # check SQLite if available
+        if self._document_store is not None:
+            if await self._document_store.is_duplicate(entry_id, url):
+                # populate in-memory cache so future checks are fast
+                self._id_store.mark_seen(entry_id)
+                return True
+        return False
+
+    async def is_known(self, entry_id: str, url: str) -> bool:
+        """Quick check if an entry ID or URL is already known (in-memory + SQLite).
+
+        Used before fetching article content — avoids wasting HTTP requests
+        on documents we already have.
+        """
+        if self._id_store.is_seen(entry_id):
+            return True
+        if self._document_store is not None:
+            if await self._document_store.is_duplicate(entry_id, url):
+                self._id_store.mark_seen(entry_id)
+                return True
         return False
 
     def record(self, entry_id: str, content: str) -> None:
