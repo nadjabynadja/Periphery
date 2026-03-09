@@ -23,11 +23,13 @@ from periphery.enrichment.pipeline import build_enrichment_pipeline
 from periphery.pipeline.enrichment_consumer import EnrichmentConsumer
 from periphery.pipeline.orchestrator import PipelineOrchestrator
 from periphery.query.analytical_engine import AnalyticalQueryEngine
+from periphery.rss_ingest.daemon import RSSIngestDaemon
 
 logger = logging.getLogger(__name__)
 
 # App-level singletons
 store: FAISSStore | None = None
+rss_daemon: RSSIngestDaemon | None = None
 multi_space_manager: MultiSpaceIndexManager | None = None
 worker: CrystallizerWorker | None = None
 coherence_net: CoherenceNet | None = None
@@ -80,6 +82,7 @@ async def lifespan(app: FastAPI):
     global store, multi_space_manager, worker, coherence_net, trainer
     global critic_model, critic_trainer, critic_runner, critic_store
     global pipeline_orchestrator, analytical_engine, _pipeline_task
+    global rss_daemon
 
     settings = get_settings()
 
@@ -269,6 +272,31 @@ async def lifespan(app: FastAPI):
     set_orchestrator(pipeline_orchestrator)
     set_multi_space_manager(multi_space_manager)
 
+    # Layer 0: Start RSS ingest daemon (polling → SQLite → pipeline)
+    if settings.rss_enabled:
+        config_path = settings.rss_feeds_config or None
+        rss_daemon = RSSIngestDaemon(
+            config_path=config_path,
+            fetch_full_articles=settings.rss_fetch_full_articles,
+            queue_maxsize=settings.rss_queue_maxsize,
+            db_path=db_path,
+        )
+        await rss_daemon.start()
+
+        # Wire fast-path: queue consumer → enrichment consumer notification
+        if rss_daemon.queue_consumer is not None:
+            rss_daemon.queue_consumer._on_persist = enrichment_consumer.notify
+
+        # Mount RSS status endpoints
+        from periphery.rss_ingest.status import router as rss_router
+        app.include_router(rss_router)
+
+        logger.info(
+            "RSS ingest daemon started — %d feeds, db=%s",
+            len(rss_daemon.feed_manager.feeds),
+            db_path,
+        )
+
     # Start background crystallizer
     await worker.start()
 
@@ -282,6 +310,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    if rss_daemon:
+        await rss_daemon.stop()
     if pipeline_orchestrator:
         await pipeline_orchestrator.stop()
     if _pipeline_task:
@@ -340,6 +370,7 @@ async def root():
         "version": "0.1.0",
         "principle": "Schema is observation, not imposition",
         "layers": {
+            "rss": "/rss",
             "ingest": "/ingest",
             "crystallizer": "/crystallizer",
             "critic": "/critic",
@@ -358,6 +389,8 @@ async def health():
         "clusters": len(worker.clusters) if worker else 0,
         "last_crystallization": worker.last_run.isoformat() if worker and worker.last_run else None,
         "pipeline": pipeline_orchestrator is not None,
+        "rss_ingest": rss_daemon is not None,
+        "rss_feeds": len(rss_daemon.feed_manager.feeds) if rss_daemon else 0,
     }
 
 
