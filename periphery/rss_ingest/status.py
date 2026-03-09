@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
 
@@ -102,3 +102,38 @@ async def reload_feeds() -> dict:
     _daemon_ref.feed_manager.reload()
     await _daemon_ref.poller.refresh()
     return {"ok": True, "feeds": len(_daemon_ref.feed_manager.feeds)}
+
+
+@router.get("/recent")
+async def recent_documents() -> list[dict[str, Any]]:
+    """Return the last 10 ingested documents with content_quality tags.
+
+    Allows operators to quickly verify that full content is being captured.
+    """
+    if _daemon_ref is None:
+        return []
+    return await _daemon_ref.document_store.recent_documents(limit=10)
+
+
+@router.get("/stats")
+async def document_stats() -> dict[str, Any]:
+    """Return aggregate statistics about the document store.
+
+    Shows: total documents, documents by content_quality breakdown,
+    documents by enrichment_status, and documents ingested in the last
+    hour/day.
+    """
+    if _daemon_ref is None:
+        return {"total_documents": 0}
+
+    stats = await _daemon_ref.document_store.stats()
+
+    # add queue consumer metrics if available
+    if _daemon_ref.queue_consumer:
+        stats["queue_consumer"] = {
+            "consumed": _daemon_ref.queue_consumer.consumed,
+            "persisted": _daemon_ref.queue_consumer.persisted,
+            "queue_depth": _daemon_ref.output_queue.depth(),
+        }
+
+    return stats

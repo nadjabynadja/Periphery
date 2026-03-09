@@ -1,0 +1,233 @@
+"""SQLite-backed document store for durable persistence.
+
+Every document that enters the polling loop gets written here before the
+daemon moves on.  Uses aiosqlite for async-compatible access so it doesn't
+block the polling loop.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import aiosqlite
+import structlog
+
+from .models import IngestedDocument
+
+logger = structlog.get_logger(__name__)
+
+_DEFAULT_DB_PATH = Path("./data/periphery_documents.db")
+
+_CREATE_DOCUMENTS = """
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    source_feed TEXT NOT NULL,
+    source_category TEXT,
+    source_credibility_tier INTEGER,
+    title TEXT,
+    url TEXT,
+    published TIMESTAMP,
+    ingested TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    content TEXT,
+    raw_html TEXT,
+    summary TEXT,
+    content_quality TEXT DEFAULT 'full',
+    metadata JSON,
+    enrichment_status TEXT DEFAULT 'pending',
+    embedding_status TEXT DEFAULT 'pending'
+)
+"""
+
+_CREATE_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_ingested ON documents(ingested)",
+    "CREATE INDEX IF NOT EXISTS idx_source_feed ON documents(source_feed)",
+    "CREATE INDEX IF NOT EXISTS idx_enrichment_status ON documents(enrichment_status)",
+    "CREATE INDEX IF NOT EXISTS idx_embedding_status ON documents(embedding_status)",
+    "CREATE INDEX IF NOT EXISTS idx_url ON documents(url)",
+    "CREATE INDEX IF NOT EXISTS idx_content_quality ON documents(content_quality)",
+]
+
+_CREATE_PENDING_ENRICHMENT = """
+CREATE TABLE IF NOT EXISTS pending_enrichment (
+    document_id TEXT PRIMARY KEY,
+    queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES documents(id)
+)
+"""
+
+_INSERT_DOC = """
+INSERT OR IGNORE INTO documents
+    (id, source_feed, source_category, source_credibility_tier, title, url,
+     published, ingested, content, raw_html, summary, content_quality,
+     metadata, enrichment_status, embedding_status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_INSERT_PENDING = """
+INSERT OR IGNORE INTO pending_enrichment (document_id) VALUES (?)
+"""
+
+
+class DocumentStore:
+    """Async SQLite document store."""
+
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        self._db_path = Path(db_path) if db_path else _DEFAULT_DB_PATH
+        self._db: aiosqlite.Connection | None = None
+
+    async def initialize(self) -> None:
+        """Create database directory, connect, and ensure schema exists."""
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db = await aiosqlite.connect(str(self._db_path))
+        # Enable WAL mode for better concurrent read/write performance
+        await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute(_CREATE_DOCUMENTS)
+        for idx_sql in _CREATE_INDEXES:
+            await self._db.execute(idx_sql)
+        await self._db.execute(_CREATE_PENDING_ENRICHMENT)
+        await self._db.commit()
+        logger.info("document_store_initialized", db_path=str(self._db_path))
+
+    async def close(self) -> None:
+        """Close the database connection."""
+        if self._db:
+            await self._db.close()
+            self._db = None
+
+    async def insert(self, doc: IngestedDocument) -> bool:
+        """Insert a document. Returns True if inserted, False if duplicate."""
+        assert self._db is not None
+        published_str = doc.published.isoformat() if doc.published else None
+        ingested_str = doc.ingested.isoformat()
+        metadata_json = json.dumps(doc.metadata) if doc.metadata else None
+
+        cursor = await self._db.execute(
+            _INSERT_DOC,
+            (
+                doc.id,
+                doc.source_feed,
+                doc.source_category,
+                doc.source_credibility_tier,
+                doc.title,
+                doc.url,
+                published_str,
+                ingested_str,
+                doc.content,
+                doc.raw_html,
+                doc.summary,
+                doc.content_quality,
+                metadata_json,
+                doc.enrichment_status,
+                doc.embedding_status,
+            ),
+        )
+        await self._db.commit()
+        inserted = cursor.rowcount > 0
+        if inserted:
+            logger.debug("document_persisted", doc_id=doc.id, quality=doc.content_quality)
+        return inserted
+
+    async def enqueue_for_enrichment(self, doc_id: str) -> None:
+        """Add a document ID to the pending enrichment queue."""
+        assert self._db is not None
+        await self._db.execute(_INSERT_PENDING, (doc_id,))
+        await self._db.commit()
+
+    async def exists_by_id(self, doc_id: str) -> bool:
+        """Check if a document with this ID exists."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT 1 FROM documents WHERE id = ?", (doc_id,)
+        )
+        return await cursor.fetchone() is not None
+
+    async def exists_by_url(self, url: str) -> bool:
+        """Check if a document with this URL exists."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT 1 FROM documents WHERE url = ?", (url,)
+        )
+        return await cursor.fetchone() is not None
+
+    async def is_duplicate(self, doc_id: str, url: str) -> bool:
+        """Check if a document is a duplicate by content hash or URL."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT 1 FROM documents WHERE id = ? OR url = ?",
+            (doc_id, url),
+        )
+        return await cursor.fetchone() is not None
+
+    async def recent_documents(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the most recently ingested documents."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            """SELECT id, source_feed, source_category, title, url,
+                      published, ingested, content_quality, enrichment_status,
+                      embedding_status, summary
+               FROM documents
+               ORDER BY ingested DESC
+               LIMIT ?""",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        columns = [
+            "id", "source_feed", "source_category", "title", "url",
+            "published", "ingested", "content_quality", "enrichment_status",
+            "embedding_status", "summary",
+        ]
+        return [dict(zip(columns, row)) for row in rows]
+
+    async def stats(self) -> dict[str, Any]:
+        """Return aggregate statistics about the document store."""
+        assert self._db is not None
+
+        # total count
+        cursor = await self._db.execute("SELECT COUNT(*) FROM documents")
+        row = await cursor.fetchone()
+        total = row[0] if row else 0
+
+        # by content_quality
+        cursor = await self._db.execute(
+            "SELECT content_quality, COUNT(*) FROM documents GROUP BY content_quality"
+        )
+        quality_breakdown = {r[0]: r[1] for r in await cursor.fetchall()}
+
+        # by enrichment_status
+        cursor = await self._db.execute(
+            "SELECT enrichment_status, COUNT(*) FROM documents GROUP BY enrichment_status"
+        )
+        enrichment_breakdown = {r[0]: r[1] for r in await cursor.fetchall()}
+
+        # ingested in last hour
+        cursor = await self._db.execute(
+            "SELECT COUNT(*) FROM documents WHERE ingested > datetime('now', '-1 hour')"
+        )
+        row = await cursor.fetchone()
+        last_hour = row[0] if row else 0
+
+        # ingested in last day
+        cursor = await self._db.execute(
+            "SELECT COUNT(*) FROM documents WHERE ingested > datetime('now', '-1 day')"
+        )
+        row = await cursor.fetchone()
+        last_day = row[0] if row else 0
+
+        # pending enrichment count
+        cursor = await self._db.execute(
+            "SELECT COUNT(*) FROM pending_enrichment"
+        )
+        row = await cursor.fetchone()
+        pending_enrichment = row[0] if row else 0
+
+        return {
+            "total_documents": total,
+            "content_quality_breakdown": quality_breakdown,
+            "enrichment_status_breakdown": enrichment_breakdown,
+            "ingested_last_hour": last_hour,
+            "ingested_last_day": last_day,
+            "pending_enrichment": pending_enrichment,
+        }

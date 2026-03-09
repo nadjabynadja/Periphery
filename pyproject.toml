@@ -15,6 +15,7 @@ dependencies = [
     "anthropic>=0.25",
     "python-multipart>=0.0.9",
     "aiohttp>=3.9",
+    "aiosqlite>=0.20",
     "feedparser>=6.0",
     "trafilatura>=1.6",
     "beautifulsoup4>=4.12",

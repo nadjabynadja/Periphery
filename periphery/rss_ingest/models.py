@@ -55,14 +55,19 @@ class IngestedDocument(BaseModel):
     id: str
     source_feed: str
     source_category: str
+    source_credibility_tier: int = 3
     title: str
     url: str
     published: datetime | None = None
     ingested: datetime = Field(default_factory=_utcnow)
     content: str
     raw_html: str = ""
+    summary: str = ""
+    content_quality: str = "full"  # full | summary_only | metadata_only
     full_content_blocked: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
+    enrichment_status: str = "pending"  # pending | in_progress | complete | failed
+    embedding_status: str = "pending"  # pending | complete | failed
 
 
 class DomainStatus(BaseModel):

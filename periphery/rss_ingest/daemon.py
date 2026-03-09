@@ -1,8 +1,8 @@
 """RSS Ingest Daemon — the main orchestrator.
 
 Wires together FeedManager, PollingEngine, Deduplicator, OutputQueue,
-RateLimiterChain, RobotsChecker, and the FastAPI status endpoint into
-a single long-running daemon.
+RateLimiterChain, RobotsChecker, DocumentStore, QueueConsumer, and the
+FastAPI status endpoint into a single long-running daemon.
 
 Can be run standalone::
 
@@ -14,6 +14,7 @@ Or integrated into the main Periphery FastAPI app by mounting its router.
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 import time
 from pathlib import Path
@@ -23,14 +24,20 @@ import uvicorn
 from fastapi import FastAPI
 
 from .dedup import Deduplicator
+from .document_store import DocumentStore
 from .feed_manager import FeedManager
 from .poller import PollingEngine
 from .queue import InProcessQueue, OutputQueue
+from .queue_consumer import QueueConsumer, SQLiteEnrichmentNotifier
 from .rate_limiter import RateLimiterChain
 from .robots_checker import RobotsChecker
 from .status import register_daemon, router as status_router
 
 logger = structlog.get_logger(__name__)
+
+_DEFAULT_DB_PATH = os.environ.get(
+    "PERIPHERY_DB_PATH", "./data/periphery_documents.db"
+)
 
 
 class RSSIngestDaemon:
@@ -42,9 +49,11 @@ class RSSIngestDaemon:
         *,
         fetch_full_articles: bool = True,
         queue_maxsize: int = 10_000,
+        db_path: str | Path | None = None,
     ) -> None:
         self.feed_manager = FeedManager(config_path)
-        self.deduplicator = Deduplicator()
+        self.document_store = DocumentStore(db_path or _DEFAULT_DB_PATH)
+        self.deduplicator = Deduplicator(document_store=self.document_store)
         self.output_queue: OutputQueue = InProcessQueue(maxsize=queue_maxsize)
         self.rate_limiter = RateLimiterChain(self.feed_manager.rate_limit_config)
         self.robots_checker: RobotsChecker | None = None  # initialized on start()
@@ -53,8 +62,10 @@ class RSSIngestDaemon:
             self.deduplicator,
             self.output_queue,
             self.rate_limiter,
+            document_store=self.document_store,
             fetch_full_articles=fetch_full_articles,
         )
+        self.queue_consumer: QueueConsumer | None = None
         self._start_time: float = 0.0
 
     @property
@@ -64,26 +75,47 @@ class RSSIngestDaemon:
         return time.time() - self._start_time
 
     async def start(self) -> None:
-        """Start the polling engine."""
+        """Start the polling engine, document store, and queue consumer."""
         self._start_time = time.time()
-        # create robots checker with the poller's session (created in start)
+
+        # initialize SQLite persistence
+        await self.document_store.initialize()
+
+        # register for status endpoints
         register_daemon(self)
+
+        # start polling engine
         await self.poller.start()
+
         # attach robots checker now that the session exists
         if self.poller._session:
             self.robots_checker = RobotsChecker(self.poller._session)
             self.poller._robots_checker = self.robots_checker
+
+        # start queue consumer
+        notifier = SQLiteEnrichmentNotifier(self.document_store)
+        self.queue_consumer = QueueConsumer(
+            self.output_queue,
+            self.document_store,
+            enrichment_notifier=notifier,
+        )
+        await self.queue_consumer.start()
+
         logger.info(
             "rss_daemon_started",
             feeds=len(self.feed_manager.feeds),
             categories=self.feed_manager.categories,
             max_concurrent=self.feed_manager.rate_limit_config.max_concurrent_requests,
             max_rpm=self.feed_manager.rate_limit_config.max_requests_per_minute,
+            db_path=str(self.document_store._db_path),
         )
 
     async def stop(self) -> None:
         """Gracefully shut down."""
+        if self.queue_consumer:
+            await self.queue_consumer.stop()
         await self.poller.stop()
+        await self.document_store.close()
         logger.info("rss_daemon_stopped", uptime=self.uptime)
 
 
@@ -134,6 +166,12 @@ def main() -> None:
         "--no-server",
         action="store_true",
         help="Run without HTTP status endpoint",
+    )
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default=None,
+        help="Path to SQLite database (default: ./data/periphery_documents.db)",
     )
     args = parser.parse_args()
 
