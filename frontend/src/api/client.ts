@@ -138,8 +138,14 @@ class WebSocketManager {
     if (this.ws?.readyState === WebSocket.OPEN) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = BASE_URL || `${protocol}//${window.location.host}`
-    const url = `${host}${path}`
+    let wsBase: string
+    if (BASE_URL) {
+      // Convert http(s) BASE_URL to ws(s)
+      wsBase = BASE_URL.replace(/^http/, 'ws')
+    } else {
+      wsBase = `${protocol}//${window.location.host}`
+    }
+    const url = `${wsBase}${path}`
 
     try {
       this.ws = new WebSocket(url)
