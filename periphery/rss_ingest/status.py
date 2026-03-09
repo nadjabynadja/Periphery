@@ -120,7 +120,7 @@ async def document_stats() -> dict[str, Any]:
     """Return aggregate statistics about the document store.
 
     Shows: total documents, documents by content_quality breakdown,
-    documents by enrichment_status, and documents ingested in the last
+    documents by processing_status, and documents ingested in the last
     hour/day.
     """
     if _daemon_ref is None:
