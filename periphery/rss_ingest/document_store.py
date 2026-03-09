@@ -175,7 +175,7 @@ class DocumentStore:
         """Check if a document is a duplicate by content hash or URL."""
         assert self._db is not None
         cursor = await self._db.execute(
-            "SELECT 1 FROM documents WHERE id = ? OR url = ?",
+            "SELECT 1 FROM documents WHERE (id = ? OR url = ?) AND processing_status != 'pending'",
             (doc_id, url),
         )
         return await cursor.fetchone() is not None
