@@ -55,13 +55,16 @@ class DetectedCluster(BaseModel):
     confidence: Optional[float] = None
     credibility_tier: Optional[int] = None
 
+class ClusterEntity(BaseModel):
+    canonical_id: str
+    name: Optional[str] = None
+    entity_type: Optional[str] = None
+    confidence: Optional[float] = None
+    credibility_tier: Optional[int] = None
+
 class DetectedCluster(BaseModel):
     # ... other fields ...
-    key_entities: list[ClusterEntity] = Field(default_factory=list)
-    key_relationships: list[dict[str, Any]] = Field(default_factory=list)
-    geographic_center: Optional[dict[str, float]] = None
-    temporal_center: Optional[datetime] = None
-    confidence: float = 0.0
+    key_entities: list[ClusterEntity]
 
 
 class SizeSnapshot(BaseModel):
