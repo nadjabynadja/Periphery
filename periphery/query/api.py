@@ -114,56 +114,118 @@ async def get_snapshot(
         if g.source_cluster in cluster_id_set or g.target_cluster in cluster_id_set
     ]
 
+    # Build entity list from cluster key_entities
+    entities: list[dict[str, Any]] = []
+    seen_entities: set[str] = set()
+    for c in clusters:
+        for entity_name in c.key_entities:
+            if entity_name not in seen_entities:
+                seen_entities.add(entity_name)
+                entity_confidence = c.confidence
+                rendering = confidence_to_rendering(entity_confidence).model_dump() if include_rendering else {}
+                entities.append({
+                    "canonical_id": entity_name,
+                    "name": entity_name,
+                    "entity_type": "entity",
+                    "aliases": [],
+                    "confidence": entity_confidence,
+                    "source_count": len(c.member_document_ids),
+                    "cluster_ids": [c.cluster_id],
+                    "first_seen": snapshot.generated_at.isoformat(),
+                    "last_seen": snapshot.generated_at.isoformat(),
+                    "rendering": rendering,
+                })
+
+    # Build relationship list from cluster key_relationships and gradients
+    relationships: list[dict[str, Any]] = []
+    for c in clusters:
+        for i, rel in enumerate(c.key_relationships):
+            if isinstance(rel, dict):
+                relationships.append({
+                    "id": f"rel-{c.cluster_id}-{i}",
+                    "subject_id": rel.get("subject", rel.get("source", "")),
+                    "predicate": rel.get("predicate", rel.get("type", "related_to")),
+                    "object_id": rel.get("object", rel.get("target", "")),
+                    "confidence": rel.get("confidence", c.confidence),
+                    "evidence_sentences": [],
+                    "temporal_context": "current",
+                    "extraction_tier": "co_occurrence",
+                    "source_count": 1,
+                    "first_seen": snapshot.generated_at.isoformat(),
+                    "last_seen": snapshot.generated_at.isoformat(),
+                })
+            elif isinstance(rel, str):
+                relationships.append({
+                    "id": f"rel-{c.cluster_id}-{i}",
+                    "subject_id": c.cluster_id,
+                    "predicate": rel,
+                    "object_id": "",
+                    "confidence": c.confidence,
+                    "evidence_sentences": [],
+                    "temporal_context": "current",
+                    "extraction_tier": "co_occurrence",
+                    "source_count": 1,
+                    "first_seen": snapshot.generated_at.isoformat(),
+                    "last_seen": snapshot.generated_at.isoformat(),
+                })
+
     result: dict[str, Any] = {
         "snapshot_id": snapshot.snapshot_id,
         "generated_at": snapshot.generated_at.isoformat(),
+        "timestamp": snapshot.generated_at.isoformat(),
         "corpus_stats": snapshot.corpus_stats.model_dump(),
+        "entity_count": len(entities),
+        "relationship_count": len(relationships),
+        "cluster_count": len(clusters),
+        "entities": entities,
+        "relationships": relationships,
     }
 
-    if include_rendering:
-        result["clusters"] = [
-            {
-                "cluster": c.model_dump(mode="json"),
-                "rendering": confidence_to_rendering(c.confidence).model_dump(),
-            }
-            for c in clusters
-        ]
-        result["trajectories"] = [
-            {
-                "trajectory": t.model_dump(mode="json"),
-                "rendering": confidence_to_rendering(t.confidence).model_dump(),
-            }
-            for t in trajectories
-        ]
-        result["anomalies"] = [
-            {
-                "anomaly": a.model_dump(mode="json"),
-                "rendering": confidence_to_rendering(min(1.0, a.anomaly_score)).model_dump(),
-            }
-            for a in anomalies
-        ]
-        result["relational_gradients"] = [
-            {
-                "gradient": g.model_dump(mode="json"),
-                "rendering": confidence_to_rendering(g.gradient_score).model_dump(),
-            }
-            for g in gradients
-        ]
-        result["emerging_structures"] = [
-            {
-                "structure": e.model_dump(mode="json"),
-                "rendering": confidence_to_rendering(e.formation_confidence).model_dump(),
-            }
-            for e in snapshot.emerging_structures
-        ]
-    else:
-        result["clusters"] = [c.model_dump(mode="json") for c in clusters]
-        result["trajectories"] = [t.model_dump(mode="json") for t in trajectories]
-        result["anomalies"] = [a.model_dump(mode="json") for a in anomalies]
-        result["relational_gradients"] = [g.model_dump(mode="json") for g in gradients]
-        result["emerging_structures"] = [
-            e.model_dump(mode="json") for e in snapshot.emerging_structures
-        ]
+    # Flatten cluster/trajectory/anomaly data for frontend consumption
+    result["clusters"] = [
+        {
+            **(c.model_dump(mode="json")),
+            "member_ids": c.member_document_ids,
+            **({"rendering": confidence_to_rendering(c.confidence).model_dump()} if include_rendering else {}),
+        }
+        for c in clusters
+    ]
+    result["trajectories"] = [
+        {
+            **(t.model_dump(mode="json")),
+            **({"rendering": confidence_to_rendering(t.confidence).model_dump()} if include_rendering else {}),
+        }
+        for t in trajectories
+    ]
+    result["anomalies"] = [
+        {
+            **(a.model_dump(mode="json")),
+            **({"rendering": confidence_to_rendering(min(1.0, a.anomaly_score)).model_dump()} if include_rendering else {}),
+        }
+        for a in anomalies
+    ]
+    result["gradients"] = [
+        {
+            "source_cluster_id": g.source_cluster,
+            "target_cluster_id": g.target_cluster,
+            "score": g.gradient_score,
+            "relationship_count": len(g.components.bridge_entities) if g.components else 0,
+            "key_relationships": [],
+            **({"rendering": confidence_to_rendering(g.gradient_score).model_dump()} if include_rendering else {}),
+        }
+        for g in gradients
+    ]
+    result["emerging_structures"] = [
+        {
+            "structure_id": e.region_id if hasattr(e, 'region_id') else str(i),
+            "member_ids": e.candidate_entities if hasattr(e, 'candidate_entities') else [],
+            "formation_progress": e.formation_confidence,
+            "potential_label": getattr(e, 'label', ""),
+            "detected_at": e.detected_at.isoformat() if hasattr(e, 'detected_at') and hasattr(e.detected_at, 'isoformat') else "",
+            **({"rendering": confidence_to_rendering(e.formation_confidence).model_dump()} if include_rendering else {}),
+        }
+        for i, e in enumerate(snapshot.emerging_structures)
+    ]
 
     return result
 
