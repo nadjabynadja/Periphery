@@ -173,24 +173,24 @@ class CrystallizerStore:
         async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
 
-            # Check if cluster exists
-            cursor = await db.execute(
-                "SELECT first_seen FROM clusters WHERE cluster_id = ?",
-                (cluster.cluster_id,),
-            )
-            row = await cursor.fetchone()
-            first_seen = row[0] if row else now
-
             await db.execute(
                 """
-                INSERT OR REPLACE INTO clusters
+                INSERT INTO clusters
                     (cluster_id, first_seen, last_seen, status, current_size,
                      cross_space_coherence, label, key_entities, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cluster_id) DO UPDATE SET
+                    last_seen = excluded.last_seen,
+                    status = excluded.status,
+                    current_size = excluded.current_size,
+                    cross_space_coherence = excluded.cross_space_coherence,
+                    label = excluded.label,
+                    key_entities = excluded.key_entities,
+                    metadata = excluded.metadata
                 """,
                 (
                     cluster.cluster_id,
-                    first_seen,
+                    now,
                     now,
                     cluster.status,
                     cluster.size,
@@ -230,23 +230,24 @@ class CrystallizerStore:
             await db.execute("PRAGMA journal_mode=WAL")
 
             for cluster in clusters:
-                cursor = await db.execute(
-                    "SELECT first_seen FROM clusters WHERE cluster_id = ?",
-                    (cluster.cluster_id,),
-                )
-                row = await cursor.fetchone()
-                first_seen = row[0] if row else now
-
                 await db.execute(
                     """
-                    INSERT OR REPLACE INTO clusters
+                    INSERT INTO clusters
                         (cluster_id, first_seen, last_seen, status, current_size,
                          cross_space_coherence, label, key_entities, metadata)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(cluster_id) DO UPDATE SET
+                        last_seen = excluded.last_seen,
+                        status = excluded.status,
+                        current_size = excluded.current_size,
+                        cross_space_coherence = excluded.cross_space_coherence,
+                        label = excluded.label,
+                        key_entities = excluded.key_entities,
+                        metadata = excluded.metadata
                     """,
                     (
                         cluster.cluster_id,
-                        first_seen,
+                        now,
                         now,
                         cluster.status,
                         cluster.size,
@@ -284,10 +285,18 @@ class CrystallizerStore:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
-                INSERT OR REPLACE INTO trajectories
+                INSERT INTO trajectories
                     (trajectory_id, cluster_id, space, pattern, velocity,
                      confidence, first_detected, last_updated, snapshots)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(trajectory_id) DO UPDATE SET
+                    cluster_id = excluded.cluster_id,
+                    space = excluded.space,
+                    pattern = excluded.pattern,
+                    velocity = excluded.velocity,
+                    confidence = excluded.confidence,
+                    last_updated = excluded.last_updated,
+                    snapshots = excluded.snapshots
                 """,
                 (
                     trajectory.trajectory_id,

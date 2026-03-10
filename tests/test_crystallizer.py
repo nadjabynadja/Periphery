@@ -738,6 +738,12 @@ async def test_persistence_save_gradients():
         store = CrystallizerStore(f.name)
         await store.initialize()
 
+        # Parent clusters must exist before inserting gradient child rows
+        await store.save_clusters_batch([
+            DetectedCluster(cluster_id="c1", primary_space="semantic", size=5),
+            DetectedCluster(cluster_id="c2", primary_space="entity", size=3),
+        ])
+
         gradients = [
             RelationalGradient(
                 source_cluster="c1",
@@ -766,6 +772,68 @@ async def test_persistence_telemetry():
         telemetry = await store.get_telemetry()
         assert "clusters_by_status" in telemetry
         assert "unresolved_anomalies_by_type" in telemetry
+
+
+@pytest.mark.asyncio
+async def test_persistence_cluster_upsert_with_fk_children():
+    """Regression test: re-saving a cluster must not violate FK constraints.
+
+    INSERT OR REPLACE does an implicit DELETE which fails when child rows
+    (cluster_snapshots, trajectories) reference the cluster. The fix uses
+    ON CONFLICT DO UPDATE instead.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        store = CrystallizerStore(f.name)
+        await store.initialize()
+
+        # Enable foreign keys explicitly (executescript may not inherit the pragma)
+        import aiosqlite
+        from periphery.db import get_connection
+        async with get_connection(f.name) as db:
+            fk_status = await db.execute("PRAGMA foreign_keys")
+            row = await (fk_status).fetchone()
+            assert row[0] == 1, "foreign_keys must be ON for this test to be meaningful"
+
+        cluster = DetectedCluster(
+            cluster_id="c_fk_test",
+            primary_space="semantic",
+            size=10,
+            centroid=[1.0, 2.0, 3.0],
+            status="forming",
+        )
+
+        # First save — creates cluster + cluster_snapshot child row
+        await store.save_clusters_batch([cluster])
+
+        # Save a trajectory referencing this cluster (another FK child)
+        trajectory = Trajectory(
+            trajectory_id="t_fk_test",
+            cluster_id="c_fk_test",
+            space="semantic",
+            pattern="drift",
+            velocity=0.1,
+            confidence=0.8,
+            first_detected=datetime.now(timezone.utc),
+            snapshots=[
+                TrajectorySnapshot(
+                    timestamp=datetime.now(timezone.utc),
+                    centroid=[1.0, 2.0, 3.0],
+                ),
+            ],
+        )
+        await store.save_trajectory(trajectory)
+
+        # Second save — must NOT raise IntegrityError
+        cluster.size = 20
+        cluster.status = "stable"
+        await store.save_clusters_batch([cluster])
+
+        # Verify the update was applied and first_seen preserved
+        history = await store.get_cluster_history("c_fk_test")
+        assert len(history) == 2  # two cluster_snapshots from two saves
+
+        active = await store.get_active_cluster_ids()
+        assert "c_fk_test" in active
 
 
 @pytest.mark.asyncio
