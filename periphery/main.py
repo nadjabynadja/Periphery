@@ -17,19 +17,12 @@ from periphery.critic.trainer import AdversarialTrainer, CriticTrainer
 from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore, MultiSpaceIndexManager
-from periphery.pipeline.crystallization_consumer import CrystallizationConsumer
-from periphery.pipeline.embedding_consumer import EmbeddingConsumer
-from periphery.enrichment.pipeline import build_enrichment_pipeline
-from periphery.pipeline.enrichment_consumer import EnrichmentConsumer
-from periphery.pipeline.orchestrator import PipelineOrchestrator
 from periphery.query.analytical_engine import AnalyticalQueryEngine
-from periphery.rss_ingest.daemon import RSSIngestDaemon
 
 logger = logging.getLogger(__name__)
 
 # App-level singletons
 store: FAISSStore | None = None
-rss_daemon: RSSIngestDaemon | None = None
 multi_space_manager: MultiSpaceIndexManager | None = None
 worker: CrystallizerWorker | None = None
 coherence_net: CoherenceNet | None = None
@@ -38,9 +31,7 @@ critic_model: CoherenceCritic | None = None
 critic_trainer: CriticTrainer | None = None
 critic_runner: CriticRunner | None = None
 critic_store: CriticStore | None = None
-pipeline_orchestrator: PipelineOrchestrator | None = None
 analytical_engine: AnalyticalQueryEngine | None = None
-_pipeline_task: asyncio.Task | None = None
 
 
 async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, float]:
@@ -78,11 +69,14 @@ async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan — initialize all layers on startup, cleanup on shutdown."""
+    """Application lifespan — initialize query-serving layers on startup.
+
+    The RSS ingest daemon and enrichment pipeline run as separate processes.
+    This server handles API endpoints, query engines, and WebSocket updates.
+    """
     global store, multi_space_manager, worker, coherence_net, trainer
     global critic_model, critic_trainer, critic_runner, critic_store
-    global pipeline_orchestrator, analytical_engine, _pipeline_task
-    global rss_daemon
+    global analytical_engine
 
     settings = get_settings()
 
@@ -170,7 +164,7 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Continuous Critic initialized")
 
-    # Layer 2: Start crystallizer worker (full analytical engine)
+    # Layer 2: Start crystallizer worker (for query serving)
     db_path = settings.pipeline_db_path
     worker = CrystallizerWorker(
         store=store,
@@ -221,7 +215,7 @@ async def lifespan(app: FastAPI):
     analytical_engine = AnalyticalQueryEngine(
         faiss_store=store,
         multi_space=multi_space_manager,
-        entity_index=None,  # wired below after enrichment pipeline is built
+        entity_index=None,
         anthropic_api_key=settings.anthropic_api_key,
         db_path=db_path,
         llm_model=settings.enrichment_llm_model,
@@ -235,116 +229,24 @@ async def lifespan(app: FastAPI):
     set_crystallizer_worker(worker)
     logger.info("Analytical query engine initialized")
 
-    # Layer 5: Initialize processing pipeline
-    enrichment_pipeline = build_enrichment_pipeline(settings)
-    enrichment_consumer = EnrichmentConsumer(
-        db_path,
-        pipeline=enrichment_pipeline,
-        batch_size=settings.pipeline_enrichment_batch_size,
-        poll_interval=settings.pipeline_enrichment_poll_interval,
-        max_retries=settings.pipeline_max_retries,
-        stale_claim_timeout=settings.pipeline_stale_claim_timeout_seconds,
-    )
-    embedding_consumer = EmbeddingConsumer(
-        db_path,
-        faiss_store=store,
-        multi_space_manager=multi_space_manager,
-        batch_size=settings.pipeline_embedding_batch_size,
-        poll_interval=settings.pipeline_embedding_poll_interval,
-        max_retries=settings.pipeline_max_retries,
-        stale_claim_timeout=settings.pipeline_stale_claim_timeout_seconds,
-    )
-    crystallization_consumer = CrystallizationConsumer(
-        db_path,
-        crystallizer_worker=worker,
-        batch_size=settings.pipeline_crystallization_batch_size,
-        poll_interval=settings.pipeline_crystallization_poll_interval,
-        min_batch_threshold=settings.pipeline_crystallization_min_batch,
-        max_retries=settings.pipeline_max_retries,
-        stale_claim_timeout=settings.pipeline_stale_claim_timeout_seconds,
-    )
-
-
-    # Wire entity index from enrichment pipeline to analytical engine
-    for stage in enrichment_pipeline._stages:
-        if hasattr(stage, 'entity_index'):
-            analytical_engine._preprocessor._entity_index = stage.entity_index
-            analytical_engine._retriever._entity_index = stage.entity_index
-            logger.info("Wired entity index to analytical engine (%d entities)", len(stage.entity_index))
-            break
-
-
-    # Wire inter-stage notifications
-    enrichment_consumer._on_advance = embedding_consumer.notify
-    embedding_consumer._on_advance = crystallization_consumer.notify
-
-    pipeline_orchestrator = PipelineOrchestrator(
-        consumers=[enrichment_consumer, embedding_consumer, crystallization_consumer],
-        db_path=db_path,
-        restart_delay=settings.pipeline_consumer_restart_delay,
-    )
-
-    from periphery.pipeline.router import set_orchestrator, set_multi_space_manager
-    set_orchestrator(pipeline_orchestrator)
+    # Wire pipeline router with read-only status access (no orchestrator running here)
+    from periphery.pipeline.router import set_multi_space_manager
     set_multi_space_manager(multi_space_manager)
-
-    # Layer 0: Start RSS ingest daemon (polling → SQLite → pipeline)
-    if settings.rss_enabled:
-        config_path = settings.rss_feeds_config or None
-        rss_daemon = RSSIngestDaemon(
-            config_path=config_path,
-            fetch_full_articles=settings.rss_fetch_full_articles,
-            queue_maxsize=settings.rss_queue_maxsize,
-            db_path=db_path,
-        )
-        await rss_daemon.start()
-        
-        # Wire fast-path: queue consumer → enrichment consumer notification
-        if rss_daemon.queue_consumer is not None:
-            rss_daemon.queue_consumer._on_persist = enrichment_consumer.notify
-            # Wire WebSocket broadcast for document ingestion events
-            from periphery.ws.router import broadcast_document_ingested
-            rss_daemon.queue_consumer._on_ws_broadcast = broadcast_document_ingested
-
-        # Mount RSS status endpoints
-        from periphery.rss_ingest.status import router as rss_router
-        app.include_router(rss_router)
-
-        logger.info(
-            "RSS ingest daemon started — %d feeds, db=%s",
-            len(rss_daemon.feed_manager.feeds),
-            db_path,
-        )
 
     # Start background crystallizer
     await worker.start()
 
-    # Start pipeline orchestrator as background task
-    _pipeline_task = asyncio.create_task(
-        pipeline_orchestrator.run(), name="pipeline-orchestrator"
-    )
-
-    logger.info("Periphery system initialized — all layers active, pipeline running")
+    logger.info("Periphery API server initialized — query layers active")
 
     yield
 
     # Shutdown
-    if rss_daemon:
-        await rss_daemon.stop()
-    if pipeline_orchestrator:
-        await pipeline_orchestrator.stop()
-    if _pipeline_task:
-        _pipeline_task.cancel()
-        try:
-            await _pipeline_task
-        except asyncio.CancelledError:
-            pass
     await worker.stop()
-    
+
     store.save()
     if multi_space_manager:
         multi_space_manager.save()
-    logger.info("Periphery system shut down")
+    logger.info("Periphery API server shut down")
 
 
 app = FastAPI(
@@ -390,7 +292,6 @@ async def root():
         "version": "0.1.0",
         "principle": "Schema is observation, not imposition",
         "layers": {
-            "rss": "/rss",
             "ingest": "/ingest",
             "crystallizer": "/crystallizer",
             "critic": "/critic",
@@ -408,9 +309,6 @@ async def health():
         "vectors": store.total if store else 0,
         "clusters": len(worker.clusters) if worker else 0,
         "last_crystallization": worker.last_run.isoformat() if worker and worker.last_run else None,
-        "pipeline": pipeline_orchestrator is not None,
-        "rss_ingest": rss_daemon is not None,
-        "rss_feeds": len(rss_daemon.feed_manager.feeds) if rss_daemon else 0,
     }
 
 
