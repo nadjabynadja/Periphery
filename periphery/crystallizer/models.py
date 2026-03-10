@@ -43,28 +43,11 @@ class DetectedCluster(BaseModel):
     centroid: list[float] = Field(default_factory=list)
     label: str = ""
     status: str = "forming"  # forming | stable | growing | shrinking | dissolved
-    class ClusterEntity(BaseModel):
-        canonical_id: str
-    name: Optional[str] = None
-    entity_type: Optional[str] = None
-    confidence: Optional[float] = None
-    credibility_tier: Optional[int] = None
-
-    name: Optional[str] = None
-    entity_type: Optional[str] = None
-    confidence: Optional[float] = None
-    credibility_tier: Optional[int] = None
-
-class ClusterEntity(BaseModel):
-    canonical_id: str
-    name: Optional[str] = None
-    entity_type: Optional[str] = None
-    confidence: Optional[float] = None
-    credibility_tier: Optional[int] = None
-
-class DetectedCluster(BaseModel):
-    # ... other fields ...
-    key_entities: list[ClusterEntity]
+    key_entities: list[str] = Field(default_factory=list)
+    key_relationships: list[dict[str, Any]] = Field(default_factory=list)
+    confidence: float = 0.0
+    temporal_center: Optional[datetime] = None
+    geographic_center: Optional[dict[str, float]] = None
 
 
 class SizeSnapshot(BaseModel):
@@ -153,6 +136,7 @@ class Anomaly(BaseModel):
     first_detected: datetime = Field(default_factory=_utcnow)
     resolved: bool = False
     resolved_into_cluster: Optional[str] = None
+    description: str = ""
 
 
 # ── Emerging Structure Models ────────────────────────────────────────────
@@ -168,6 +152,8 @@ class EmergingStructure(BaseModel):
     density_trend: str = "stable"  # increasing | stable | decreasing
     candidate_entities: list[str] = Field(default_factory=list)
     formation_confidence: float = 0.0
+    label: str = ""
+    detected_at: Optional[datetime] = Field(default_factory=_utcnow)
 
 
 class ConvergenceAlert(BaseModel):

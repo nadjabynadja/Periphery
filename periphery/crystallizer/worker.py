@@ -569,6 +569,13 @@ class CrystallizerWorker:
                 geospatial=correlated_raw.get("geospatial"),
             )
 
+            # Extract entity names as strings for key_entities
+            key_entity_names = [
+                e.get("text") or e.get("canonical_name") or e.get("canonical_id", "")
+                for e in key_ents[:10]
+            ]
+            key_entity_names = [n for n in key_entity_names if n]
+
             detected = DetectedCluster(
                 cluster_id=cluster_id,
                 primary_space=primary_space,
@@ -581,8 +588,9 @@ class CrystallizerWorker:
                 centroid=centroid,
                 label=label,
                 status=status,
-                key_entities=key_ents[:10],
+                key_entities=key_entity_names,
                 key_relationships=key_rels[:5],
+                confidence=corr["cross_space_coherence"],
             )
 
             seen_members[members] = detected

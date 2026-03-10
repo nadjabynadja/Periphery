@@ -122,6 +122,10 @@ class AnomalyDetector:
                 source_credibility=credibility,
                 first_detected=first_detected,
                 resolved=False,
+                description=(
+                    f"{anomaly_type} anomaly (score={score:.2f}) "
+                    f"in spaces {outlier_spaces}, nearest cluster: {nearest_cluster}"
+                ),
             )
 
             self._known_anomalies[doc_id] = anomaly
