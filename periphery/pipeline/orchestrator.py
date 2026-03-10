@@ -1,7 +1,6 @@
 """Pipeline orchestrator — manages all stage consumers as concurrent async tasks.
 
 Single entry point: ``python -m periphery.pipeline``
-Uses the shared DatabasePool for all connections.
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
-from periphery.db import get_pool
+from periphery.db import get_connection
 import structlog
 
 from .consumer import StageConsumer
@@ -49,8 +48,8 @@ class PipelineOrchestrator:
         self._started_at = datetime.now(timezone.utc)
 
         # Run stale claim recovery on startup
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             for consumer in self._consumers:
                 try:
                     recovered = await consumer.recover_stale_claims(db)
@@ -108,8 +107,9 @@ class PipelineOrchestrator:
 
     async def get_pipeline_stats(self) -> dict[str, Any]:
         """Return full pipeline state for the stats endpoint."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+
             # Pipeline status counts
             cursor = await db.execute(
                 "SELECT processing_status, COUNT(*) FROM documents GROUP BY processing_status"

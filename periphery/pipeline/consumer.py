@@ -3,8 +3,6 @@
 Every stage consumer does the same fundamental thing: poll for documents in
 its input state, claim them, process them, and advance their state. The only
 thing that varies is the actual processing logic.
-
-Uses the shared DatabasePool for all connections.
 """
 
 from __future__ import annotations
@@ -16,7 +14,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from periphery.db import get_pool
+from periphery.db import get_connection
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -162,8 +160,10 @@ class StageConsumer(abc.ABC):
 
     async def _run_cycle(self) -> int:
         """Run one polling + processing cycle. Returns count of docs processed."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            db.row_factory = aiosqlite.Row
+
             # Claim a batch
             claimed = await self._claim_batch(db)
             if not claimed:

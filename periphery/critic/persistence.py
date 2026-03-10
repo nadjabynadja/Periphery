@@ -1,19 +1,36 @@
 """Critic persistence — SQLite storage for critic run metadata.
 
-Uses the shared DatabasePool for all connections. Schema is defined
-centrally in periphery/db.py.
+Adds the critic_runs table for monitoring the Critic's performance
+and retraining history.
 """
 
 from __future__ import annotations
 
-import logging
+import json
 from datetime import datetime, timezone
 from typing import Any
 
-from periphery.db import get_pool
+from periphery.db import get_connection
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+CRITIC_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS critic_runs (
+    run_id TEXT PRIMARY KEY,
+    timestamp TIMESTAMP,
+    model_version INTEGER,
+    snapshot_id TEXT,
+    structures_scored INTEGER,
+    mean_confidence FLOAT,
+    median_confidence FLOAT,
+    low_confidence_count INTEGER,
+    high_confidence_count INTEGER,
+    scoring_time_ms INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_critic_run_time ON critic_runs(timestamp);
+"""
 
 
 class CriticStore:
@@ -21,10 +38,15 @@ class CriticStore:
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
+        self._initialized = False
 
     async def initialize(self) -> None:
-        """Verify pool is available. Schema is managed by db.py."""
-        get_pool()  # raises if not initialized
+        """Create critic tables if they don't exist."""
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.executescript(CRITIC_SCHEMA_SQL)
+            await db.commit()
+        self._initialized = True
         logger.info("critic_store_initialized", db_path=self._db_path)
 
     async def save_run(
@@ -40,8 +62,8 @@ class CriticStore:
         scoring_time_ms: int,
     ) -> None:
         """Record a critic scoring run."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT OR REPLACE INTO critic_runs
@@ -63,12 +85,23 @@ class CriticStore:
                     scoring_time_ms,
                 ),
             )
+
+            # Prune old runs — keep last 500
+            await db.execute(
+                """
+                DELETE FROM critic_runs
+                WHERE run_id NOT IN (
+                    SELECT run_id FROM critic_runs
+                    ORDER BY timestamp DESC LIMIT 500
+                )
+                """
+            )
             await db.commit()
 
     async def get_recent_runs(self, limit: int = 20) -> list[dict[str, Any]]:
         """Get the most recent critic runs."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT * FROM critic_runs ORDER BY timestamp DESC LIMIT ?",
                 (limit,),
@@ -79,8 +112,8 @@ class CriticStore:
 
     async def get_score_trend(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get mean confidence trend over recent runs."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 """
                 SELECT timestamp, mean_confidence, median_confidence,

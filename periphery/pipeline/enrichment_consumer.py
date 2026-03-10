@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from periphery.db import get_connection
 import structlog
 
 from periphery.enrichment.models import EnrichedDocument

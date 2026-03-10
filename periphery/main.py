@@ -90,12 +90,9 @@ async def lifespan(app: FastAPI):
     ]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize database pool (creates schema, fills connection pool)
-    from periphery.db import init_pool, close_pool, get_pool
-    db_pool = await init_pool(
-        settings.pipeline_db_path,
-        pool_size=settings.db_pool_size,
-    )
+    # Initialize database schema before any component starts
+    from periphery.db import ensure_database
+    await ensure_database(settings.pipeline_db_path)
 
     # Layer 1: Initialize embedding model and vector store
     logger.info("Initializing embedding model: %s", settings.embedding_model)
@@ -249,9 +246,6 @@ async def lifespan(app: FastAPI):
     store.save()
     if multi_space_manager:
         multi_space_manager.save()
-
-    # Close the database pool
-    await close_pool()
     logger.info("Periphery API server shut down")
 
 
@@ -310,18 +304,11 @@ async def root():
 
 @app.get("/health")
 async def health():
-    from periphery.db import get_pool as _get_pool
-    try:
-        pool = _get_pool()
-        db_health = pool.health()
-    except RuntimeError:
-        db_health = {"status": "not_initialized"}
     return {
         "status": "healthy",
         "vectors": store.total if store else 0,
         "clusters": len(worker.clusters) if worker else 0,
         "last_crystallization": worker.last_run.isoformat() if worker and worker.last_run else None,
-        "database": db_health,
     }
 
 
