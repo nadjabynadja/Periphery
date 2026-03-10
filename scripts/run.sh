@@ -29,14 +29,64 @@ else
     echo "      The API will still work at http://localhost:8000"
 fi
 
-echo ""
-echo "Starting Periphery..."
-echo "  API:     http://localhost:8000"
-echo "  Health:  http://localhost:8000/health"
-echo "  Docs:    http://localhost:8000/docs"
-echo ""
-
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
+RSS_ENABLED="${RSS_ENABLED:-true}"
 
-exec uvicorn periphery.main:app --host "$HOST" --port "$PORT" --log-level info
+# Collect PIDs for cleanup
+PIDS=()
+
+cleanup() {
+    echo ""
+    echo "Shutting down all processes..."
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid" 2>/dev/null || true
+        fi
+    done
+    # Wait briefly for graceful shutdown, then force-kill stragglers
+    sleep 2
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    done
+    echo "All processes stopped."
+}
+
+trap cleanup EXIT INT TERM
+
+echo ""
+echo "Starting Periphery (3 processes)..."
+echo ""
+
+# Process 1: RSS Ingest Daemon
+if [[ "$RSS_ENABLED" == "true" ]]; then
+    echo "  [rss]      RSS ingest daemon"
+    python -m periphery.rss_ingest --no-server &
+    PIDS+=($!)
+else
+    echo "  [rss]      Disabled (RSS_ENABLED=false)"
+fi
+
+# Process 2: Enrichment Pipeline
+echo "  [pipeline] Enrichment pipeline (enrichment → embedding → crystallization)"
+python -m periphery.pipeline &
+PIDS+=($!)
+
+# Process 3: API / Frontend Server
+echo "  [api]      API server on http://$HOST:$PORT"
+echo ""
+echo "  Health:    http://localhost:${PORT}/health"
+echo "  Docs:      http://localhost:${PORT}/docs"
+echo ""
+
+uvicorn periphery.main:app --host "$HOST" --port "$PORT" --log-level info &
+PIDS+=($!)
+
+echo "All processes started. Press Ctrl+C to stop."
+echo ""
+
+# Wait for any child to exit — if one dies, bring everything down
+wait -n "${PIDS[@]}" 2>/dev/null || true
+echo "A process exited. Shutting down remaining processes..."
