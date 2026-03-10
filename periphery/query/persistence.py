@@ -94,11 +94,20 @@ class QueryStore:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
-                INSERT OR REPLACE INTO query_history
+                INSERT INTO query_history
                     (query_id, query_text, parsed_intent, execution_plan,
                      result_summary, execution_stats, session_id,
                      timestamp, response_time_ms)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(query_id) DO UPDATE SET
+                    query_text = excluded.query_text,
+                    parsed_intent = excluded.parsed_intent,
+                    execution_plan = excluded.execution_plan,
+                    result_summary = excluded.result_summary,
+                    execution_stats = excluded.execution_stats,
+                    session_id = excluded.session_id,
+                    timestamp = excluded.timestamp,
+                    response_time_ms = excluded.response_time_ms
                 """,
                 (
                     query_id,
