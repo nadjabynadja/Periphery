@@ -3,16 +3,13 @@
 Claims embedded documents in batches and feeds them into the Crystallizer
 process for cluster detection, trajectory analysis, and relational gradient
 extraction over the updated embedding space.
-
-Uses the shared DatabasePool for all connections.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from periphery.db import get_pool
-import aiosqlite
+from periphery.db import get_connection
 import structlog
 
 from .consumer import StageConsumer
@@ -55,8 +52,9 @@ class CrystallizationConsumer(StageConsumer):
 
     async def _run_cycle(self) -> int:
         """Override to check minimum batch threshold before claiming."""
-        pool = get_pool()
-        async with pool.acquire() as db:
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+
             # Check queue depth before claiming
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM documents WHERE processing_status = ?",

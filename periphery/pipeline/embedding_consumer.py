@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from periphery.db import get_connection
 import numpy as np
 import structlog
 
