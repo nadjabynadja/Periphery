@@ -54,9 +54,9 @@ async def main() -> None:
     ]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize database schema
-    from periphery.db import ensure_database
-    await ensure_database(db_path)
+    # Initialize database pool (creates schema, fills connection pool)
+    from periphery.db import init_pool, close_pool
+    await init_pool(db_path, pool_size=settings.db_pool_size)
 
     # Initialize embedding model and vector store
     logger.info("pipeline_init_embedding", model=settings.embedding_model)
@@ -246,6 +246,7 @@ async def main() -> None:
     await worker.stop()
     store.save()
     multi_space_manager.save()
+    await close_pool()
     logger.info("pipeline_stopped")
 
 

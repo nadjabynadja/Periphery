@@ -1,7 +1,8 @@
 """Component 7 — Query History & Analyst Context.
 
 Persists query history, session state, and analyst annotations in SQLite.
-Feeds query patterns back into system development and entity resolution.
+Uses the shared DatabasePool for all connections. Schema is defined
+centrally in periphery/db.py.
 """
 
 from __future__ import annotations
@@ -11,57 +12,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from periphery.db import get_connection
+from periphery.db import get_pool
 
 logger = logging.getLogger(__name__)
-
-QUERY_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS query_history (
-    query_id TEXT PRIMARY KEY,
-    query_text TEXT,
-    parsed_intent JSON,
-    execution_plan JSON,
-    result_summary JSON,
-    execution_stats JSON,
-    analyst_feedback JSON,
-    session_id TEXT,
-    timestamp TIMESTAMP,
-    response_time_ms INTEGER
-);
-
-CREATE INDEX IF NOT EXISTS idx_query_time ON query_history(timestamp);
-CREATE INDEX IF NOT EXISTS idx_query_session ON query_history(session_id);
-
-CREATE TABLE IF NOT EXISTS query_sessions (
-    session_id TEXT PRIMARY KEY,
-    state JSON,
-    created_at TIMESTAMP,
-    last_active TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS query_bookmarks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    query_id TEXT REFERENCES query_history(query_id),
-    session_id TEXT,
-    label TEXT,
-    created_at TIMESTAMP,
-    active BOOLEAN DEFAULT TRUE
-);
-
-CREATE INDEX IF NOT EXISTS idx_bookmark_session ON query_bookmarks(session_id);
-
-CREATE TABLE IF NOT EXISTS analyst_annotations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    annotation_type TEXT,
-    target_type TEXT,
-    target_id TEXT,
-    annotation_data JSON,
-    session_id TEXT,
-    created_at TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_annotation_target ON analyst_annotations(target_type, target_id);
-"""
 
 
 class QueryStore:
@@ -69,14 +22,10 @@ class QueryStore:
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        self._initialized = False
 
     async def initialize(self) -> None:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-            await db.executescript(QUERY_SCHEMA_SQL)
-            await db.commit()
-        self._initialized = True
+        """Verify pool is available. Schema is managed by db.py."""
+        get_pool()  # raises if not initialized
         logger.info("query_store_initialized db=%s", self._db_path)
 
     async def save_query(
@@ -90,8 +39,8 @@ class QueryStore:
         session_id: str | None = None,
         response_time_ms: int = 0,
     ) -> None:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             await db.execute(
                 """
                 INSERT OR REPLACE INTO query_history
@@ -117,8 +66,8 @@ class QueryStore:
     async def get_recent_queries(
         self, limit: int = 20, session_id: str | None = None
     ) -> list[dict[str, Any]]:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             if session_id:
                 cursor = await db.execute(
                     "SELECT query_id, query_text, parsed_intent, result_summary, "
@@ -148,8 +97,8 @@ class QueryStore:
 
     async def save_session(self, session_id: str, state: dict[str, Any]) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             await db.execute(
                 """
                 INSERT OR REPLACE INTO query_sessions
@@ -164,8 +113,8 @@ class QueryStore:
             await db.commit()
 
     async def load_session(self, session_id: str) -> dict[str, Any] | None:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             cursor = await db.execute(
                 "SELECT state FROM query_sessions WHERE session_id = ?",
                 (session_id,),
@@ -178,8 +127,8 @@ class QueryStore:
     async def save_bookmark(
         self, query_id: str, session_id: str, label: str = ""
     ) -> None:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             await db.execute(
                 """
                 INSERT INTO query_bookmarks (query_id, session_id, label, created_at)
@@ -190,8 +139,8 @@ class QueryStore:
             await db.commit()
 
     async def get_bookmarks(self, session_id: str) -> list[dict[str, Any]]:
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             cursor = await db.execute(
                 """
                 SELECT b.query_id, b.label, b.created_at, h.query_text
@@ -221,8 +170,8 @@ class QueryStore:
         session_id: str = "",
     ) -> None:
         """Save an analyst annotation (entity merge, relationship confirmation, etc.)."""
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             await db.execute(
                 """
                 INSERT INTO analyst_annotations
@@ -245,8 +194,8 @@ class QueryStore:
         self, query_id: str, feedback: dict[str, Any]
     ) -> None:
         """Save analyst feedback on a query result."""
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             await db.execute(
                 "UPDATE query_history SET analyst_feedback = ? WHERE query_id = ?",
                 (json.dumps(feedback), query_id),
@@ -255,8 +204,8 @@ class QueryStore:
 
     async def get_query_stats(self) -> dict[str, Any]:
         """Return aggregate query statistics."""
-        async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        pool = get_pool()
+        async with pool.acquire() as db:
             cursor = await db.execute(
                 "SELECT COUNT(*), AVG(response_time_ms), "
                 "MIN(response_time_ms), MAX(response_time_ms) "
