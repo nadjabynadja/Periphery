@@ -43,7 +43,21 @@ class DetectedCluster(BaseModel):
     centroid: list[float] = Field(default_factory=list)
     label: str = ""
     status: str = "forming"  # forming | stable | growing | shrinking | dissolved
-    key_entities: list[str] = Field(default_factory=list)
+    class ClusterEntity(BaseModel):
+        canonical_id: str
+    name: Optional[str] = None
+    entity_type: Optional[str] = None
+    confidence: Optional[float] = None
+    credibility_tier: Optional[int] = None
+
+    name: Optional[str] = None
+    entity_type: Optional[str] = None
+    confidence: Optional[float] = None
+    credibility_tier: Optional[int] = None
+
+class DetectedCluster(BaseModel):
+    # ... other fields ...
+    key_entities: list[ClusterEntity] = Field(default_factory=list)
     key_relationships: list[dict[str, Any]] = Field(default_factory=list)
     geographic_center: Optional[dict[str, float]] = None
     temporal_center: Optional[datetime] = None
