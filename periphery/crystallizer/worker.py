@@ -722,11 +722,10 @@ class CrystallizerWorker:
             return doc_entities, doc_relationships, doc_metadata
 
         try:
-            from periphery.db import get_connection
+            from periphery.db import get_pool
 
-            db_path = self._store_db._db_path
-            async with get_connection(db_path) as db:
-                await db.execute("PRAGMA journal_mode=WAL")
+            pool = get_pool()
+            async with pool.acquire() as db:
 
                 cursor = await db.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='document_enrichments'"
