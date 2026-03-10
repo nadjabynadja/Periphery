@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from periphery.db import get_pool
+from periphery.db import get_connection
 from fastapi import APIRouter
 
 from periphery.ingest.store import MultiSpaceIndexManager
@@ -55,8 +55,9 @@ async def embedding_stats() -> dict[str, Any]:
 
     # Completeness distribution from SQLite
     if _orchestrator is not None:
-        pool = get_pool()
-        async with pool.acquire() as db:
+        db_path = _orchestrator._db_path
+        async with get_connection(db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
 
             # Total embedded
             cursor = await db.execute(

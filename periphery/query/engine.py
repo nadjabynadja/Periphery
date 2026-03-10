@@ -6,7 +6,7 @@ import anthropic
 
 from periphery.config import get_settings
 from periphery.crystallizer.graph import OntologyGraph
-from periphery.db import get_pool
+from periphery.db import get_connection
 from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore
 from periphery.models import Document, QueryResponse, SearchResult
@@ -54,8 +54,7 @@ class QueryEngine:
     async def _fetch_document_from_db(self, doc_id: str) -> Document | None:
         """Fall back to the SQLite document store for pipeline-ingested documents."""
         try:
-            pool = get_pool()
-            async with pool.acquire() as db:
+            async with get_connection(self._db_path) as db:
                 cursor = await db.execute(
                     "SELECT id, content, title, url, metadata, published "
                     "FROM documents WHERE id = ?",
