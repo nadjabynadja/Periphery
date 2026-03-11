@@ -24,6 +24,20 @@ import type {
 } from './types'
 import { PeripheryWebSocket, type WSMessage } from './websocket'
 
+// --- Pipeline Command Types ---
+export interface CommandResponse {
+  status: string
+  pid?: number
+  command?: string
+}
+
+export interface CommandStatusEntry {
+  state: 'running' | 'stopped'
+  pid: number | null
+}
+
+export type CommandStatusMap = Record<string, CommandStatusEntry>
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const DEFAULT_TIMEOUT = 10_000
@@ -400,6 +414,27 @@ export const peripheryApi = {
       method: 'POST',
       body: JSON.stringify(annotation),
     })
+  },
+
+  // --- Pipeline Commands ---
+  forceIngest(): Promise<CommandResponse> {
+    return request<CommandResponse>('/api/commands/force-ingest', { method: 'POST' })
+  },
+
+  runCollect(): Promise<CommandResponse> {
+    return request<CommandResponse>('/api/commands/run-collect', { method: 'POST' })
+  },
+
+  continuousCollect(): Promise<CommandResponse> {
+    return request<CommandResponse>('/api/commands/continuous-collect', { method: 'POST' })
+  },
+
+  getCommandStatus(): Promise<CommandStatusMap> {
+    return requestWithRetry<CommandStatusMap>('/api/commands/status')
+  },
+
+  stopCommand(name: string): Promise<CommandResponse> {
+    return request<CommandResponse>(`/api/commands/stop/${encodeURIComponent(name)}`, { method: 'POST' })
   },
 }
 
