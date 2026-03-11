@@ -31,7 +31,6 @@ fi
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
-RSS_ENABLED="${RSS_ENABLED:-true}"
 
 # Collect PIDs for cleanup
 PIDS=()
@@ -57,22 +56,10 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo ""
-echo "Starting Periphery (3 processes)..."
+echo "Starting Periphery (2 processes)..."
 echo ""
 
-# Process 1: RSS Ingest Daemon (runs 30s, pauses 60s, repeats)
-if [[ "$RSS_ENABLED" == "true" ]]; then
-    echo "  [rss]      RSS ingest daemon (30s on / 60s off)"
-    (while true; do
-        python -m periphery.rss_ingest --no-server --duration 30
-        sleep 60
-    done) &
-    PIDS+=($!)
-else
-    echo "  [rss]      Disabled (RSS_ENABLED=false)"
-fi
-
-# Process 2: Enrichment Pipeline
+# Process 1: Enrichment Pipeline
 echo "  [pipeline] Enrichment pipeline (enrichment → embedding → crystallization)"
 python -m periphery.pipeline &
 PIDS+=($!)
