@@ -4,8 +4,9 @@ Resolves GPE, LOC, and FAC entities to coordinates using a tiered geocoding
 architecture:
   Tier 1:   Persistent SQLite cache (instant, free)
   Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name matching)
-  Tier 2:   GeoNames local database (fast, free, no rate limits)
-  Tier 3:   Nominatim API (accurate, rate-limited)
+  Tier 2:   LLM entity disambiguation (llama.cpp, normalizes entity names)
+  Tier 3:   GeoNames local database (fast, free, no rate limits)
+  Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
 
 Also handles:
   - Location entity identification (ORG+location modifiers, coordinates, addresses)
@@ -622,7 +623,267 @@ class NominatimClient:
 
 
 # ---------------------------------------------------------------------------
-# Component 5: Location entity identification
+# Component 5: Photon self-hosted geocoder (Tier 4, replaces Nominatim)
+# ---------------------------------------------------------------------------
+
+class PhotonClient:
+    """Async Photon geocoder client for self-hosted instances.
+
+    Photon is a Nominatim-compatible geocoder that runs locally, so no
+    rate limiting is needed.  Returns GeoJSON FeatureCollections.
+    """
+
+    def __init__(self, base_url: str = "http://localhost:2322") -> None:
+        self._base_url = base_url.rstrip("/")
+        self._available: bool | None = None  # lazily determined
+
+    async def _get_session(self):
+        """Create a new aiohttp session per call (lightweight for local)."""
+        import aiohttp
+        return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+
+    async def health_check(self) -> bool:
+        """Check if the Photon instance is reachable."""
+        try:
+            session = await self._get_session()
+            async with session:
+                async with session.get(f"{self._base_url}/status") as resp:
+                    self._available = resp.status == 200
+        except Exception:
+            self._available = False
+        return self._available or False
+
+    @property
+    def available(self) -> bool:
+        """Whether Photon was reachable on last check (or assumed True if unchecked)."""
+        if self._available is None:
+            return True  # optimistic until first check
+        return self._available
+
+    async def geocode(self, location: str, country_context: str = "") -> list[dict]:
+        """Forward-geocode a location string via Photon's /api endpoint.
+
+        Returns a list of candidate dicts compatible with the pipeline.
+        """
+        query = location
+        if country_context and country_context.lower() != location.lower():
+            query = f"{location}, {country_context}"
+
+        params: dict[str, str | int] = {"q": query, "limit": 5}
+
+        try:
+            session = await self._get_session()
+            async with session:
+                async with session.get(
+                    f"{self._base_url}/api", params=params
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning(
+                            "photon_non_200",
+                            status=resp.status,
+                            location=location,
+                        )
+                        self._available = False
+                        return []
+                    data = await resp.json()
+        except Exception as exc:
+            logger.warning("photon_geocode_failed", location=location, error=str(exc))
+            self._available = False
+            return []
+
+        self._available = True
+        features = data.get("features", [])
+
+        if not features and query != location:
+            # Retry without country context
+            try:
+                session = await self._get_session()
+                async with session:
+                    async with session.get(
+                        f"{self._base_url}/api", params={"q": location, "limit": 5}
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            features = data.get("features", [])
+            except Exception:
+                pass
+
+        candidates = []
+        for feature in features:
+            props = feature.get("properties", {})
+            geom = feature.get("geometry", {})
+            coords = geom.get("coordinates", [])
+            if len(coords) < 2:
+                continue
+
+            lon, lat = coords[0], coords[1]
+
+            # Build display name from available properties
+            name_parts = []
+            for key in ("name", "city", "state", "country"):
+                val = props.get(key)
+                if val and val not in name_parts:
+                    name_parts.append(val)
+            display_name = ", ".join(name_parts) if name_parts else location
+
+            # Parse extent as bounding box [west, south, east, north]
+            extent = props.get("extent")  # Photon: [w, s, e, n]
+            boundingbox = None
+            if extent and len(extent) == 4:
+                boundingbox = [extent[1], extent[3], extent[0], extent[2]]  # [s, n, w, e]
+
+            osm_key = props.get("osm_key", "")
+            osm_value = props.get("osm_value", "")
+
+            candidates.append({
+                "latitude": lat,
+                "longitude": lon,
+                "display_name": display_name,
+                "type": osm_value or props.get("type", ""),
+                "class": osm_key,
+                "importance": 0.5,  # Photon doesn't provide importance scores
+                "boundingbox": boundingbox,
+                "address": {
+                    "country": props.get("country", ""),
+                    "country_code": props.get("countrycode", ""),
+                    "state": props.get("state", ""),
+                    "city": props.get("city", ""),
+                },
+                "country": props.get("country", ""),
+                "country_code": props.get("countrycode", ""),
+                "state": props.get("state", ""),
+                "city": props.get("city", ""),
+            })
+
+        return candidates
+
+
+# ---------------------------------------------------------------------------
+# Component 6: LLM Entity Disambiguator (Tier 2.5)
+# ---------------------------------------------------------------------------
+
+_DISAMBIGUATOR_SYSTEM_PROMPT = (
+    "You are a geospatial entity resolver. Given an entity name from a news "
+    "article, output 1-3 specific physical locations associated with this "
+    "entity. For each location, output a line with format: "
+    "LOCATION: <geocodable place name>. "
+    "If the entity is already a clear place name, output it unchanged. "
+    "Do not explain, just output locations."
+)
+
+
+class EntityDisambiguator:
+    """Normalizes messy entity names into geocodable location strings using
+    a local llama.cpp model (via llama-cpp-python).
+
+    Slots in between the embedding index (Tier 1.5) and GeoNames (Tier 2)
+    in the geocoding pipeline.
+    """
+
+    _LOCATION_RE = re.compile(r"^LOCATION:\s*(.+)$", re.MULTILINE)
+
+    def __init__(
+        self,
+        model_path: str = "models/llama-3.2-3b-instruct-q4_k_m.gguf",
+        enabled: bool = True,
+    ) -> None:
+        self._model_path = model_path
+        self._enabled = enabled
+        self._model: Any = None
+        self._available = False
+
+        if enabled:
+            self._try_load_model()
+
+    def _try_load_model(self) -> None:
+        """Attempt to load the llama.cpp model. Fail gracefully."""
+        if not Path(self._model_path).exists():
+            logger.warning(
+                "llm_disambiguator_model_not_found",
+                path=self._model_path,
+                msg="EntityDisambiguator will be a passthrough",
+            )
+            return
+
+        try:
+            from llama_cpp import Llama
+
+            self._model = Llama(
+                model_path=self._model_path,
+                n_ctx=512,
+                n_threads=2,
+                verbose=False,
+            )
+            self._available = True
+            logger.info(
+                "llm_disambiguator_loaded",
+                model_path=self._model_path,
+            )
+        except ImportError:
+            logger.warning(
+                "llama_cpp_not_installed",
+                msg="EntityDisambiguator will be a passthrough",
+            )
+        except Exception as exc:
+            logger.warning(
+                "llm_disambiguator_load_failed",
+                error=str(exc),
+                msg="EntityDisambiguator will be a passthrough",
+            )
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def disambiguate(
+        self, entity_text: str, country_context: str = ""
+    ) -> list[str]:
+        """Normalize an entity name into geocodable location strings.
+
+        Returns a list of location strings. If the model is unavailable or
+        the entity is already a clear location, returns ``[entity_text]``.
+        """
+        if not self._available or self._model is None:
+            return [entity_text]
+
+        user_prompt = entity_text
+        if country_context:
+            user_prompt = f"{entity_text} (country context: {country_context})"
+
+        try:
+            result = self._model.create_chat_completion(
+                messages=[
+                    {"role": "system", "content": _DISAMBIGUATOR_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=128,
+                temperature=0.1,
+            )
+
+            content = (
+                result.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            )
+
+            locations = self._LOCATION_RE.findall(content)
+            if locations:
+                return [loc.strip() for loc in locations if loc.strip()]
+
+            # If no LOCATION: lines found, return original
+            return [entity_text]
+
+        except Exception as exc:
+            logger.warning(
+                "llm_disambiguator_inference_failed",
+                entity=entity_text,
+                error=str(exc),
+            )
+            return [entity_text]
+
+
+# ---------------------------------------------------------------------------
+# Component 7: Location entity identification
 # ---------------------------------------------------------------------------
 
 def _identify_geocoding_targets(doc: PipelineDocument) -> list[dict]:
@@ -938,8 +1199,9 @@ class GeospatialResolutionStage(EnrichmentStage):
     Uses a tiered geocoding approach:
       Tier 1:   Persistent cache (SQLite, exact match)
       Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name match)
-      Tier 2:   GeoNames local database (exact + LIKE match)
-      Tier 3:   Nominatim API (rate-limited fallback)
+      Tier 2:   LLM entity disambiguation (llama.cpp, normalizes names)
+      Tier 3:   GeoNames local database (exact + LIKE match)
+      Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
 
     Also enriches with:
       - Location type classification
@@ -955,17 +1217,26 @@ class GeospatialResolutionStage(EnrichmentStage):
         cache: GeocodingCache | None = None,
         geonames: GeoNamesIndex | None = None,
         nominatim: NominatimClient | None = None,
+        photon: PhotonClient | None = None,
         embedding_index: EmbeddingGeoIndex | None = None,
+        disambiguator: EntityDisambiguator | None = None,
         geocoder: str = "nominatim",
         rate_limit_delay: float = 1.0,
         cache_db_path: str | None = None,
         geonames_db_path: str | None = None,
         seed_file_path: str | None = None,
+        photon_base_url: str = "http://localhost:2322",
+        llm_model_path: str = "models/llama-3.2-3b-instruct-q4_k_m.gguf",
+        llm_enabled: bool = True,
     ) -> None:
         self._cache = cache or GeocodingCache(db_path=cache_db_path)
         self._geonames = geonames or GeoNamesIndex(db_path=geonames_db_path)
         self._nominatim = nominatim or NominatimClient(rate_limit_delay=rate_limit_delay)
+        self._photon = photon or PhotonClient(base_url=photon_base_url)
         self._embedding_index = embedding_index or EmbeddingGeoIndex()
+        self._disambiguator = disambiguator or EntityDisambiguator(
+            model_path=llm_model_path, enabled=llm_enabled,
+        )
         self._geocoder_name = geocoder
         self._resolver = AmbiguityResolver()
         self._seeded = False
@@ -1115,8 +1386,9 @@ class GeospatialResolutionStage(EnrichmentStage):
 
         Tier 1:   Persistent SQLite cache (exact match)
         Tier 1.5: Embedding index (cosine similarity, fuzzy name matching)
-        Tier 2:   GeoNames local database
-        Tier 3:   Nominatim API (rate-limited fallback)
+        Tier 2:   LLM entity disambiguation (normalizes names, retries cache/embedding)
+        Tier 3:   GeoNames local database
+        Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
         """
 
         # Determine country context
@@ -1139,50 +1411,162 @@ class GeospatialResolutionStage(EnrichmentStage):
                 return cached_no_ctx
 
         # Tier 1.5: Embedding-based fuzzy name match
-        emb_candidates, emb_entries = self._embedding_index.lookup_with_meta(location, k=5)
-        if emb_candidates:
-            best, all_candidates, needs_crystallizer = self._resolver.resolve(
-                location, emb_candidates, doc_context
-            )
-            if best and best.confidence >= 0.75:
-                # Recover hierarchy from the matched index entry
-                best_entry = emb_entries[0] if emb_entries else {}
-                hier_raw = best_entry.get("hierarchy", {})
-                hierarchy = GeoHierarchy(**hier_raw) if hier_raw else GeoHierarchy()
-                geo_data = GeospatialData(
-                    resolved=True,
-                    latitude=best.latitude,
-                    longitude=best.longitude,
-                    display_name=best.display_name,
-                    location_type=best_entry.get("location_type", "city") or "city",
-                    hierarchy=hierarchy,
-                    confidence=best.confidence,
-                    geocoding_source="embedding",
-                    candidates=all_candidates if needs_crystallizer else [],
-                    needs_crystallizer_resolution=needs_crystallizer,
-                )
-                self._cache.put(location, geo_data, country_ctx)
+        emb_result = self._try_embedding_lookup(location, doc_context, country_ctx)
+        if emb_result:
+            return emb_result
+
+        # Tier 2: LLM entity disambiguation
+        llm_used = False
+        normalized_names = [location]
+        if self._disambiguator.available:
+            raw_names = self._disambiguator.disambiguate(location, country_ctx)
+            # Only use LLM results if they differ from the original
+            if raw_names != [location]:
+                normalized_names = raw_names
+                llm_used = True
                 logger.debug(
-                    "geocode_embedding_hit",
-                    location=location,
-                    matched=best.display_name,
-                    score=round(best.confidence, 3),
+                    "llm_disambiguated",
+                    original=location,
+                    normalized=normalized_names,
                 )
-                return geo_data
 
-        # Tier 2: GeoNames local database
+                # Try each normalized name through cache and embedding first
+                all_llm_candidates: list[GeoCandidate] = []
+                best_llm_result: GeospatialData | None = None
+
+                for norm_name in normalized_names:
+                    # Check cache for normalized name
+                    cached_norm = self._cache.get(norm_name, country_ctx)
+                    if not cached_norm and country_ctx:
+                        cached_norm = self._cache.get(norm_name)
+                    if cached_norm and cached_norm.resolved:
+                        # Tag the source as llm+original_source
+                        source_tag = f"llm+{cached_norm.geocoding_source}"
+                        result = GeospatialData(
+                            **{**cached_norm.model_dump(), "geocoding_source": source_tag}
+                        )
+                        # Cache under original name too
+                        self._cache.put(location, result, country_ctx)
+                        self._cache.put(norm_name, result, country_ctx)
+                        if best_llm_result is None:
+                            best_llm_result = result
+                        all_llm_candidates.extend(cached_norm.candidates)
+                        continue
+
+                    # Check embedding for normalized name
+                    emb_result = self._try_embedding_lookup(
+                        norm_name, doc_context, country_ctx,
+                        source_prefix="llm+",
+                    )
+                    if emb_result and emb_result.resolved:
+                        self._cache.put(location, emb_result, country_ctx)
+                        self._cache.put(norm_name, emb_result, country_ctx)
+                        self._embedding_index.add(norm_name, emb_result)
+                        if best_llm_result is None:
+                            best_llm_result = emb_result
+                        all_llm_candidates.extend(emb_result.candidates)
+
+                if best_llm_result is not None:
+                    # Attach all candidates from multiple normalized names
+                    if all_llm_candidates and not best_llm_result.candidates:
+                        best_llm_result = GeospatialData(
+                            **{
+                                **best_llm_result.model_dump(),
+                                "candidates": all_llm_candidates,
+                            }
+                        )
+                    return best_llm_result
+
+        # Tier 3: GeoNames local database (receives normalized names)
         if self._geonames.available:
-            geo_data = self._geocode_geonames(location, entity_type, doc_context)
-            if geo_data and geo_data.resolved:
+            for name in normalized_names:
+                geo_data = self._geocode_geonames(name, entity_type, doc_context)
+                if geo_data and geo_data.resolved:
+                    if llm_used:
+                        geo_data = GeospatialData(
+                            **{
+                                **geo_data.model_dump(),
+                                "geocoding_source": "llm+geonames",
+                            }
+                        )
+                    self._cache.put(location, geo_data, country_ctx)
+                    if llm_used and name != location:
+                        self._cache.put(name, geo_data, country_ctx)
+                    self._embedding_index.add(location, geo_data)
+                    if llm_used and name != location:
+                        self._embedding_index.add(name, geo_data)
+                    return geo_data
+
+        # Tier 4: Photon self-hosted geocoder (receives normalized names)
+        for name in normalized_names:
+            geo_data = await self._geocode_photon(name, entity_type, doc_context)
+            if geo_data.resolved:
+                if llm_used:
+                    geo_data = GeospatialData(
+                        **{
+                            **geo_data.model_dump(),
+                            "geocoding_source": "llm+photon",
+                        }
+                    )
                 self._cache.put(location, geo_data, country_ctx)
+                if llm_used and name != location:
+                    self._cache.put(name, geo_data, country_ctx)
                 self._embedding_index.add(location, geo_data)
+                if llm_used and name != location:
+                    self._embedding_index.add(name, geo_data)
                 return geo_data
 
-        # Tier 3: Nominatim API (rate-limited)
-        geo_data = await self._geocode_nominatim(location, entity_type, doc_context)
+        # Nothing resolved -- cache the unresolved result
+        unresolved = GeospatialData(
+            resolved=False,
+            display_name=location,
+            confidence=0.0,
+            geocoding_source="photon",
+            needs_crystallizer_resolution=True,
+        )
+        self._cache.put(location, unresolved, country_ctx)
+        return unresolved
+
+    def _try_embedding_lookup(
+        self,
+        location: str,
+        doc_context: dict,
+        country_ctx: str,
+        source_prefix: str = "",
+    ) -> GeospatialData | None:
+        """Attempt embedding-based fuzzy name match. Returns None on miss."""
+        emb_candidates, emb_entries = self._embedding_index.lookup_with_meta(location, k=5)
+        if not emb_candidates:
+            return None
+
+        best, all_candidates, needs_crystallizer = self._resolver.resolve(
+            location, emb_candidates, doc_context
+        )
+        if not best or best.confidence < 0.75:
+            return None
+
+        best_entry = emb_entries[0] if emb_entries else {}
+        hier_raw = best_entry.get("hierarchy", {})
+        hierarchy = GeoHierarchy(**hier_raw) if hier_raw else GeoHierarchy()
+        geo_data = GeospatialData(
+            resolved=True,
+            latitude=best.latitude,
+            longitude=best.longitude,
+            display_name=best.display_name,
+            location_type=best_entry.get("location_type", "city") or "city",
+            hierarchy=hierarchy,
+            confidence=best.confidence,
+            geocoding_source=f"{source_prefix}embedding",
+            candidates=all_candidates if needs_crystallizer else [],
+            needs_crystallizer_resolution=needs_crystallizer,
+        )
         self._cache.put(location, geo_data, country_ctx)
-        if geo_data.resolved:
-            self._embedding_index.add(location, geo_data)
+        logger.debug(
+            "geocode_embedding_hit",
+            location=location,
+            matched=best.display_name,
+            score=round(best.confidence, 3),
+        )
         return geo_data
 
     def _geocode_geonames(
@@ -1316,6 +1700,85 @@ class GeospatialResolutionStage(EnrichmentStage):
             hierarchy=hierarchy,
             confidence=best.confidence,
             geocoding_source="nominatim",
+            candidates=all_candidates if needs_crystallizer else [],
+            needs_crystallizer_resolution=needs_crystallizer,
+        )
+
+    async def _geocode_photon(
+        self,
+        location: str,
+        entity_type: str,
+        doc_context: dict,
+    ) -> GeospatialData:
+        """Geocode using the Photon self-hosted geocoder."""
+        country_ctx = ""
+        for ctx in doc_context.get("country_context", []):
+            if ctx.lower() != location.lower():
+                country_ctx = ctx
+                break
+
+        results = await self._photon.geocode(location, country_ctx)
+
+        if not results:
+            return GeospatialData(
+                resolved=False,
+                display_name=location,
+                confidence=0.0,
+                geocoding_source="photon",
+                needs_crystallizer_resolution=True,
+            )
+
+        # Build candidates
+        candidates = []
+        for r in results:
+            confidence = max(0.3, r.get("importance", 0.5))
+            candidates.append(
+                GeoCandidate(
+                    latitude=r["latitude"],
+                    longitude=r["longitude"],
+                    display_name=r["display_name"],
+                    confidence=confidence,
+                    population=None,
+                )
+            )
+
+        # Resolve ambiguity
+        best, all_candidates, needs_crystallizer = self._resolver.resolve(
+            location, candidates, doc_context
+        )
+
+        if not best:
+            return GeospatialData(
+                resolved=False,
+                display_name=location,
+                confidence=0.0,
+                geocoding_source="photon",
+                candidates=all_candidates,
+                needs_crystallizer_resolution=True,
+            )
+
+        # Get enrichment data from the best Photon result
+        best_raw = results[0]
+        raw_type = best_raw.get("type", "")
+        raw_class = best_raw.get("class", "")
+        location_type = _classify_location_type(raw_type, raw_class, best.display_name)
+        bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
+        address = best_raw.get("address", {})
+        hierarchy = _build_hierarchy_from_address(address)
+
+        if location_type in ("country", "region") and not bounding_box:
+            bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
+
+        return GeospatialData(
+            resolved=True,
+            latitude=best.latitude,
+            longitude=best.longitude,
+            display_name=best.display_name,
+            location_type=location_type,
+            bounding_box=bounding_box,
+            hierarchy=hierarchy,
+            confidence=best.confidence,
+            geocoding_source="photon",
             candidates=all_candidates if needs_crystallizer else [],
             needs_crystallizer_resolution=needs_crystallizer,
         )
