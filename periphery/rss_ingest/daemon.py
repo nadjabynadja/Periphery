@@ -136,8 +136,16 @@ def create_app(config_path: str | Path | None = None) -> FastAPI:
     return app
 
 
-async def run_daemon(config_path: str | Path | None = None) -> None:
-    """Run the daemon as a standalone async process (no HTTP server)."""
+async def run_daemon(
+    config_path: str | Path | None = None,
+    *,
+    duration: float | None = None,
+) -> None:
+    """Run the daemon as a standalone async process (no HTTP server).
+
+    Args:
+        duration: If set, stop automatically after this many seconds.
+    """
     daemon = RSSIngestDaemon(config_path)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -150,7 +158,15 @@ async def run_daemon(config_path: str | Path | None = None) -> None:
         loop.add_signal_handler(sig, _signal_handler)
 
     await daemon.start()
-    await stop_event.wait()
+
+    if duration is not None:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=duration)
+        except asyncio.TimeoutError:
+            logger.info("run_duration_elapsed", duration=duration)
+    else:
+        await stop_event.wait()
+
     await daemon.stop()
 
 
@@ -173,6 +189,13 @@ def main() -> None:
         default=None,
         help="Path to SQLite database (default: ./data/periphery_documents.db)",
     )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Exit after this many seconds (useful when invoked from cron).",
+    )
     args = parser.parse_args()
 
     # configure structlog for JSON output
@@ -185,7 +208,7 @@ def main() -> None:
     )
 
     if args.no_server:
-        asyncio.run(run_daemon(args.config))
+        asyncio.run(run_daemon(args.config, duration=args.duration))
     else:
         app = create_app(args.config)
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
