@@ -188,6 +188,7 @@ class ExecutionStats(BaseModel):
     planning_ms: int = 0
     retrieval_ms: int = 0
     synthesis_ms: int = 0
+    exa_search_ms: int = 0
     operations_executed: int = 0
     documents_searched: int = 0
     cached: bool = False
@@ -213,6 +214,8 @@ class AnalyticalQueryResponse(BaseModel):
     synthesis: SynthesisOutput
     results: dict[str, Any] = Field(default_factory=dict)
     execution_stats: ExecutionStats = Field(default_factory=ExecutionStats)
+    external_sources: list[dict[str, Any]] = Field(default_factory=list)
+    exa_query_used: str = ""
 
 
 class SnapshotRequest(BaseModel):

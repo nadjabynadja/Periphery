@@ -1106,3 +1106,337 @@ class TestAnalyticalEngine:
         snapshot = LivingOntologySnapshot(snapshot_id="s1")
         engine.snapshot = snapshot
         assert engine.snapshot.snapshot_id == "s1"
+
+
+# ── Exa Client Tests ────────────────────────────────────────────────────
+
+
+class TestExaClient:
+    def test_exa_models_defaults(self):
+        from periphery.query.exa_client import ExaSearchResult, ExaSource
+
+        source = ExaSource(title="Test", url="http://example.com", text="content")
+        assert source.score == 0.0
+        assert source.published_date is None
+        assert source.author is None
+
+        result = ExaSearchResult()
+        assert result.sources == []
+        assert result.query_used == ""
+        assert result.search_time_ms == 0
+        assert result.enabled is True
+
+    def test_exa_search_result_with_sources(self):
+        from periphery.query.exa_client import ExaSearchResult, ExaSource
+
+        sources = [
+            ExaSource(
+                title="Article 1",
+                url="http://example.com/1",
+                text="Some content",
+                score=0.95,
+                published_date="2024-01-15",
+            ),
+            ExaSource(
+                title="Article 2",
+                url="http://example.com/2",
+                text="More content",
+                score=0.8,
+            ),
+        ]
+        result = ExaSearchResult(
+            sources=sources,
+            query_used="test query",
+            search_time_ms=150,
+        )
+        assert len(result.sources) == 2
+        assert result.sources[0].score == 0.95
+        assert result.query_used == "test query"
+
+    @pytest.mark.asyncio
+    async def test_exa_client_disabled(self):
+        from periphery.query.exa_client import ExaSearchClient
+
+        with patch("periphery.query.exa_client.ExaSearchClient.__init__", return_value=None) as mock_init:
+            client = ExaSearchClient.__new__(ExaSearchClient)
+            client._enabled = False
+            client._client = None
+            client._max_results = 10
+            client._cache_ttl = 300.0
+            client._cache = {}
+
+            result = await client.search("test query")
+            assert result.enabled is False
+            assert result.sources == []
+
+    @pytest.mark.asyncio
+    async def test_exa_client_search_success(self):
+        from periphery.query.exa_client import ExaSearchClient
+
+        # Create a mock Exa response
+        mock_result = MagicMock()
+        mock_result.title = "Test Article"
+        mock_result.url = "http://example.com/test"
+        mock_result.published_date = "2024-06-01"
+        mock_result.text = "Article content here"
+        mock_result.score = 0.92
+        mock_result.author = "John Doe"
+
+        mock_response = MagicMock()
+        mock_response.results = [mock_result]
+
+        with patch("periphery.query.exa_client.ExaSearchClient.__init__", return_value=None):
+            client = ExaSearchClient.__new__(ExaSearchClient)
+            client._enabled = True
+            client._max_results = 10
+            client._cache_ttl = 300.0
+            client._cache = {}
+            client._client = MagicMock()
+            client._client.search_and_contents = MagicMock(return_value=mock_response)
+
+            result = await client.search("Iran sanctions")
+            assert len(result.sources) == 1
+            assert result.sources[0].title == "Test Article"
+            assert result.sources[0].score == 0.92
+            assert result.query_used == "Iran sanctions"
+            assert result.search_time_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_exa_client_search_with_intent_context(self):
+        from periphery.query.exa_client import ExaSearchClient
+
+        mock_response = MagicMock()
+        mock_response.results = []
+
+        with patch("periphery.query.exa_client.ExaSearchClient.__init__", return_value=None):
+            client = ExaSearchClient.__new__(ExaSearchClient)
+            client._enabled = True
+            client._max_results = 10
+            client._cache_ttl = 300.0
+            client._cache = {}
+            client._client = MagicMock()
+            client._client.search_and_contents = MagicMock(return_value=mock_response)
+
+            intent_context = {
+                "query_type": "entity_lookup",
+                "entity_names": ["IRGC", "Hezbollah"],
+                "temporal_focus": "last 7 days",
+            }
+            result = await client.search("Iran proxy networks", intent_context)
+            # Entity names should be appended to query
+            assert "IRGC" in result.query_used or "Hezbollah" in result.query_used
+
+    @pytest.mark.asyncio
+    async def test_exa_client_caching(self):
+        from periphery.query.exa_client import ExaSearchClient
+
+        mock_response = MagicMock()
+        mock_result = MagicMock()
+        mock_result.title = "Cached Article"
+        mock_result.url = "http://example.com/cached"
+        mock_result.published_date = None
+        mock_result.text = "Content"
+        mock_result.score = 0.5
+        mock_result.author = None
+        mock_response.results = [mock_result]
+
+        with patch("periphery.query.exa_client.ExaSearchClient.__init__", return_value=None):
+            client = ExaSearchClient.__new__(ExaSearchClient)
+            client._enabled = True
+            client._max_results = 10
+            client._cache_ttl = 300.0
+            client._cache = {}
+            client._client = MagicMock()
+            client._client.search_and_contents = MagicMock(return_value=mock_response)
+
+            # First call — hits API
+            result1 = await client.search("test query")
+            assert len(result1.sources) == 1
+
+            # Second call — should use cache
+            result2 = await client.search("test query")
+            assert len(result2.sources) == 1
+
+            # API should only be called once
+            assert client._client.search_and_contents.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_exa_client_api_error_returns_empty(self):
+        from periphery.query.exa_client import ExaSearchClient
+
+        with patch("periphery.query.exa_client.ExaSearchClient.__init__", return_value=None):
+            client = ExaSearchClient.__new__(ExaSearchClient)
+            client._enabled = True
+            client._max_results = 10
+            client._cache_ttl = 300.0
+            client._cache = {}
+            client._client = MagicMock()
+            client._client.search_and_contents = MagicMock(side_effect=Exception("API error"))
+
+            result = await client.search("test query")
+            assert result.sources == []
+            assert result.query_used == "test query"
+
+
+class TestExaIntegration:
+    """Test Exa integration points in synthesizer and engine."""
+
+    def test_synthesizer_exa_context_building(self):
+        from periphery.query.exa_client import ExaSearchResult, ExaSource
+        from periphery.query.synthesizer import ResultSynthesizer
+
+        synth = ResultSynthesizer()
+        exa_result = ExaSearchResult(
+            sources=[
+                ExaSource(
+                    title="Breaking News",
+                    url="http://example.com/news",
+                    published_date="2024-06-01",
+                    text="Important development reported.",
+                ),
+            ],
+            query_used="test query",
+            search_time_ms=100,
+        )
+
+        context = synth._build_exa_context(exa_result)
+        assert "External Intelligence" in context
+        assert "Breaking News" in context
+        assert "Important development reported." in context
+        assert "2024-06-01" in context
+
+    @pytest.mark.asyncio
+    async def test_synthesizer_with_exa_results(self):
+        from periphery.query.exa_client import ExaSearchResult, ExaSource
+        from periphery.query.models import EntityResult, RetrievalResults
+        from periphery.query.synthesizer import ResultSynthesizer
+
+        synth = ResultSynthesizer()  # No API key — uses fallback
+        results = RetrievalResults(
+            query_id="q1",
+            entities=[
+                EntityResult(canonical_id="e1", name="Iran", type="GPE", confidence=0.9),
+            ],
+        )
+        exa_result = ExaSearchResult(
+            sources=[
+                ExaSource(
+                    title="Iran News",
+                    url="http://example.com/iran",
+                    text="Recent developments.",
+                ),
+            ],
+            query_used="Iran",
+            search_time_ms=50,
+        )
+
+        # With fallback (no API key), exa_results are not used in output
+        # but the method should still accept them without error
+        output, elapsed = await synth.synthesize(
+            "What about Iran?", results, exa_results=exa_result,
+        )
+        assert output.summary != ""
+        assert elapsed >= 0
+
+    @pytest.mark.asyncio
+    async def test_synthesizer_with_none_exa_results(self):
+        from periphery.query.models import EntityResult, RetrievalResults
+        from periphery.query.synthesizer import ResultSynthesizer
+
+        synth = ResultSynthesizer()
+        results = RetrievalResults(
+            query_id="q1",
+            entities=[
+                EntityResult(canonical_id="e1", name="Iran", type="GPE", confidence=0.9),
+            ],
+        )
+        # Passing None explicitly — pipeline without Exa
+        output, elapsed = await synth.synthesize(
+            "What about Iran?", results, exa_results=None,
+        )
+        assert output.summary != ""
+
+    def test_execution_stats_exa_field(self):
+        from periphery.query.models import ExecutionStats
+
+        stats = ExecutionStats()
+        assert stats.exa_search_ms == 0
+
+        stats = ExecutionStats(exa_search_ms=150)
+        assert stats.exa_search_ms == 150
+
+    def test_analytical_query_response_exa_fields(self):
+        from periphery.query.models import (
+            AnalyticalQueryResponse,
+            ParsedIntent,
+            SynthesisOutput,
+        )
+
+        response = AnalyticalQueryResponse(
+            query_id="q1",
+            parsed_intent=ParsedIntent(),
+            synthesis=SynthesisOutput(),
+        )
+        assert response.external_sources == []
+        assert response.exa_query_used == ""
+
+        response = AnalyticalQueryResponse(
+            query_id="q1",
+            parsed_intent=ParsedIntent(),
+            synthesis=SynthesisOutput(),
+            external_sources=[
+                {"title": "Test", "url": "http://example.com", "published_date": None}
+            ],
+            exa_query_used="test query",
+        )
+        assert len(response.external_sources) == 1
+        assert response.exa_query_used == "test query"
+
+    @pytest.mark.asyncio
+    async def test_engine_search_exa_without_client(self):
+        from periphery.query.analytical_engine import AnalyticalQueryEngine
+        from periphery.query.models import ParsedIntent
+
+        store_mock = MagicMock()
+        engine = AnalyticalQueryEngine(faiss_store=store_mock)
+        assert engine._exa_client is None
+
+        intent = ParsedIntent(query_type="entity_lookup")
+        result = await engine._search_exa("test query", intent)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_engine_query_without_exa_key(self):
+        """Full pipeline works normally when no Exa key is configured."""
+        from periphery.query.analytical_engine import AnalyticalQueryEngine
+        from periphery.query.models import AnalyticalQueryRequest
+
+        store_mock = MagicMock()
+        store_mock.search.return_value = []
+        store_mock.total = 0
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        try:
+            engine = AnalyticalQueryEngine(
+                faiss_store=store_mock,
+                db_path=db_path,
+            )
+            await engine.initialize()
+
+            with patch("periphery.query.analytical_engine.embedder") as mock_embedder:
+                mock_embedder.embed.return_value = [np.zeros(384, dtype=np.float32)]
+
+                with patch("periphery.query.retriever.embedder") as mock_ret_embedder:
+                    mock_ret_embedder.embed.return_value = [np.zeros(384, dtype=np.float32)]
+
+                    request = AnalyticalQueryRequest(query="Test query")
+                    response = await engine.query(request)
+
+                    assert response.query_id is not None
+                    assert response.external_sources == []
+                    assert response.exa_query_used == ""
+                    assert response.execution_stats.exa_search_ms == 0
+        finally:
+            os.unlink(db_path)

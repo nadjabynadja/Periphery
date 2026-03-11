@@ -13,6 +13,7 @@ from typing import Any
 
 import anthropic
 
+from periphery.query.exa_client import ExaSearchResult
 from periphery.query.models import RetrievalResults, SynthesisOutput
 
 logger = logging.getLogger(__name__)
@@ -165,11 +166,30 @@ class ResultSynthesizer:
 
         return json.dumps(summary, indent=2, default=str)
 
+    def _build_exa_context(self, exa_results: ExaSearchResult) -> str:
+        """Build external intelligence section for the synthesis prompt."""
+        lines = [
+            "",
+            "--- External Intelligence (Real-time Open Source) ---",
+            "The following are relevant recent sources from the open web. Use these to supplement",
+            "the internal analysis above. Cite specific sources when referencing external information.",
+            "Note any contradictions or confirmations between internal data and external sources.",
+            "",
+        ]
+        for src in exa_results.sources:
+            lines.append(f"[{src.title}]")
+            lines.append(f"URL: {src.url}")
+            lines.append(f"Published: {src.published_date or 'Unknown'}")
+            lines.append(src.text)
+            lines.append("")
+        return "\n".join(lines)
+
     async def synthesize(
         self,
         query_text: str,
         results: RetrievalResults,
         query_type: str = "freeform",
+        exa_results: ExaSearchResult | None = None,
     ) -> tuple[SynthesisOutput, int]:
         """Synthesize results into an analytical narrative.
 
@@ -189,9 +209,15 @@ class ResultSynthesizer:
             return output, elapsed
 
         results_json = self._build_results_summary(results)
+
+        # Append Exa external intelligence if available
+        exa_context = ""
+        if exa_results and exa_results.sources:
+            exa_context = self._build_exa_context(exa_results)
+
         prompt = SYNTHESIS_SYSTEM_PROMPT.format(
             original_query=query_text,
-            structured_results_json=results_json,
+            structured_results_json=results_json + exa_context,
         )
 
         try:

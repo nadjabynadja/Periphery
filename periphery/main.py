@@ -217,6 +217,7 @@ async def lifespan(app: FastAPI):
         multi_space=multi_space_manager,
         entity_index=None,
         anthropic_api_key=settings.anthropic_api_key,
+        exa_api_key=settings.exa_api_key,
         db_path=db_path,
         llm_model=settings.enrichment_llm_model,
     )
