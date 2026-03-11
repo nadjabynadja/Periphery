@@ -13,6 +13,7 @@ dependencies = [
     "networkx>=3.3",
     "torch>=2.2",
     "anthropic>=0.25",
+    "exa-py>=1.0",
     "python-multipart>=0.0.9",
     "aiohttp>=3.9",
     "aiosqlite>=0.20",

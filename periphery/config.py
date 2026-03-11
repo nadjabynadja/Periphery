@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
+    exa_api_key: str = ""
     embedding_model: str = "all-MiniLM-L6-v2"
     faiss_index_path: str = "data/faiss/index.bin"
     device: str = "cpu"

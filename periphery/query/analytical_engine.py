@@ -7,6 +7,7 @@ into a single coherent query pipeline.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -29,6 +30,7 @@ from periphery.query.planner import QueryPlanner
 from periphery.query.preprocessor import QueryPreprocessor
 from periphery.query.renderer import ConfidenceRenderer
 from periphery.query.retriever import MultiSpaceRetriever
+from periphery.query.exa_client import ExaSearchClient, ExaSearchResult
 from periphery.query.synthesizer import ResultSynthesizer
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ class AnalyticalQueryEngine:
         multi_space: MultiSpaceIndexManager | None = None,
         entity_index: Any | None = None,
         anthropic_api_key: str = "",
+        exa_api_key: str = "",
         db_path: str = "",
         llm_model: str = "claude-sonnet-4-20250514",
     ) -> None:
@@ -66,6 +69,11 @@ class AnalyticalQueryEngine:
         self._query_store: QueryStore | None = None
         if db_path:
             self._query_store = QueryStore(db_path)
+
+        # Exa external search (optional — disabled when no API key provided)
+        self._exa_client: ExaSearchClient | None = None
+        if exa_api_key:
+            self._exa_client = ExaSearchClient(api_key=exa_api_key)
 
         # In-memory session store (upgrade to Redis for multi-instance)
         self._sessions: dict[str, SessionState] = {}
@@ -126,20 +134,28 @@ class AnalyticalQueryEngine:
         # 5. Plan
         plan, planning_ms = self._planner.plan(intent, query_id)
 
-        # 6. Retrieve
-        results, retrieval_ms = await self._retriever.execute(
+        # 6. Retrieve (internal + external in parallel)
+        retrieval_task = self._retriever.execute(
             plan,
             processed_text,
             self._snapshot,
             confidence_floor=request.confidence_floor,
             max_results=request.max_results,
         )
+        exa_task = self._search_exa(request.query, intent)
+
+        results_tuple, exa_result = await asyncio.gather(
+            retrieval_task,
+            exa_task,
+        )
+        results, retrieval_ms = results_tuple
 
         # 7. Synthesize
         synthesis, synthesis_ms = await self._synthesizer.synthesize(
             request.query,
             results,
             query_type=intent.query_type,
+            exa_results=exa_result,
         )
 
         # 8. Render
@@ -157,6 +173,7 @@ class AnalyticalQueryEngine:
             planning_ms=planning_ms,
             retrieval_ms=retrieval_ms,
             synthesis_ms=synthesis_ms,
+            exa_search_ms=exa_result.search_time_ms if exa_result else 0,
             operations_executed=len(plan.operations),
             documents_searched=self._count_documents_searched(results),
             cached=intent_ms < 5,
@@ -196,13 +213,50 @@ class AnalyticalQueryEngine:
             except Exception:
                 logger.debug("query_history_save_failed", exc_info=True)
 
+        # Build external sources list
+        external_sources: list[dict[str, Any]] = []
+        exa_query_used = ""
+        if exa_result and exa_result.sources:
+            external_sources = [
+                {
+                    "title": s.title,
+                    "url": s.url,
+                    "published_date": s.published_date,
+                }
+                for s in exa_result.sources
+            ]
+            exa_query_used = exa_result.query_used
+
         return AnalyticalQueryResponse(
             query_id=query_id,
             parsed_intent=intent,
             synthesis=synthesis,
             results=rendered_results,
             execution_stats=stats,
+            external_sources=external_sources,
+            exa_query_used=exa_query_used,
         )
+
+    async def _search_exa(self, query: str, intent: Any) -> ExaSearchResult | None:
+        """Run Exa search if available. Never raises."""
+        if self._exa_client is None:
+            return None
+        try:
+            intent_context = {
+                "query_type": intent.query_type,
+                "entity_names": (
+                    [e for e in intent.entities_referenced]
+                    if hasattr(intent, "entities_referenced")
+                    else []
+                ),
+                "temporal_focus": getattr(
+                    getattr(intent, "temporal_scope", None), "temporal_focus", None
+                ),
+            }
+            return await self._exa_client.search(query, intent_context)
+        except Exception:
+            logger.debug("exa_search_failed", exc_info=True)
+            return None
 
     def _count_documents_searched(self, results: Any) -> int:
         doc_ids: set[str] = set()
