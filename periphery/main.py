@@ -275,6 +275,7 @@ from periphery.query.router import router as query_router
 from periphery.query.api import router as query_api_router
 from periphery.pipeline.router import router as pipeline_router
 from periphery.ws.router import router as ws_router
+from periphery.commands.router import router as commands_router
 
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
@@ -283,6 +284,7 @@ app.include_router(query_router)
 app.include_router(query_api_router)
 app.include_router(pipeline_router)
 app.include_router(ws_router)
+app.include_router(commands_router)
 
 
 @app.get("/")

@@ -11,6 +11,7 @@ export {
   getConnectionStatus,
   onConnectionStatusChange,
 } from './client'
+export type { CommandResponse, CommandStatusEntry, CommandStatusMap } from './client'
 export { PeripheryWebSocket } from './websocket'
 export type { WSMessage, MessageType } from './websocket'
 

@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../store'
+import { peripheryApi } from '../api'
 import type { ConnectionStatus } from '../api/types'
+import type { CommandStatusMap } from '../api/client'
 
 function formatTimeAgo(isoString: string | null | undefined): string {
   if (!isoString) return 'N/A'
@@ -26,6 +29,14 @@ function lagColor(seconds: number): string {
   return 'var(--accent-red, #ff4444)'
 }
 
+const PIPELINE_COMMANDS = [
+  { key: 'pipeline', label: 'FORCE INGEST', action: () => peripheryApi.forceIngest() },
+  { key: 'rss', label: 'RUN COLLECT', action: () => peripheryApi.runCollect() },
+  { key: 'rss-continuous', label: 'CONTINUOUS COLLECT', action: () => peripheryApi.continuousCollect() },
+] as const
+
+type ButtonState = 'idle' | 'starting' | 'running'
+
 export function SystemStatusBar() {
   const connectionStatus = useStore((s) => s.connectionStatus)
   const snapshot = useStore((s) => s.snapshot)
@@ -33,6 +44,51 @@ export function SystemStatusBar() {
   const health = useStore((s) => s.health)
   const criticMonitoring = useStore((s) => s.criticMonitoring)
   const setShowGraphSettings = useStore((s) => s.setShowGraphSettings)
+
+  const [startingCommands, setStartingCommands] = useState<Set<string>>(new Set())
+
+  // Poll command status every 5 seconds
+  const { data: commandStatus } = useQuery<CommandStatusMap>({
+    queryKey: ['commandStatus'],
+    queryFn: async () => {
+      try {
+        return await peripheryApi.getCommandStatus()
+      } catch {
+        return {}
+      }
+    },
+    refetchInterval: 5000,
+  })
+
+  const getButtonState = useCallback((key: string): ButtonState => {
+    if (startingCommands.has(key)) return 'starting'
+    if (commandStatus?.[key]?.state === 'running') return 'running'
+    return 'idle'
+  }, [commandStatus, startingCommands])
+
+  const handleCommandClick = useCallback(async (key: string, action: () => Promise<unknown>) => {
+    const state = getButtonState(key)
+    if (state === 'starting') return
+
+    if (state === 'running') {
+      await peripheryApi.stopCommand(key)
+      return
+    }
+
+    setStartingCommands((prev) => new Set(prev).add(key))
+    try {
+      await action()
+    } finally {
+      // Clear starting state after a brief delay to let the next poll pick up the running state
+      setTimeout(() => {
+        setStartingCommands((prev) => {
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
+      }, 1500)
+    }
+  }, [getButtonState])
 
   const entityCount = snapshot?.entity_count ?? 0
   const relationshipCount = snapshot?.relationship_count ?? 0
@@ -148,6 +204,46 @@ export function SystemStatusBar() {
 
       {/* ---- RIGHT ---- */}
       <div className="flex items-center gap-3" style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+        {/* Pipeline command buttons */}
+        <div className="flex items-center gap-1">
+          {PIPELINE_COMMANDS.map(({ key, label, action }) => {
+            const state = getButtonState(key)
+            const isRunning = state === 'running'
+            const isStarting = state === 'starting'
+
+            return (
+              <button
+                key={key}
+                onClick={() => handleCommandClick(key, action)}
+                disabled={isStarting}
+                className="px-2 py-0.5 text-xxs font-display font-semibold tracking-wider uppercase border transition-all"
+                style={{
+                  borderRadius: '2px',
+                  cursor: isStarting ? 'wait' : 'pointer',
+                  background: isRunning ? 'rgba(0, 212, 255, 0.08)' : 'transparent',
+                  color: isRunning
+                    ? 'var(--accent-cyan, #00d4ff)'
+                    : isStarting
+                      ? 'var(--accent-amber, #ffb833)'
+                      : 'var(--text-dim, #6b7a8d)',
+                  borderColor: isRunning
+                    ? 'rgba(0, 212, 255, 0.3)'
+                    : 'transparent',
+                  boxShadow: isRunning
+                    ? '0 0 6px rgba(0, 212, 255, 0.2)'
+                    : 'none',
+                  animation: isRunning ? 'command-pulse 2s ease-in-out infinite' : 'none',
+                }}
+                title={isRunning ? `${label} — click to stop` : isStarting ? 'Starting...' : label}
+              >
+                {isStarting ? 'STARTING...' : label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="h-3 w-px bg-surface-border" />
+
         {/* Crystallizer last run */}
         <div className="flex items-center gap-1">
           <span className="data-readout" style={{ color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
