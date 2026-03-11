@@ -15,6 +15,8 @@ from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from periphery.config import settings
+from periphery.db import get_connection
 from periphery.query.models import (
     AnalyticalQueryRequest,
     AnalyticalQueryResponse,
@@ -29,6 +31,191 @@ router = APIRouter(prefix="/api", tags=["query-interface"])
 # Set by main.py during initialization
 _analytical_engine = None
 _crystallizer_worker = None
+
+# Module-level cache for enrichment data, keyed by snapshot_id
+_enrichment_cache: dict[str, dict[str, Any]] = {}
+
+
+async def _load_enrichment_entities(
+    member_doc_ids: list[str],
+    cluster_doc_map: dict[str, list[str]],
+    snapshot_id: str,
+    generated_at_iso: str,
+    include_rendering: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Load entities and relationships from document_enrichments table.
+
+    Returns (entities, relationships) lists built from real enrichment data.
+    Raises Exception if enrichment data is unavailable.
+    """
+    # Check cache first
+    if snapshot_id in _enrichment_cache:
+        cached = _enrichment_cache[snapshot_id]
+        return cached["entities"], cached["relationships"]
+
+    # Clear stale cache entries (keep only current snapshot)
+    _enrichment_cache.clear()
+
+    db_path = settings.pipeline_db_path
+
+    # Collect all enrichment rows
+    doc_entities: dict[str, list] = {}
+    doc_relationships: dict[str, list] = {}
+
+    async with get_connection(db_path) as db:
+        # Process in batches of 500
+        batch_size = 500
+        for i in range(0, len(member_doc_ids), batch_size):
+            batch = member_doc_ids[i : i + batch_size]
+            placeholders = ",".join("?" for _ in batch)
+            cursor = await db.execute(
+                f"""
+                SELECT document_id, entities, relationships
+                FROM document_enrichments
+                WHERE document_id IN ({placeholders})
+                """,
+                batch,
+            )
+            for row in await cursor.fetchall():
+                did = row[0]
+                entities_raw = []
+                rels_raw = []
+
+                if row[1]:
+                    try:
+                        entities_raw = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                if row[2]:
+                    try:
+                        rels_raw = json.loads(row[2]) if isinstance(row[2], str) else row[2]
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                doc_entities[did] = entities_raw if isinstance(entities_raw, list) else []
+                doc_relationships[did] = rels_raw if isinstance(rels_raw, list) else []
+
+    # Build deduplicated entity list — key by lowercase text, keep highest confidence
+    best_entity: dict[str, dict] = {}  # lowercase name -> best entity dict
+    entity_doc_count: dict[str, int] = {}  # lowercase name -> document count
+    entity_cluster_ids: dict[str, set] = {}  # lowercase name -> set of cluster IDs
+
+    # Build reverse map: doc_id -> list of cluster_ids
+    doc_to_clusters: dict[str, list[str]] = {}
+    for cluster_id, doc_ids in cluster_doc_map.items():
+        for did in doc_ids:
+            doc_to_clusters.setdefault(did, []).append(cluster_id)
+
+    for did, ents in doc_entities.items():
+        for ent in ents:
+            if not isinstance(ent, dict) or "text" not in ent:
+                continue
+            key = ent["text"].strip().lower()
+            if not key:
+                continue
+
+            # Track document count
+            entity_doc_count[key] = entity_doc_count.get(key, 0) + 1
+
+            # Track cluster IDs
+            if key not in entity_cluster_ids:
+                entity_cluster_ids[key] = set()
+            for cid in doc_to_clusters.get(did, []):
+                entity_cluster_ids[key].add(cid)
+
+            # Keep highest-confidence version
+            new_conf = ent.get("confidence", 0.0)
+            if key not in best_entity or new_conf > best_entity[key].get("confidence", 0.0):
+                best_entity[key] = ent
+
+    # Build final entity list
+    entities: list[dict[str, Any]] = []
+    # Also build a lookup: canonical_id -> True for relationship filtering
+    entity_canonical_ids: set[str] = set()
+
+    for key, ent in best_entity.items():
+        canonical_id = ent.get("canonical_id", ent["text"])
+        entity_canonical_ids.add(canonical_id)
+
+        geo = ent.get("geospatial")
+        location = None
+        if (
+            isinstance(geo, dict)
+            and geo.get("resolved")
+            and geo.get("latitude") is not None
+        ):
+            location = {
+                "lat": geo["latitude"],
+                "lon": geo["longitude"],
+            }
+
+        entity_conf = ent.get("confidence", 0.5)
+        rendering = confidence_to_rendering(entity_conf).model_dump() if include_rendering else {}
+
+        entities.append({
+            "canonical_id": canonical_id,
+            "name": ent["text"],
+            "entity_type": ent.get("entity_type", "entity"),
+            "aliases": [],
+            "confidence": entity_conf,
+            "source_count": entity_doc_count.get(key, 1),
+            "cluster_ids": sorted(entity_cluster_ids.get(key, set())),
+            "first_seen": generated_at_iso,
+            "last_seen": generated_at_iso,
+            "location": location,
+            "rendering": rendering,
+        })
+
+    # Build deduplicated relationship list
+    relationships: list[dict[str, Any]] = []
+    seen_rels: set[tuple] = set()
+
+    for did, rels in doc_relationships.items():
+        for i, rel in enumerate(rels):
+            if not isinstance(rel, dict):
+                continue
+            subj_id = rel.get("subject_id", "")
+            obj_id = rel.get("object_id", "")
+            predicate = rel.get("predicate", "related_to")
+
+            # Only include if both endpoints are in entity list
+            if subj_id not in entity_canonical_ids or obj_id not in entity_canonical_ids:
+                continue
+
+            dedup_key = (subj_id, predicate, obj_id)
+            if dedup_key in seen_rels:
+                continue
+            seen_rels.add(dedup_key)
+
+            temporal = rel.get("temporal_context")
+            temporal_status = (
+                temporal.get("status", "current")
+                if isinstance(temporal, dict)
+                else "current"
+            )
+
+            relationships.append({
+                "id": f"rel-{subj_id[:8]}-{obj_id[:8]}-{len(relationships)}",
+                "subject_id": subj_id,
+                "predicate": predicate,
+                "object_id": obj_id,
+                "confidence": rel.get("confidence", 0.5),
+                "evidence_sentences": [],
+                "temporal_context": temporal_status,
+                "extraction_tier": rel.get("extraction_method", "co_occurrence"),
+                "source_count": 1,
+                "first_seen": generated_at_iso,
+                "last_seen": generated_at_iso,
+            })
+
+    # Cache results
+    _enrichment_cache[snapshot_id] = {
+        "entities": entities,
+        "relationships": relationships,
+    }
+
+    return entities, relationships
 
 
 def set_analytical_engine(engine) -> None:
@@ -114,60 +301,96 @@ async def get_snapshot(
         if g.source_cluster in cluster_id_set or g.target_cluster in cluster_id_set
     ]
 
-    # Build entity list from cluster key_entities
+    # Build entity and relationship lists from enrichment data
+    enrichment_available = False
     entities: list[dict[str, Any]] = []
-    seen_entities: set[str] = set()
-    for c in clusters:
-        for entity_name in c.key_entities:
-            if entity_name not in seen_entities:
-                seen_entities.add(entity_name)
-                entity_confidence = c.confidence
-                rendering = confidence_to_rendering(entity_confidence).model_dump() if include_rendering else {}
-                entities.append({
-                    "canonical_id": entity_name,
-                    "name": entity_name,
-                    "entity_type": "entity",
-                    "aliases": [],
-                    "confidence": entity_confidence,
-                    "source_count": len(c.member_document_ids),
-                    "cluster_ids": [c.cluster_id],
-                    "first_seen": snapshot.generated_at.isoformat(),
-                    "last_seen": snapshot.generated_at.isoformat(),
-                    "rendering": rendering,
-                })
-
-    # Build relationship list from cluster key_relationships and gradients
     relationships: list[dict[str, Any]] = []
-    for c in clusters:
-        for i, rel in enumerate(c.key_relationships):
-            if isinstance(rel, dict):
-                relationships.append({
-                    "id": f"rel-{c.cluster_id}-{i}",
-                    "subject_id": rel.get("subject", rel.get("source", "")),
-                    "predicate": rel.get("predicate", rel.get("type", "related_to")),
-                    "object_id": rel.get("object", rel.get("target", "")),
-                    "confidence": rel.get("confidence", c.confidence),
-                    "evidence_sentences": [],
-                    "temporal_context": "current",
-                    "extraction_tier": "co_occurrence",
-                    "source_count": 1,
-                    "first_seen": snapshot.generated_at.isoformat(),
-                    "last_seen": snapshot.generated_at.isoformat(),
-                })
-            elif isinstance(rel, str):
-                relationships.append({
-                    "id": f"rel-{c.cluster_id}-{i}",
-                    "subject_id": c.cluster_id,
-                    "predicate": rel,
-                    "object_id": "",
-                    "confidence": c.confidence,
-                    "evidence_sentences": [],
-                    "temporal_context": "current",
-                    "extraction_tier": "co_occurrence",
-                    "source_count": 1,
-                    "first_seen": snapshot.generated_at.isoformat(),
-                    "last_seen": snapshot.generated_at.isoformat(),
-                })
+
+    try:
+        # Collect all member document IDs and build cluster->docs map
+        all_member_doc_ids: list[str] = []
+        cluster_doc_map: dict[str, list[str]] = {}
+        seen_doc_ids: set[str] = set()
+        for c in clusters:
+            cluster_doc_map[c.cluster_id] = c.member_document_ids
+            for did in c.member_document_ids:
+                if did not in seen_doc_ids:
+                    seen_doc_ids.add(did)
+                    all_member_doc_ids.append(did)
+
+        if all_member_doc_ids:
+            entities, relationships = await _load_enrichment_entities(
+                member_doc_ids=all_member_doc_ids,
+                cluster_doc_map=cluster_doc_map,
+                snapshot_id=snapshot.snapshot_id,
+                generated_at_iso=snapshot.generated_at.isoformat(),
+                include_rendering=include_rendering,
+            )
+            enrichment_available = True
+            logger.info(
+                "snapshot_enrichment_loaded entities=%d relationships=%d",
+                len(entities),
+                len(relationships),
+            )
+    except Exception:
+        logger.warning(
+            "snapshot_enrichment_fallback: could not load enrichment data, "
+            "falling back to cluster key_entities",
+            exc_info=True,
+        )
+
+    # Fallback: build entities from cluster key_entities if enrichment unavailable
+    if not enrichment_available:
+        seen_entities: set[str] = set()
+        for c in clusters:
+            for entity_name in c.key_entities:
+                if entity_name not in seen_entities:
+                    seen_entities.add(entity_name)
+                    entity_confidence = c.confidence
+                    rendering = confidence_to_rendering(entity_confidence).model_dump() if include_rendering else {}
+                    entities.append({
+                        "canonical_id": entity_name,
+                        "name": entity_name,
+                        "entity_type": "entity",
+                        "aliases": [],
+                        "confidence": entity_confidence,
+                        "source_count": len(c.member_document_ids),
+                        "cluster_ids": [c.cluster_id],
+                        "first_seen": snapshot.generated_at.isoformat(),
+                        "last_seen": snapshot.generated_at.isoformat(),
+                        "rendering": rendering,
+                    })
+
+        for c in clusters:
+            for i, rel in enumerate(c.key_relationships):
+                if isinstance(rel, dict):
+                    relationships.append({
+                        "id": f"rel-{c.cluster_id}-{i}",
+                        "subject_id": rel.get("subject", rel.get("source", "")),
+                        "predicate": rel.get("predicate", rel.get("type", "related_to")),
+                        "object_id": rel.get("object", rel.get("target", "")),
+                        "confidence": rel.get("confidence", c.confidence),
+                        "evidence_sentences": [],
+                        "temporal_context": "current",
+                        "extraction_tier": "co_occurrence",
+                        "source_count": 1,
+                        "first_seen": snapshot.generated_at.isoformat(),
+                        "last_seen": snapshot.generated_at.isoformat(),
+                    })
+                elif isinstance(rel, str):
+                    relationships.append({
+                        "id": f"rel-{c.cluster_id}-{i}",
+                        "subject_id": c.cluster_id,
+                        "predicate": rel,
+                        "object_id": "",
+                        "confidence": c.confidence,
+                        "evidence_sentences": [],
+                        "temporal_context": "current",
+                        "extraction_tier": "co_occurrence",
+                        "source_count": 1,
+                        "first_seen": snapshot.generated_at.isoformat(),
+                        "last_seen": snapshot.generated_at.isoformat(),
+                    })
 
     result: dict[str, Any] = {
         "snapshot_id": snapshot.snapshot_id,
