@@ -64,7 +64,7 @@ echo "  [pipeline] Enrichment pipeline (enrichment → embedding → crystalliza
 python -m periphery.pipeline &
 PIDS+=($!)
 
-# Process 3: API / Frontend Server
+# Process 2: API / Frontend Server
 echo "  [api]      API server on http://$HOST:$PORT"
 echo ""
 echo "  Health:    http://localhost:${PORT}/health"

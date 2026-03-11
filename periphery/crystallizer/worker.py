@@ -827,9 +827,8 @@ class CrystallizerWorker:
 
             for traj in trajectories:
                 await self._store_db.save_trajectory(traj)
-
-            await self._store_db.save_anomalies_batch(anomalies)
-            await self._store_db.save_gradients(gradients)
+                await self._store_db.save_anomalies_batch(anomalies)
+                await self._store_db.save_gradients(gradients)
 
         except Exception:
             logger.exception("crystallizer_persist_failed")

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS critic_runs (
     run_id TEXT PRIMARY KEY,
     timestamp TIMESTAMP,
     model_version INTEGER,
-    snapshot_id TEXT,
+    snapshot_id TEXT REFERENCES crystallizer_snapshots(snapshot_id),
     structures_scored INTEGER,
     mean_confidence FLOAT,
     median_confidence FLOAT,
