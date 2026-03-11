@@ -142,7 +142,25 @@ class CrystallizerStore:
                 ),
             )
 
-            # Prune old snapshots — keep last 100
+            # Prune old snapshots — keep last 100.
+            # NULL out critic_runs references first to avoid FK violation.
+            # The critic_runs table may not exist on fresh databases that were
+            # initialised without the full db.py schema, so check first.
+            row = await (await db.execute(
+                "SELECT COUNT(*) FROM sqlite_master "
+                "WHERE type='table' AND name='critic_runs'"
+            )).fetchone()
+            if row and row[0]:
+                await db.execute(
+                    """
+                    UPDATE critic_runs SET snapshot_id = NULL
+                    WHERE snapshot_id IS NOT NULL
+                    AND snapshot_id NOT IN (
+                        SELECT snapshot_id FROM crystallizer_snapshots
+                        ORDER BY generated_at DESC LIMIT 100
+                    )
+                    """
+                )
             await db.execute(
                 """
                 DELETE FROM crystallizer_snapshots

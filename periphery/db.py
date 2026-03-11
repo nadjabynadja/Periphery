@@ -382,8 +382,20 @@ class DatabasePool:
         """Apply retention policies. Returns counts of deleted rows per table."""
         deleted: dict[str, int] = {}
         async with self.acquire() as db:
-            # Crystallizer snapshots — keep N most recent
+            # Crystallizer snapshots — keep N most recent.
+            # NULL out critic_runs references first to avoid FK violation.
             limit = self._retention["crystallizer_snapshots"]
+            await db.execute(
+                """
+                UPDATE critic_runs SET snapshot_id = NULL
+                WHERE snapshot_id IS NOT NULL
+                AND snapshot_id NOT IN (
+                    SELECT snapshot_id FROM crystallizer_snapshots
+                    ORDER BY generated_at DESC LIMIT ?
+                )
+                """,
+                (limit,),
+            )
             cursor = await db.execute(
                 """
                 DELETE FROM crystallizer_snapshots

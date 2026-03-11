@@ -856,6 +856,87 @@ async def test_persistence_snapshot_pruning():
 
 
 @pytest.mark.asyncio
+async def test_persistence_snapshot_pruning_with_critic_runs():
+    """Regression: pruning snapshots must not fail when critic_runs references them.
+
+    The production DB has critic_runs.snapshot_id REFERENCES crystallizer_snapshots.
+    When foreign_keys=ON (enforced by DatabasePool), the pruning DELETE raises
+    IntegrityError unless we first NULL out dangling critic_runs references.
+    """
+    import aiosqlite
+    from periphery.db import get_connection
+
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        store = CrystallizerStore(f.name)
+        await store.initialize()
+
+        # Confirm FK enforcement is active
+        async with get_connection(f.name) as db:
+            row = await (await db.execute("PRAGMA foreign_keys")).fetchone()
+            assert row[0] == 1, "foreign_keys must be ON for this test to be meaningful"
+
+        # Insert 100 snapshots via store so the table is populated
+        for i in range(100):
+            await store.save_snapshot(
+                LivingOntologySnapshot(
+                    snapshot_id=f"snap_{i:04d}",
+                    corpus_stats=CorpusStats(total_documents=i),
+                )
+            )
+
+        # Manually insert a critic_runs row referencing the oldest snapshot
+        # (mimicking the legacy FK from the production schema)
+        async with get_connection(f.name) as db:
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS critic_runs (
+                    run_id TEXT PRIMARY KEY,
+                    timestamp TIMESTAMP,
+                    model_version INTEGER,
+                    snapshot_id TEXT REFERENCES crystallizer_snapshots(snapshot_id),
+                    structures_scored INTEGER,
+                    mean_confidence FLOAT,
+                    median_confidence FLOAT,
+                    low_confidence_count INTEGER,
+                    high_confidence_count INTEGER,
+                    scoring_time_ms INTEGER
+                )
+                """
+            )
+            await db.execute(
+                "INSERT INTO critic_runs (run_id, snapshot_id) VALUES (?, ?)",
+                ("run_001", "snap_0000"),
+            )
+            await db.commit()
+
+        # Saving snapshot #101 should trigger pruning of snap_0000 — must NOT raise
+        await store.save_snapshot(
+            LivingOntologySnapshot(
+                snapshot_id="snap_0100",
+                corpus_stats=CorpusStats(total_documents=100),
+            )
+        )
+
+        # snap_0000 is gone
+        async with get_connection(f.name) as db:
+            row = await (
+                await db.execute(
+                    "SELECT COUNT(*) FROM crystallizer_snapshots WHERE snapshot_id = 'snap_0000'"
+                )
+            ).fetchone()
+            assert row[0] == 0
+
+            # critic_runs reference was NULLed, not deleted
+            row = await (
+                await db.execute(
+                    "SELECT snapshot_id FROM critic_runs WHERE run_id = 'run_001'"
+                )
+            ).fetchone()
+            assert row is not None
+            assert row[0] is None
+
+
+@pytest.mark.asyncio
 async def test_persistence_mark_dissolved():
     with tempfile.NamedTemporaryFile(suffix=".db") as f:
         store = CrystallizerStore(f.name)
