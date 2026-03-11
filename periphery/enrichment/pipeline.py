@@ -329,6 +329,9 @@ def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
             cache_db_path=settings.enrichment_geocode_cache_db,
             geonames_db_path=settings.enrichment_geonames_db,
             seed_file_path=settings.enrichment_geospatial_seed_file,
+            photon_base_url=settings.enrichment_photon_base_url,
+            llm_model_path=settings.enrichment_llm_model_path,
+            llm_enabled=settings.enrichment_llm_disambiguator_enabled,
         ),
         EntityResolutionStage(
             fuzzy_threshold=settings.enrichment_fuzzy_match_threshold,

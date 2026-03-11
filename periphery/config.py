@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     enrichment_geonames_db: str = "./data/geonames.db"
     enrichment_geospatial_seed_file: str = "./data/geospatial_seeds.json"
     enrichment_fuzzy_match_threshold: float = 0.88
+    enrichment_photon_base_url: str = "http://localhost:2322"
+    enrichment_llm_model_path: str = "models/llama-3.2-3b-instruct-q4_k_m.gguf"
+    enrichment_llm_disambiguator_enabled: bool = True
 
     # Multi-space embedding settings
     embedding_index_dir: str = "./data/indices"
