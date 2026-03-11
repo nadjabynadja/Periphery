@@ -25,7 +25,7 @@ const POPUP_STYLE = `
 .mapboxgl-ctrl-logo { display: none !important; }
 `
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined
 
 // Source and layer IDs
 const SOURCES = {
