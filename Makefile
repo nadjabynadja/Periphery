@@ -1,4 +1,4 @@
-.PHONY: setup run dev test smoke clean api pipeline rss
+.PHONY: setup run dev test smoke clean api pipeline rss rss-continuous
 
 setup:
 	bash scripts/setup.sh
@@ -21,6 +21,9 @@ pipeline:
 	.venv/bin/python -m periphery.pipeline
 
 rss:
+	.venv/bin/python -m periphery.rss_ingest --no-server --duration 30
+
+rss-continuous:
 	.venv/bin/python -m periphery.rss_ingest --no-server
 
 test:

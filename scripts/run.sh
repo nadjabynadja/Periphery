@@ -60,10 +60,13 @@ echo ""
 echo "Starting Periphery (3 processes)..."
 echo ""
 
-# Process 1: RSS Ingest Daemon
+# Process 1: RSS Ingest Daemon (runs 30s, pauses 60s, repeats)
 if [[ "$RSS_ENABLED" == "true" ]]; then
-    echo "  [rss]      RSS ingest daemon"
-    python -m periphery.rss_ingest --no-server &
+    echo "  [rss]      RSS ingest daemon (30s on / 60s off)"
+    (while true; do
+        python -m periphery.rss_ingest --no-server --duration 30
+        sleep 60
+    done) &
     PIDS+=($!)
 else
     echo "  [rss]      Disabled (RSS_ENABLED=false)"
