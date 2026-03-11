@@ -37,6 +37,7 @@ Synthesize these results into a clear, concise analytical response. Follow these
 7. Note any significant gaps — areas where the system has low coverage or unresolved ambiguities.
 8. Do not fabricate information. If the results don't contain something, don't invent it.
 9. Keep the response under 500 words unless the query is explicitly broad (situational awareness type).
+10. The "source_documents" section contains actual article text from the system's corpus. Use this content to provide substantive analysis. Reference specific findings from the documents. Do not merely describe metadata — analyze the content.
 
 At the end, suggest 2-3 follow-up queries the analyst might want to explore based on what the results reveal.
 
@@ -164,6 +165,24 @@ class ResultSynthesizer:
                 for e in results.emerging_structures[:5]
             ]
 
+        if results.doc_contents:
+            scored_docs = []
+            for doc_id, content in results.doc_contents.items():
+                scored_docs.append((doc_id, content))
+
+            summary["source_documents"] = [
+                {
+                    "id": doc_id,
+                    "title": content.get("title", "Untitled"),
+                    "source": content.get("source_feed", ""),
+                    "published": content.get("published", ""),
+                    "content": content.get("summary") or content.get("content", "")[:1000],
+                    "key_entities": content.get("extracted_entities", []),
+                    "key_relationships": content.get("extracted_relationships", []),
+                }
+                for doc_id, content in scored_docs[:15]
+            ]
+
         return json.dumps(summary, indent=2, default=str)
 
     def _build_exa_context(self, exa_results: ExaSearchResult) -> str:
@@ -223,7 +242,7 @@ class ResultSynthesizer:
         try:
             response = await self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=4096,
                 system=prompt,
                 messages=[{"role": "user", "content": "Synthesize the results."}],
             )
