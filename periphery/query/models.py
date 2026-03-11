@@ -148,6 +148,7 @@ class RetrievalResults(BaseModel):
     anomalies: list[AnomalyResult] = Field(default_factory=list)
     relational_paths: list[RelationalPath] = Field(default_factory=list)
     emerging_structures: list[EmergingStructureResult] = Field(default_factory=list)
+    doc_contents: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Synthesis Output ─────────────────────────────────────────────────────
