@@ -121,6 +121,7 @@ class GeocodingCache:
         path = Path(self._db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(path))
+        self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA busy_timeout=5000")
         self._db.execute("""
@@ -313,7 +314,7 @@ class GeoNamesIndex:
         self._db: sqlite3.Connection | None = None
         if db_path and Path(db_path).exists():
             try:
-                self._db = sqlite3.connect(str(path))
+                self._db = sqlite3.connect(str(db_path))
                 self._db.execute("PRAGMA journal_mode=WAL")
                 self._db.execute("PRAGMA busy_timeout=5000")  
             except Exception:

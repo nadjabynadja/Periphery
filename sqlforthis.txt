@@ -108,7 +108,7 @@ CREATE TABLE trajectories (
 
 CREATE TABLE anomalies (
     anomaly_id TEXT PRIMARY KEY,
-    document_id TEXT REFERENCES documents(id),
+    document_id TEXT,
     anomaly_type TEXT,
     anomaly_score FLOAT,
     outlier_spaces JSON,
