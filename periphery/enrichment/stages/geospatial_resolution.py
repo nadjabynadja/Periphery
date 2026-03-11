@@ -2,9 +2,10 @@
 
 Resolves GPE, LOC, and FAC entities to coordinates using a tiered geocoding
 architecture:
-  Tier 1: Persistent SQLite cache (instant, free)
-  Tier 2: GeoNames local database (fast, free, no rate limits)
-  Tier 3: Nominatim API (accurate, rate-limited)
+  Tier 1:   Persistent SQLite cache (instant, free)
+  Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name matching)
+  Tier 2:   GeoNames local database (fast, free, no rate limits)
+  Tier 3:   Nominatim API (accurate, rate-limited)
 
 Also handles:
   - Location entity identification (ORG+location modifiers, coordinates, addresses)
@@ -382,7 +383,162 @@ class GeoNamesIndex:
 
 
 # ---------------------------------------------------------------------------
-# Component 3: Nominatim API client (Tier 3)
+# Component 3: Embedding-based geo index (Tier 2 fuzzy match)
+# ---------------------------------------------------------------------------
+
+class EmbeddingGeoIndex:
+    """Embedding-based location lookup using FAISS cosine similarity.
+
+    Provides fuzzy name matching as Tier 2 in the geocoding pipeline —
+    handling alternate names, abbreviations, and partial names that
+    exact-match tiers miss (e.g. "Hormuz" → "Strait of Hormuz",
+    "NYC" → "New York", "Moskva" → "Moscow, Russia").
+
+    The index stores normalized embeddings of rich location descriptions
+    (e.g. "Moscow, Russia") and matches short query strings against them.
+    Batch-embedded at startup from seed data + cache for efficiency.
+    """
+
+    def __init__(self) -> None:
+        self._index: Any = None  # faiss.IndexFlatIP, lazy init
+        self._entries: list[dict] = []  # parallel to index rows
+
+    @property
+    def size(self) -> int:
+        return len(self._entries)
+
+    def _ensure_index(self, dim: int) -> None:
+        if self._index is not None:
+            return
+        try:
+            import faiss
+            self._index = faiss.IndexFlatIP(dim)
+        except ImportError:
+            logger.warning("faiss_not_available_skipping_geo_embedding_index")
+
+    @staticmethod
+    def _rich_text(name: str, geo: GeospatialData) -> str:
+        """Build a rich description for embedding (index side)."""
+        parts = [name]
+        if geo.hierarchy and geo.hierarchy.region:
+            parts.append(geo.hierarchy.region)
+        if geo.hierarchy and geo.hierarchy.country:
+            parts.append(geo.hierarchy.country)
+        return ", ".join(parts[:3])
+
+    def add_batch(self, entries: list[tuple[str, GeospatialData]]) -> int:
+        """Batch-add resolved locations (one embed call for all)."""
+        valid = [
+            (name, geo) for name, geo in entries
+            if geo.resolved and geo.latitude is not None
+        ]
+        if not valid:
+            return 0
+
+        texts = [self._rich_text(name, geo) for name, geo in valid]
+        try:
+            from periphery.ingest.embedder import embed
+            vectors = embed(texts)
+        except Exception as exc:
+            logger.warning("geo_embed_batch_failed", error=str(exc))
+            return 0
+
+        self._ensure_index(vectors.shape[1])
+        if self._index is None:
+            return 0
+
+        self._index.add(vectors)
+        for name, geo in valid:
+            self._entries.append({
+                "name": name,
+                "lat": geo.latitude,
+                "lon": geo.longitude,
+                "display_name": geo.display_name or name,
+                "location_type": geo.location_type or "",
+                "hierarchy": geo.hierarchy.model_dump() if geo.hierarchy else {},
+                "confidence": geo.confidence,
+            })
+        return len(valid)
+
+    def add(self, name: str, geo: GeospatialData) -> None:
+        """Add a single resolved location to the index."""
+        self.add_batch([(name, geo)])
+
+    def lookup_with_meta(
+        self,
+        query: str,
+        k: int = 5,
+        min_score: float = 0.75,
+    ) -> tuple[list[GeoCandidate], list[dict]]:
+        """Return (candidates, index_entries) sorted by embedding similarity.
+
+        Only returns pairs with cosine similarity >= min_score.
+        The parallel entries list carries location_type, hierarchy, etc.
+        """
+        if self._index is None or self._index.ntotal == 0:
+            return [], []
+        try:
+            from periphery.ingest.embedder import embed
+            vec = embed([query])
+        except Exception:
+            return [], []
+
+        k_actual = min(k, self._index.ntotal)
+        scores, indices = self._index.search(vec, k_actual)
+
+        candidates: list[GeoCandidate] = []
+        entries: list[dict] = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx < 0 or float(score) < min_score:
+                continue
+            entry = self._entries[idx]
+            candidates.append(GeoCandidate(
+                latitude=entry["lat"],
+                longitude=entry["lon"],
+                display_name=entry["display_name"],
+                # Scale embedding similarity by stored confidence
+                confidence=min(1.0, float(score) * entry.get("confidence", 1.0)),
+                population=None,
+            ))
+            entries.append(entry)
+        return candidates, entries
+
+    def lookup(
+        self,
+        query: str,
+        k: int = 5,
+        min_score: float = 0.75,
+    ) -> list[GeoCandidate]:
+        """Return up to k candidates matching query by embedding similarity."""
+        candidates, _ = self.lookup_with_meta(query, k=k, min_score=min_score)
+        return candidates
+
+    def build_from_cache(self, cache: "GeocodingCache") -> int:
+        """Populate the index from all resolved entries in a GeocodingCache."""
+        seen: set[str] = set()
+        entries: list[tuple[str, GeospatialData]] = []
+
+        for (name, _ctx), geo in cache._memory.items():
+            if name not in seen and geo.resolved and geo.latitude is not None:
+                seen.add(name)
+                entries.append((name, geo))
+
+        if cache._db is not None:
+            for row in cache._db.execute(
+                "SELECT * FROM geocoding_cache WHERE latitude IS NOT NULL"
+            ).fetchall():
+                name = row["location_text"]
+                if name not in seen:
+                    seen.add(name)
+                    entries.append((name, cache._row_to_geospatial(row)))
+
+        count = self.add_batch(entries)
+        logger.info("embedding_geo_index_built", count=count)
+        return count
+
+
+# ---------------------------------------------------------------------------
+# Component 4: Nominatim API client (Tier 3)
 # ---------------------------------------------------------------------------
 
 class NominatimClient:
@@ -466,7 +622,7 @@ class NominatimClient:
 
 
 # ---------------------------------------------------------------------------
-# Component 4: Location entity identification
+# Component 5: Location entity identification
 # ---------------------------------------------------------------------------
 
 def _identify_geocoding_targets(doc: PipelineDocument) -> list[dict]:
@@ -600,7 +756,7 @@ def _extract_location_modifier(
 
 
 # ---------------------------------------------------------------------------
-# Component 5: Ambiguity resolution
+# Component 6: Ambiguity resolution
 # ---------------------------------------------------------------------------
 
 class AmbiguityResolver:
@@ -678,7 +834,7 @@ class AmbiguityResolver:
 
 
 # ---------------------------------------------------------------------------
-# Component 6: Geographic feature enrichment
+# Component 7: Geographic feature enrichment
 # ---------------------------------------------------------------------------
 
 def _classify_location_type(raw_type: str, raw_class: str, display_name: str) -> str:
@@ -780,9 +936,10 @@ class GeospatialResolutionStage(EnrichmentStage):
     """Stage 4: Resolve location entities to coordinates.
 
     Uses a tiered geocoding approach:
-      Tier 1: Persistent cache (SQLite)
-      Tier 2: GeoNames local database
-      Tier 3: Nominatim API (rate-limited fallback)
+      Tier 1:   Persistent cache (SQLite, exact match)
+      Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name match)
+      Tier 2:   GeoNames local database (exact + LIKE match)
+      Tier 3:   Nominatim API (rate-limited fallback)
 
     Also enriches with:
       - Location type classification
@@ -798,6 +955,7 @@ class GeospatialResolutionStage(EnrichmentStage):
         cache: GeocodingCache | None = None,
         geonames: GeoNamesIndex | None = None,
         nominatim: NominatimClient | None = None,
+        embedding_index: EmbeddingGeoIndex | None = None,
         geocoder: str = "nominatim",
         rate_limit_delay: float = 1.0,
         cache_db_path: str | None = None,
@@ -807,12 +965,13 @@ class GeospatialResolutionStage(EnrichmentStage):
         self._cache = cache or GeocodingCache(db_path=cache_db_path)
         self._geonames = geonames or GeoNamesIndex(db_path=geonames_db_path)
         self._nominatim = nominatim or NominatimClient(rate_limit_delay=rate_limit_delay)
+        self._embedding_index = embedding_index or EmbeddingGeoIndex()
         self._geocoder_name = geocoder
         self._resolver = AmbiguityResolver()
         self._seeded = False
         self._seed_file_path = seed_file_path
 
-        # Populate continent map from seed data
+        # Populate continent map and seed embedding index from cache
         self._ensure_seeded()
 
     def _ensure_seeded(self) -> None:
@@ -844,6 +1003,10 @@ class GeospatialResolutionStage(EnrichmentStage):
                 continent = hier.get("continent", "")
                 if country and continent:
                     _CONTINENT_MAP[country.lower()] = continent
+
+        # Build embedding index from all resolved cache entries
+        if self._embedding_index.size == 0:
+            self._embedding_index.build_from_cache(self._cache)
 
     @property
     def name(self) -> str:
@@ -948,7 +1111,13 @@ class GeospatialResolutionStage(EnrichmentStage):
         entity_type: str,
         doc_context: dict,
     ) -> GeospatialData:
-        """Geocode using the tiered approach: cache -> GeoNames -> Nominatim."""
+        """Geocode using the tiered approach.
+
+        Tier 1:   Persistent SQLite cache (exact match)
+        Tier 1.5: Embedding index (cosine similarity, fuzzy name matching)
+        Tier 2:   GeoNames local database
+        Tier 3:   Nominatim API (rate-limited fallback)
+        """
 
         # Determine country context
         country_ctx_list = doc_context.get("country_context", [])
@@ -958,7 +1127,7 @@ class GeospatialResolutionStage(EnrichmentStage):
                 country_ctx = ctx
                 break
 
-        # Tier 1: Cache lookup
+        # Tier 1: Cache lookup (exact match)
         cached = self._cache.get(location, country_ctx)
         if cached:
             return cached
@@ -969,16 +1138,51 @@ class GeospatialResolutionStage(EnrichmentStage):
             if cached_no_ctx:
                 return cached_no_ctx
 
+        # Tier 1.5: Embedding-based fuzzy name match
+        emb_candidates, emb_entries = self._embedding_index.lookup_with_meta(location, k=5)
+        if emb_candidates:
+            best, all_candidates, needs_crystallizer = self._resolver.resolve(
+                location, emb_candidates, doc_context
+            )
+            if best and best.confidence >= 0.75:
+                # Recover hierarchy from the matched index entry
+                best_entry = emb_entries[0] if emb_entries else {}
+                hier_raw = best_entry.get("hierarchy", {})
+                hierarchy = GeoHierarchy(**hier_raw) if hier_raw else GeoHierarchy()
+                geo_data = GeospatialData(
+                    resolved=True,
+                    latitude=best.latitude,
+                    longitude=best.longitude,
+                    display_name=best.display_name,
+                    location_type=best_entry.get("location_type", "city") or "city",
+                    hierarchy=hierarchy,
+                    confidence=best.confidence,
+                    geocoding_source="embedding",
+                    candidates=all_candidates if needs_crystallizer else [],
+                    needs_crystallizer_resolution=needs_crystallizer,
+                )
+                self._cache.put(location, geo_data, country_ctx)
+                logger.debug(
+                    "geocode_embedding_hit",
+                    location=location,
+                    matched=best.display_name,
+                    score=round(best.confidence, 3),
+                )
+                return geo_data
+
         # Tier 2: GeoNames local database
         if self._geonames.available:
             geo_data = self._geocode_geonames(location, entity_type, doc_context)
             if geo_data and geo_data.resolved:
                 self._cache.put(location, geo_data, country_ctx)
+                self._embedding_index.add(location, geo_data)
                 return geo_data
 
         # Tier 3: Nominatim API (rate-limited)
         geo_data = await self._geocode_nominatim(location, entity_type, doc_context)
         self._cache.put(location, geo_data, country_ctx)
+        if geo_data.resolved:
+            self._embedding_index.add(location, geo_data)
         return geo_data
 
     def _geocode_geonames(
