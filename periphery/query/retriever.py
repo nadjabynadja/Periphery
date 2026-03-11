@@ -8,6 +8,7 @@ and result fusion via ranked, union, or intersection strategies.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -188,7 +189,41 @@ class MultiSpaceRetriever:
             except Exception:
                 logger.debug("entity_faiss_search_failed", exc_info=True)
 
-        return {"entities": entities}
+        # Fetch source document content for top entity results
+        doc_contents: dict[str, dict[str, Any]] = {}
+        if entities and self._db_path:
+            # Collect all source doc IDs from top entities
+            all_source_ids: list[str] = []
+            for ent in entities[:10]:
+                all_source_ids.extend(ent.source_documents[:5])
+            all_source_ids = list(dict.fromkeys(all_source_ids))[:50]
+
+            if all_source_ids:
+                try:
+                    from periphery.db import get_connection
+
+                    async with get_connection(self._db_path) as db:
+                        await db.execute("PRAGMA journal_mode=WAL")
+                        placeholders = ",".join("?" for _ in all_source_ids)
+                        cursor = await db.execute(
+                            f"""SELECT id, title, content, source_feed, published, summary
+                                FROM documents WHERE id IN ({placeholders})""",
+                            all_source_ids,
+                        )
+                        for row in await cursor.fetchall():
+                            doc_id = row[0]
+                            content = (row[2] or "")[:1500]
+                            doc_contents[doc_id] = {
+                                "title": row[1] or "",
+                                "content": content,
+                                "source_feed": row[3] or "",
+                                "published": row[4] or "",
+                                "summary": row[5] or "",
+                            }
+                except Exception:
+                    logger.debug("entity_doc_content_fetch_failed", exc_info=True)
+
+        return {"entities": entities, "doc_contents": doc_contents}
 
     async def _op_cluster_retrieval(
         self, op: PlanOperation, query_text: str,
@@ -254,7 +289,73 @@ class MultiSpaceRetriever:
         doc_ids = [r[0] for r in results]
         scores = {r[0]: float(r[1]) for r in results}
 
-        return {"doc_ids": doc_ids, "scores": scores}
+        # Fetch actual document content from the database
+        doc_contents: dict[str, dict[str, Any]] = {}
+        if doc_ids and self._db_path:
+            try:
+                from periphery.db import get_connection
+
+                async with get_connection(self._db_path) as db:
+                    await db.execute("PRAGMA journal_mode=WAL")
+                    batch_size = 100
+                    for i in range(0, len(doc_ids), batch_size):
+                        batch = doc_ids[i:i + batch_size]
+                        placeholders = ",".join("?" for _ in batch)
+                        cursor = await db.execute(
+                            f"""SELECT id, title, content, source_feed, published, summary
+                                FROM documents WHERE id IN ({placeholders})""",
+                            batch,
+                        )
+                        for row in await cursor.fetchall():
+                            doc_id = row[0]
+                            content = (row[2] or "")[:1500]
+                            doc_contents[doc_id] = {
+                                "title": row[1] or "",
+                                "content": content,
+                                "source_feed": row[3] or "",
+                                "published": row[4] or "",
+                                "summary": row[5] or "",
+                            }
+            except Exception:
+                logger.debug("document_content_fetch_failed", exc_info=True)
+
+            # Fetch enrichments for top docs
+            try:
+                from periphery.db import get_connection
+
+                async with get_connection(self._db_path) as db:
+                    await db.execute("PRAGMA journal_mode=WAL")
+                    top_ids = doc_ids[:20]
+                    placeholders = ",".join("?" for _ in top_ids)
+                    cursor = await db.execute(
+                        f"""SELECT document_id, entities, relationships
+                            FROM document_enrichments
+                            WHERE document_id IN ({placeholders})""",
+                        top_ids,
+                    )
+                    for row in await cursor.fetchall():
+                        did = row[0]
+                        if did in doc_contents:
+                            try:
+                                ents = json.loads(row[1]) if row[1] else []
+                                doc_contents[did]["extracted_entities"] = [
+                                    {"name": e.get("text", ""), "type": e.get("entity_type", "")}
+                                    for e in ents[:10]
+                                ]
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                            try:
+                                rels = json.loads(row[2]) if row[2] else []
+                                doc_contents[did]["extracted_relationships"] = [
+                                    {"subject": r.get("subject_text", ""), "predicate": r.get("predicate", ""), "object": r.get("object_text", "")}
+                                    for r in rels[:10]
+                                ]
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+            except Exception:
+                logger.debug("enrichment_fetch_failed", exc_info=True)
+
+        return {"doc_ids": doc_ids, "scores": scores, "doc_contents": doc_contents}
 
     async def _op_relational_path(
         self, op: PlanOperation, query_text: str,
@@ -499,10 +600,12 @@ class MultiSpaceRetriever:
         all_anomalies: list[AnomalyResult] = []
         all_paths: list[RelationalPath] = []
         all_emerging: list[EmergingStructureResult] = []
+        all_doc_contents: dict[str, Any] = {}
 
         for op_id, result in completed.items():
             if not isinstance(result, dict):
                 continue
+            all_doc_contents.update(result.get("doc_contents", {}))
             all_entities.extend(result.get("entities", []))
             all_clusters.extend(result.get("clusters", []))
             all_relationships.extend(result.get("relationships", []))
@@ -549,4 +652,5 @@ class MultiSpaceRetriever:
             anomalies=all_anomalies[:max_results],
             relational_paths=all_paths[:max_results],
             emerging_structures=all_emerging[:max_results],
+            doc_contents=all_doc_contents,
         )
