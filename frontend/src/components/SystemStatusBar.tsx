@@ -44,6 +44,8 @@ export function SystemStatusBar() {
   const health = useStore((s) => s.health)
   const criticMonitoring = useStore((s) => s.criticMonitoring)
   const setShowGraphSettings = useStore((s) => s.setShowGraphSettings)
+  const searchPanelOpen = useStore((s) => s.searchPanelOpen)
+  const setSearchPanelOpen = useStore((s) => s.setSearchPanelOpen)
 
   const [startingCommands, setStartingCommands] = useState<Set<string>>(new Set())
 
@@ -204,6 +206,24 @@ export function SystemStatusBar() {
 
       {/* ---- RIGHT ---- */}
       <div className="flex items-center gap-3" style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+        {/* Search button */}
+        <button
+          onClick={() => setSearchPanelOpen(!searchPanelOpen)}
+          className="px-2 py-0.5 text-xxs font-display font-semibold tracking-wider uppercase border transition-all"
+          style={{
+            borderRadius: 2,
+            cursor: 'pointer',
+            background: searchPanelOpen ? 'rgba(0, 212, 255, 0.08)' : 'transparent',
+            color: searchPanelOpen ? 'var(--accent-cyan, #00d4ff)' : 'var(--text-dim, #6b7a8d)',
+            borderColor: searchPanelOpen ? 'rgba(0, 212, 255, 0.3)' : 'transparent',
+          }}
+          title="Search (Ctrl+K)"
+        >
+          SEARCH
+        </button>
+
+        <div className="h-3 w-px bg-surface-border" />
+
         {/* Pipeline command buttons */}
         <div className="flex items-center gap-1">
           {PIPELINE_COMMANDS.map(({ key, label, action }) => {
