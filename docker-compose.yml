@@ -1,0 +1,63 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - periphery-data:/app/data
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - EXA_API_KEY=${EXA_API_KEY:-}
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - CRYSTALLIZER_DB_PATH=/app/data/periphery_documents.db
+      - ENRICHMENT_GEOCODE_CACHE_DB=/app/data/geocoding_cache.db
+      - ENRICHMENT_GEONAMES_DB=/app/data/geonames.db
+      - ENRICHMENT_GEOSPATIAL_SEED_FILE=/app/data/geospatial_seeds.json
+      - ENRICHMENT_PHOTON_BASE_URL=http://photon:2322
+      - FAISS_INDEX_PATH=/app/data/faiss/index.bin
+      - EMBEDDING_INDEX_DIR=/app/data/indices
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN}
+        VITE_API_BASE_URL: ""
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  photon:
+    image: rtuszik/photon-docker:latest
+    ports:
+      - "2322:2322"
+    volumes:
+      - photon-data:/photon/data
+    environment:
+      - UPDATE_STRATEGY=DISABLED
+    restart: unless-stopped
+    # NOTE: First run downloads ~66GB compressed planet database.
+    # Set REGION=united-states for a smaller (~3GB) extract.
+
+volumes:
+  periphery-data:
+    driver: local
+  photon-data:
+    driver: local
