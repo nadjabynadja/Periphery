@@ -67,4 +67,12 @@ export type {
   FeedEntry,
   ViewMode,
   SelectedElement,
+  DocumentSearchResult,
+  DocumentSearchResponse,
+  EntitySearchResult,
+  EntitySearchResponse,
+  RelationshipSearchResult,
+  RelationshipSearchResponse,
+  SuggestResponse,
+  FacetsResponse,
 } from './types'

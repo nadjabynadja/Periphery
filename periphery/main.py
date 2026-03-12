@@ -94,6 +94,12 @@ async def lifespan(app: FastAPI):
     from periphery.db import ensure_database
     await ensure_database(settings.pipeline_db_path)
 
+    # Initialize full-text search indexes
+    from periphery.search.setup import initialize_fts, rebuild_search_indexes
+    await initialize_fts(settings.pipeline_db_path)
+    await rebuild_search_indexes(settings.pipeline_db_path, force=True)
+    logger.info("Full-text search indexes initialized")
+
     # Layer 1: Initialize embedding model and vector store
     logger.info("Initializing embedding model: %s", settings.embedding_model)
     dim = embedder.get_dimension()
@@ -277,6 +283,11 @@ from periphery.query.api import router as query_api_router
 from periphery.pipeline.router import router as pipeline_router
 from periphery.ws.router import router as ws_router
 from periphery.commands.router import router as commands_router
+from periphery.search.router import router as search_router
+
+# Set search router db_path
+from periphery.search.router import set_db_path as _set_search_db_path
+_set_search_db_path(_settings.pipeline_db_path)
 
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
@@ -286,6 +297,7 @@ app.include_router(query_api_router)
 app.include_router(pipeline_router)
 app.include_router(ws_router)
 app.include_router(commands_router)
+app.include_router(search_router)
 
 
 @app.get("/")

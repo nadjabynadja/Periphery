@@ -75,6 +75,12 @@ interface PeripheryState {
   // Confidence filter
   confidenceFloor: number
   setConfidenceFloor: (v: number) => void
+
+  // Search panel
+  searchPanelOpen: boolean
+  setSearchPanelOpen: (open: boolean) => void
+  searchQuery: string
+  setSearchQuery: (q: string) => void
 }
 
 export interface GraphSettings {
@@ -155,4 +161,9 @@ export const useStore = create<PeripheryState>((set) => ({
 
   confidenceFloor: 0,
   setConfidenceFloor: (v) => set({ confidenceFloor: v }),
+
+  searchPanelOpen: false,
+  setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
+  searchQuery: '',
+  setSearchQuery: (q) => set({ searchQuery: q }),
 }))

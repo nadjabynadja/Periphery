@@ -508,6 +508,79 @@ export interface FeedEntry {
 
 export type ViewMode = 'graph' | 'map' | 'timeline'
 
+// --- Search Types ---
+
+export interface DocumentSearchResult {
+  id: string
+  title: string
+  url: string
+  source_feed: string
+  source_category: string
+  published: string
+  processing_status: string
+  content_quality: string
+  snippet: string
+  entity_count: number
+  relationship_count: number
+  relevance_score: number
+}
+
+export interface DocumentSearchResponse {
+  results: DocumentSearchResult[]
+  total_count: number
+  offset: number
+  query: string
+}
+
+export interface EntitySearchResult {
+  entity_text: string
+  entity_type: string
+  confidence: number
+  document_count: number
+  source_feeds: string[]
+  first_seen: string
+  last_seen: string
+  location: { lat: number; lon: number; name: string } | null
+  relevance_score: number
+}
+
+export interface EntitySearchResponse {
+  results: EntitySearchResult[]
+  total_count: number
+  offset: number
+  query: string
+}
+
+export interface RelationshipSearchResult {
+  subject_text: string
+  predicate: string
+  object_text: string
+  confidence: number
+  extraction_method: string
+  document_count: number
+  relevance_score: number
+}
+
+export interface RelationshipSearchResponse {
+  results: RelationshipSearchResult[]
+  total_count: number
+  offset: number
+  query: string
+}
+
+export interface SuggestResponse {
+  entities: { text: string; type: string }[]
+  documents: { id: string; title: string }[]
+}
+
+export interface FacetsResponse {
+  source_feeds: { name: string; count: number }[]
+  categories: { name: string; count: number }[]
+  entity_types: { name: string; count: number }[]
+  processing_statuses: { name: string; count: number }[]
+  date_range: { earliest: string; latest: string }
+}
+
 // --- Selected Element ---
 
 export type SelectedElement =

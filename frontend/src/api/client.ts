@@ -21,6 +21,11 @@ import type {
   SnapshotDelta,
   QueryUpdate,
   ConnectionStatus,
+  DocumentSearchResponse,
+  EntitySearchResponse,
+  RelationshipSearchResponse,
+  SuggestResponse,
+  FacetsResponse,
 } from './types'
 import { PeripheryWebSocket, type WSMessage } from './websocket'
 
@@ -435,6 +440,64 @@ export const peripheryApi = {
 
   stopCommand(name: string): Promise<CommandResponse> {
     return request<CommandResponse>(`/api/commands/stop/${encodeURIComponent(name)}`, { method: 'POST' })
+  },
+
+  // --- Search ---
+  searchDocuments(params: {
+    q: string; source_feed?: string; category?: string;
+    date_from?: string; date_to?: string; status?: string;
+    limit?: number; offset?: number;
+  }): Promise<DocumentSearchResponse> {
+    const qs = new URLSearchParams()
+    qs.set('q', params.q)
+    if (params.source_feed) qs.set('source_feed', params.source_feed)
+    if (params.category) qs.set('category', params.category)
+    if (params.date_from) qs.set('date_from', params.date_from)
+    if (params.date_to) qs.set('date_to', params.date_to)
+    if (params.status) qs.set('status', params.status)
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    if (params.offset != null) qs.set('offset', String(params.offset))
+    return requestWithRetry<DocumentSearchResponse>(`/api/search/documents?${qs}`)
+  },
+
+  searchEntities(params: {
+    q: string; entity_type?: string; has_location?: boolean;
+    min_confidence?: number; limit?: number; offset?: number;
+  }): Promise<EntitySearchResponse> {
+    const qs = new URLSearchParams()
+    qs.set('q', params.q)
+    if (params.entity_type) qs.set('entity_type', params.entity_type)
+    if (params.has_location != null) qs.set('has_location', String(params.has_location))
+    if (params.min_confidence != null) qs.set('min_confidence', String(params.min_confidence))
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    if (params.offset != null) qs.set('offset', String(params.offset))
+    return requestWithRetry<EntitySearchResponse>(`/api/search/entities?${qs}`)
+  },
+
+  searchRelationships(params: {
+    q: string; predicate?: string; min_confidence?: number;
+    limit?: number; offset?: number;
+  }): Promise<RelationshipSearchResponse> {
+    const qs = new URLSearchParams()
+    qs.set('q', params.q)
+    if (params.predicate) qs.set('predicate', params.predicate)
+    if (params.min_confidence != null) qs.set('min_confidence', String(params.min_confidence))
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    if (params.offset != null) qs.set('offset', String(params.offset))
+    return requestWithRetry<RelationshipSearchResponse>(`/api/search/relationships?${qs}`)
+  },
+
+  searchSuggest(params: { q: string; limit?: number }): Promise<SuggestResponse> {
+    const qs = new URLSearchParams({ q: params.q })
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    return requestWithRetry<SuggestResponse>(`/api/search/suggest?${qs}`)
+  },
+
+  searchFacets(params?: { q?: string }): Promise<FacetsResponse> {
+    const qs = new URLSearchParams()
+    if (params?.q) qs.set('q', params.q)
+    const qsStr = qs.toString()
+    return requestWithRetry<FacetsResponse>(`/api/search/facets${qsStr ? `?${qsStr}` : ''}`)
   },
 }
 

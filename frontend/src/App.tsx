@@ -11,6 +11,7 @@ import type { ViewMode } from './api/types'
 
 import { SystemStatusBar } from './components/SystemStatusBar'
 import { DataFeedSidebar } from './components/DataFeedSidebar'
+import { SearchPanel } from './components/search/SearchPanel'
 import { OntologyGraph } from './components/graph/OntologyGraph'
 import { GeographicOverlay } from './components/graph/GeographicOverlay'
 import { TemporalTimeline } from './components/graph/TemporalTimeline'
@@ -37,6 +38,8 @@ export default function App() {
   const feedSidebarWidth = useStore(s => s.feedSidebarWidth)
   const setFeedSidebarWidth = useStore(s => s.setFeedSidebarWidth)
   const snapshot = useStore(s => s.snapshot)
+  const searchPanelOpen = useStore(s => s.searchPanelOpen)
+  const setSearchPanelOpen = useStore(s => s.setSearchPanelOpen)
 
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -106,6 +109,18 @@ export default function App() {
     }
   }, [setConnectionStatus, setSnapshot])
 
+  // --- Ctrl+K to toggle search panel ---
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchPanelOpen(!searchPanelOpen)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [searchPanelOpen, setSearchPanelOpen])
+
   // --- Sidebar resize ---
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -143,9 +158,9 @@ export default function App() {
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden dashboard-layout" style={{ minHeight: 0 }}>
-        {/* Left: Data Feed Sidebar */}
+        {/* Left: Data Feed Sidebar / Search Panel */}
         <div className="shrink-0 overflow-hidden relative" style={{ width: feedSidebarWidth }}>
-          <DataFeedSidebar />
+          {searchPanelOpen ? <SearchPanel /> : <DataFeedSidebar />}
           <div
             className="resize-handle vertical"
             style={{ right: 0 }}
