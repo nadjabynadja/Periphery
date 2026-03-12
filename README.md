@@ -51,7 +51,34 @@ Periphery runs as three cooperating processes that share a SQLite database:
 | Pipeline orchestrator | `python -m periphery.pipeline` | Enrichment → embedding → crystallization |
 | RSS ingest daemon | `python -m periphery.rss_ingest` | Feed polling, dedup, full-article fetching |
 
-## Quick Start
+## Quick Start (Docker)
+
+1. Clone the repo and copy the example env file:
+```bash
+git clone <repo-url> && cd periphery
+cp .env.example .env
+```
+
+2. Edit `.env` with your API keys (at minimum, `ANTHROPIC_API_KEY` and `VITE_MAPBOX_ACCESS_TOKEN`)
+
+3. Launch:
+```bash
+docker compose up -d
+```
+
+4. Open `http://localhost:3000` in your browser.
+
+The first startup takes 5-10 minutes as the backend downloads embedding models (~500MB).
+The Photon geocoder container downloads its planet database (~66GB) on first run —
+this can take several hours. Set `REGION=united-states` in docker-compose.yml
+to download only US data (~3GB) for faster setup.
+
+### Without Photon (lighter setup)
+
+Comment out the `photon` service in docker-compose.yml. Geocoding will fall back to
+the GeoNames local database and Nominatim API.
+
+## Quick Start (Local)
 
 ### Setup
 
