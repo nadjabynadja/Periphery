@@ -20,6 +20,8 @@ from __future__ import annotations
 import sqlite3
 import asyncio
 from importlib.resources import path
+
+import aiosqlite
 import json
 import math
 import re
@@ -109,24 +111,32 @@ class GeocodingCache:
     Stores geocoding results permanently -- location-to-coordinate mappings
     don't change, so every external API call that could have been a cache hit
     is wasted time and rate limit budget.
+
+    All database access is async via aiosqlite with WAL mode and a 30-second
+    busy timeout to avoid "database is locked" errors when the enrichment
+    pipeline runs concurrently.
     """
 
     def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path
         self._memory: dict[tuple[str, str], GeospatialData] = {}
-        self._db: sqlite3.Connection | None = None
-        if db_path:
-            self._init_db()
+        self._db: aiosqlite.Connection | None = None
+        self._initialized = False
 
-    def _init_db(self) -> None:
-        """Initialize the SQLite cache database."""
+    async def initialize(self) -> None:
+        """Initialize the SQLite cache database (async)."""
+        if self._initialized:
+            return
+        if not self._db_path:
+            self._initialized = True
+            return
         path = Path(self._db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(path))
-        self._db.row_factory = sqlite3.Row
-        self._db.execute("PRAGMA journal_mode=WAL")
-        self._db.execute("PRAGMA busy_timeout=5000")
-        self._db.execute("""
+        self._db = await aiosqlite.connect(str(path))
+        self._db.row_factory = aiosqlite.Row
+        await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute("PRAGMA busy_timeout=30000")
+        await self._db.execute("""
             CREATE TABLE IF NOT EXISTS geocoding_cache (
                 location_text TEXT,
                 country_context TEXT DEFAULT '',
@@ -144,8 +154,10 @@ class GeocodingCache:
                 PRIMARY KEY (location_text, country_context)
             )
         """)
-        self._db.commit()
-    def get(self, location: str, country_context: str = "") -> GeospatialData | None:
+        await self._db.commit()
+        self._initialized = True
+
+    async def get(self, location: str, country_context: str = "") -> GeospatialData | None:
         """Look up a location in cache (memory first, then SQLite).
 
         Tries exact (location, country_context) first, then falls back to
@@ -170,10 +182,11 @@ class GeocodingCache:
                     return mem_val
 
         if self._db is not None:
-            row = self._db.execute(
+            async with self._db.execute(
                 "SELECT * FROM geocoding_cache WHERE location_text = ? AND country_context = ?",
                 key,
-            ).fetchone()
+            ) as cursor:
+                row = await cursor.fetchone()
             if row:
                 data = self._row_to_geospatial(row)
                 self._memory[key] = data
@@ -181,15 +194,17 @@ class GeocodingCache:
 
             # Fallback: try empty context or any match
             if ctx_key:
-                row = self._db.execute(
+                async with self._db.execute(
                     "SELECT * FROM geocoding_cache WHERE location_text = ? AND country_context = ''",
                     (loc_key,),
-                ).fetchone()
+                ) as cursor:
+                    row = await cursor.fetchone()
             else:
-                row = self._db.execute(
+                async with self._db.execute(
                     "SELECT * FROM geocoding_cache WHERE location_text = ? LIMIT 1",
                     (loc_key,),
-                ).fetchone()
+                ) as cursor:
+                    row = await cursor.fetchone()
             if row:
                 data = self._row_to_geospatial(row)
                 self._memory[key] = data
@@ -197,7 +212,7 @@ class GeocodingCache:
 
         return None
 
-    def put(self, location: str, data: GeospatialData, country_context: str = "") -> None:
+    async def put(self, location: str, data: GeospatialData, country_context: str = "") -> None:
         """Store a geocoding result in cache."""
         key = (location.lower().strip(), country_context.lower().strip())
         self._memory[key] = data
@@ -206,7 +221,7 @@ class GeocodingCache:
             bb_json = json.dumps(data.bounding_box.model_dump() if data.bounding_box else None)
             hier_json = json.dumps(data.hierarchy.model_dump())
             cand_json = json.dumps([c.model_dump() for c in data.candidates]) if data.candidates else None
-            self._db.execute(
+            await self._db.execute(
                 """INSERT OR REPLACE INTO geocoding_cache
                    (location_text, country_context, latitude, longitude, display_name,
                     location_type, bounding_box, hierarchy, confidence, source,
@@ -219,9 +234,9 @@ class GeocodingCache:
                     int(data.needs_crystallizer_resolution),
                 ),
             )
-            self._db.commit()
+            await self._db.commit()
 
-    def _row_to_geospatial(self, row: sqlite3.Row) -> GeospatialData:
+    def _row_to_geospatial(self, row) -> GeospatialData:
         """Convert a database row to a GeospatialData object."""
         bb_data = json.loads(row["bounding_box"]) if row["bounding_box"] else None
         hier_data = json.loads(row["hierarchy"]) if row["hierarchy"] else {}
@@ -245,7 +260,7 @@ class GeocodingCache:
             needs_crystallizer_resolution=bool(row["needs_crystallizer_resolution"]),
         )
 
-    def seed_from_file(self, seed_path: str) -> int:
+    async def seed_from_file(self, seed_path: str) -> int:
         """Load seed data from a JSON file into the cache.
 
         Returns the number of entries loaded.
@@ -277,7 +292,7 @@ class GeocodingCache:
                 confidence=entry.get("confidence", 1.0),
                 geocoding_source="cache",
             )
-            self.put(
+            await self.put(
                 entry["location_text"],
                 data,
                 country_context=entry.get("country_context", ""),
@@ -287,13 +302,40 @@ class GeocodingCache:
         logger.info("geocoding_cache_seeded", entries=count, source=seed_path)
         return count
 
+    async def get_all_resolved(self) -> list[tuple[str, GeospatialData]]:
+        """Return all resolved entries from both memory and the database.
+
+        Used by EmbeddingGeoIndex.build_from_cache to populate the index
+        without reaching into private attributes.
+        """
+        seen: set[str] = set()
+        entries: list[tuple[str, GeospatialData]] = []
+
+        for (name, _ctx), geo in self._memory.items():
+            if name not in seen and geo.resolved and geo.latitude is not None:
+                seen.add(name)
+                entries.append((name, geo))
+
+        if self._db is not None:
+            async with self._db.execute(
+                "SELECT * FROM geocoding_cache WHERE latitude IS NOT NULL"
+            ) as cursor:
+                rows = await cursor.fetchall()
+            for row in rows:
+                name = row["location_text"]
+                if name not in seen:
+                    seen.add(name)
+                    entries.append((name, self._row_to_geospatial(row)))
+
+        return entries
+
     def __len__(self) -> int:
         return len(self._memory)
 
-    def close(self) -> None:
-        """Close the SQLite connection if open."""
+    async def close(self) -> None:
+        """Close the aiosqlite connection if open."""
         if self._db is not None:
-            self._db.close()
+            await self._db.close()
             self._db = None
 
 
@@ -318,7 +360,7 @@ class GeoNamesIndex:
             try:
                 self._db = sqlite3.connect(str(db_path))
                 self._db.execute("PRAGMA journal_mode=WAL")
-                self._db.execute("PRAGMA busy_timeout=5000")  
+                self._db.execute("PRAGMA busy_timeout=30000")
             except Exception:
                 logger.warning("geonames_db_open_failed", path=db_path)
                 self._db = None
@@ -514,25 +556,9 @@ class EmbeddingGeoIndex:
         candidates, _ = self.lookup_with_meta(query, k=k, min_score=min_score)
         return candidates
 
-    def build_from_cache(self, cache: "GeocodingCache") -> int:
+    async def build_from_cache(self, cache: "GeocodingCache") -> int:
         """Populate the index from all resolved entries in a GeocodingCache."""
-        seen: set[str] = set()
-        entries: list[tuple[str, GeospatialData]] = []
-
-        for (name, _ctx), geo in cache._memory.items():
-            if name not in seen and geo.resolved and geo.latitude is not None:
-                seen.add(name)
-                entries.append((name, geo))
-
-        if cache._db is not None:
-            for row in cache._db.execute(
-                "SELECT * FROM geocoding_cache WHERE latitude IS NOT NULL"
-            ).fetchall():
-                name = row["location_text"]
-                if name not in seen:
-                    seen.add(name)
-                    entries.append((name, cache._row_to_geospatial(row)))
-
+        entries = await cache.get_all_resolved()
         count = self.add_batch(entries)
         logger.info("embedding_geo_index_built", count=count)
         return count
@@ -1242,14 +1268,14 @@ class GeospatialResolutionStage(EnrichmentStage):
         self._seeded = False
         self._seed_file_path = seed_file_path
 
-        # Populate continent map and seed embedding index from cache
-        self._ensure_seeded()
-
-    def _ensure_seeded(self) -> None:
+    async def _ensure_seeded(self) -> None:
         """Seed the cache from the seed file if not already done."""
         if self._seeded:
             return
         self._seeded = True
+
+        # Initialize the async cache connection
+        await self._cache.initialize()
 
         seed_path = self._seed_file_path
         if not seed_path:
@@ -1264,7 +1290,7 @@ class GeospatialResolutionStage(EnrichmentStage):
                     break
 
         if seed_path and Path(seed_path).exists():
-            count = self._cache.seed_from_file(seed_path)
+            count = await self._cache.seed_from_file(seed_path)
             # Build continent map from seed data
             with open(seed_path) as f:
                 seeds = json.load(f)
@@ -1277,7 +1303,7 @@ class GeospatialResolutionStage(EnrichmentStage):
 
         # Build embedding index from all resolved cache entries
         if self._embedding_index.size == 0:
-            self._embedding_index.build_from_cache(self._cache)
+            await self._embedding_index.build_from_cache(self._cache)
 
     @property
     def name(self) -> str:
@@ -1285,6 +1311,8 @@ class GeospatialResolutionStage(EnrichmentStage):
 
     async def process(self, doc: PipelineDocument) -> PipelineDocument:
         """Resolve location entities to coordinates."""
+        await self._ensure_seeded()
+
         # Identify all geocoding targets
         targets = _identify_geocoding_targets(doc)
 
@@ -1293,7 +1321,7 @@ class GeospatialResolutionStage(EnrichmentStage):
             return doc
 
         # Build document context for disambiguation
-        doc_context = self._build_document_context(doc, targets)
+        doc_context = await self._build_document_context(doc, targets)
 
         # Geocode each target
         for target in targets:
@@ -1337,7 +1365,7 @@ class GeospatialResolutionStage(EnrichmentStage):
         )
         return doc
 
-    def _build_document_context(self, doc: PipelineDocument, targets: list[dict]) -> dict:
+    async def _build_document_context(self, doc: PipelineDocument, targets: list[dict]) -> dict:
         """Build disambiguation context from the document.
 
         Extracts country mentions, computes geographic centroid of
@@ -1354,7 +1382,7 @@ class GeospatialResolutionStage(EnrichmentStage):
         for ent in doc.extracted_entities:
             if ent.entity_type == "GPE":
                 # Check if this is a known country from our cache
-                cached = self._cache.get(ent.text)
+                cached = await self._cache.get(ent.text)
                 if cached and cached.location_type == "country":
                     country_mentions.append(ent.text)
                 elif len(ent.text.split()) <= 2:
@@ -1365,7 +1393,7 @@ class GeospatialResolutionStage(EnrichmentStage):
         # Compute centroid of already-resolved locations from cache
         resolved_points = []
         for target in targets:
-            cached = self._cache.get(target["text"])
+            cached = await self._cache.get(target["text"])
             if cached and cached.resolved and cached.latitude is not None:
                 resolved_points.append((cached.latitude, cached.longitude))
 
@@ -1400,18 +1428,18 @@ class GeospatialResolutionStage(EnrichmentStage):
                 break
 
         # Tier 1: Cache lookup (exact match)
-        cached = self._cache.get(location, country_ctx)
+        cached = await self._cache.get(location, country_ctx)
         if cached:
             return cached
 
         # Also try without country context
         if country_ctx:
-            cached_no_ctx = self._cache.get(location)
+            cached_no_ctx = await self._cache.get(location)
             if cached_no_ctx:
                 return cached_no_ctx
 
         # Tier 1.5: Embedding-based fuzzy name match
-        emb_result = self._try_embedding_lookup(location, doc_context, country_ctx)
+        emb_result = await self._try_embedding_lookup(location, doc_context, country_ctx)
         if emb_result:
             return emb_result
 
@@ -1436,9 +1464,9 @@ class GeospatialResolutionStage(EnrichmentStage):
 
                 for norm_name in normalized_names:
                     # Check cache for normalized name
-                    cached_norm = self._cache.get(norm_name, country_ctx)
+                    cached_norm = await self._cache.get(norm_name, country_ctx)
                     if not cached_norm and country_ctx:
-                        cached_norm = self._cache.get(norm_name)
+                        cached_norm = await self._cache.get(norm_name)
                     if cached_norm and cached_norm.resolved:
                         # Tag the source as llm+original_source
                         source_tag = f"llm+{cached_norm.geocoding_source}"
@@ -1446,21 +1474,21 @@ class GeospatialResolutionStage(EnrichmentStage):
                             **{**cached_norm.model_dump(), "geocoding_source": source_tag}
                         )
                         # Cache under original name too
-                        self._cache.put(location, result, country_ctx)
-                        self._cache.put(norm_name, result, country_ctx)
+                        await self._cache.put(location, result, country_ctx)
+                        await self._cache.put(norm_name, result, country_ctx)
                         if best_llm_result is None:
                             best_llm_result = result
                         all_llm_candidates.extend(cached_norm.candidates)
                         continue
 
                     # Check embedding for normalized name
-                    emb_result = self._try_embedding_lookup(
+                    emb_result = await self._try_embedding_lookup(
                         norm_name, doc_context, country_ctx,
                         source_prefix="llm+",
                     )
                     if emb_result and emb_result.resolved:
-                        self._cache.put(location, emb_result, country_ctx)
-                        self._cache.put(norm_name, emb_result, country_ctx)
+                        await self._cache.put(location, emb_result, country_ctx)
+                        await self._cache.put(norm_name, emb_result, country_ctx)
                         self._embedding_index.add(norm_name, emb_result)
                         if best_llm_result is None:
                             best_llm_result = emb_result
@@ -1489,9 +1517,9 @@ class GeospatialResolutionStage(EnrichmentStage):
                                 "geocoding_source": "llm+geonames",
                             }
                         )
-                    self._cache.put(location, geo_data, country_ctx)
+                    await self._cache.put(location, geo_data, country_ctx)
                     if llm_used and name != location:
-                        self._cache.put(name, geo_data, country_ctx)
+                        await self._cache.put(name, geo_data, country_ctx)
                     self._embedding_index.add(location, geo_data)
                     if llm_used and name != location:
                         self._embedding_index.add(name, geo_data)
@@ -1508,9 +1536,9 @@ class GeospatialResolutionStage(EnrichmentStage):
                             "geocoding_source": "llm+photon",
                         }
                     )
-                self._cache.put(location, geo_data, country_ctx)
+                await self._cache.put(location, geo_data, country_ctx)
                 if llm_used and name != location:
-                    self._cache.put(name, geo_data, country_ctx)
+                    await self._cache.put(name, geo_data, country_ctx)
                 self._embedding_index.add(location, geo_data)
                 if llm_used and name != location:
                     self._embedding_index.add(name, geo_data)
@@ -1524,10 +1552,10 @@ class GeospatialResolutionStage(EnrichmentStage):
             geocoding_source="photon",
             needs_crystallizer_resolution=True,
         )
-        self._cache.put(location, unresolved, country_ctx)
+        await self._cache.put(location, unresolved, country_ctx)
         return unresolved
 
-    def _try_embedding_lookup(
+    async def _try_embedding_lookup(
         self,
         location: str,
         doc_context: dict,
@@ -1560,7 +1588,7 @@ class GeospatialResolutionStage(EnrichmentStage):
             candidates=all_candidates if needs_crystallizer else [],
             needs_crystallizer_resolution=needs_crystallizer,
         )
-        self._cache.put(location, geo_data, country_ctx)
+        await self._cache.put(location, geo_data, country_ctx)
         logger.debug(
             "geocode_embedding_hit",
             location=location,
