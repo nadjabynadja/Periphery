@@ -14,9 +14,9 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from periphery.config import get_settings
+from periphery.config import Settings
 
-settings = get_settings()
+settings = get_Settings()
 from periphery.db import get_connection
 from periphery.query.models import (
     AnalyticalQueryRequest,
