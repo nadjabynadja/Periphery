@@ -28,7 +28,7 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from periphery.config import Settings
+    from periphery.config import get_settings()
 
 logger = structlog.get_logger(__name__)
 
