@@ -1,0 +1,70 @@
+# Create the Periphery API service (with pipeline as pre-start)
+sudo tee /etc/systemd/system/periphery.service << 'EOF'
+[Unit]
+Description=Periphery OSINT Intelligence Platform
+After=network.target photon.service
+Wants=photon.service
+
+[Service]
+Type=simple
+User=nf-daffron
+WorkingDirectory=/home/nf-daffron/DevProjects/Periphery
+ExecStart=/home/nf-daffron/DevProjects/Periphery/.venv/bin/uvicorn periphery.main:app --host 0.0.0.0 --port 8000 --log-level info
+Restart=on-failure
+RestartSec=10
+Environment=PATH=/home/nf-daffron/DevProjects/Periphery/.venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/home/nf-daffron/DevProjects/Periphery/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Pipeline as a separate service
+sudo tee /etc/systemd/system/periphery-pipeline.service << 'EOF'
+[Unit]
+Description=Periphery Enrichment Pipeline
+After=network.target periphery.service
+Wants=periphery.service
+
+[Service]
+Type=simple
+User=nf-daffron
+WorkingDirectory=/home/nf-daffron/DevProjects/Periphery
+ExecStart=/home/nf-daffron/DevProjects/Periphery/.venv/bin/python -m periphery.pipeline
+Restart=on-failure
+RestartSec=10
+Environment=PATH=/home/nf-daffron/DevProjects/Periphery/.venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/home/nf-daffron/DevProjects/Periphery/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# RSS continuous collection
+sudo tee /etc/systemd/system/periphery-rss.service << 'EOF'
+[Unit]
+Description=Periphery RSS Continuous Collection
+After=network.target periphery.service
+Wants=periphery.service
+
+[Service]
+Type=simple
+User=nf-daffron
+WorkingDirectory=/home/nf-daffron/DevProjects/Periphery
+ExecStart=/home/nf-daffron/DevProjects/Periphery/.venv/bin/python -m periphery.rss_ingest --no-server
+Restart=on-failure
+RestartSec=30
+Environment=PATH=/home/nf-daffron/DevProjects/Periphery/.venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/home/nf-daffron/DevProjects/Periphery/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start everything
+sudo systemctl daemon-reload
+sudo systemctl enable periphery periphery-pipeline periphery-rss
+sudo systemctl start periphery periphery-pipeline periphery-rss
+
+# Check status
+sudo systemctl status periphery periphery-pipeline periphery-rss
