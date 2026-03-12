@@ -70,6 +70,9 @@ function buildEntityGeoJSON(
         entity_type: entity.entity_type,
         confidence: entity.confidence,
         isHighlighted: highlightedEntityIds.size === 0 || highlightedEntityIds.has(entity.canonical_id) ? 1 : 0,
+        source_count: entity.source_count,
+        cluster_ids: JSON.stringify(entity.cluster_ids),
+        first_seen: entity.first_seen,
       },
     })
   }
@@ -127,6 +130,8 @@ function buildClusterGeoJSON(clusters: DetectedCluster[]): GeoJSON.FeatureCollec
         label: cluster.label,
         status: cluster.status,
         confidence: cluster.confidence,
+        size: cluster.size ?? 0,
+        key_entities: JSON.stringify(cluster.key_entities),
       },
     })
   }
@@ -139,6 +144,8 @@ export function GeographicOverlay() {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const clickPopupRef = useRef<mapboxgl.Popup | null>(null)
+  const clickPopupFeatureId = useRef<string | null>(null)
   const sourcesReady = useRef(false)
 
   const snapshot = useStore(s => s.snapshot)
@@ -179,6 +186,69 @@ export function GeographicOverlay() {
     () => (snapshot ? buildClusterGeoJSON(snapshot.clusters) : EMPTY_FC),
     [snapshot],
   )
+
+  // Map cluster_id → label for popup display
+  const clusterLabels = useMemo(() => {
+    const m = new Map<string, string>()
+    if (!snapshot) return m
+    for (const c of snapshot.clusters) {
+      m.set(c.cluster_id, c.label)
+    }
+    return m
+  }, [snapshot])
+
+  // Build entity popup card HTML
+  const buildEntityPopupHTML = useCallback((props: Record<string, unknown>) => {
+    const conf = props.confidence as number
+    const color = confidenceColor(conf)
+    const name = props.name as string
+    const entityType = props.entity_type as string
+    const id = props.id as string
+    const sourceCount = props.source_count as number
+    const firstSeen = props.first_seen as string
+    let clusterIds: string[] = []
+    try { clusterIds = JSON.parse(props.cluster_ids as string) } catch { /* empty */ }
+    const firstClusterLabel = clusterIds.length > 0 ? clusterLabels.get(clusterIds[0]) : null
+    const firstSeenDisplay = firstSeen ? firstSeen.slice(0, 10) : '—'
+
+    return `<div style="font-family:'JetBrains Mono',monospace;max-width:320px;background:#0f1520;border:1px solid #1e293b;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,0.5);padding:10px 12px;">
+      <div style="font-size:11px;font-weight:600;color:${color};margin-bottom:2px;">&#9679; ${name}</div>
+      <div style="font-size:10px;color:#94A3B8;margin-bottom:8px;">${entityType} &middot; ${(conf * 100).toFixed(0)}% confidence</div>
+      <div style="border-top:1px solid #1e293b;padding-top:6px;font-size:10px;color:#94A3B8;">
+        ${firstClusterLabel ? `<div style="margin-bottom:3px;"><span style="color:#475569;">Cluster:</span> ${firstClusterLabel}</div>` : ''}
+        <div style="margin-bottom:3px;"><span style="color:#475569;">Sources:</span> ${sourceCount} documents</div>
+        <div><span style="color:#475569;">First seen:</span> ${firstSeenDisplay}</div>
+      </div>
+      <div style="border-top:1px solid #1e293b;margin-top:8px;padding-top:6px;">
+        <a data-entity-id="${id}" style="color:#00D4FF;font-size:10px;cursor:pointer;text-decoration:none;">View Details &rarr;</a>
+      </div>
+    </div>`
+  }, [clusterLabels])
+
+  // Build cluster popup card HTML
+  const buildClusterPopupHTML = useCallback((props: Record<string, unknown>) => {
+    const conf = props.confidence as number
+    const color = confidenceColor(conf)
+    const label = props.label as string
+    const status = props.status as string
+    const id = props.id as string
+    const size = props.size as number
+    let keyEntities: string[] = []
+    try { keyEntities = JSON.parse(props.key_entities as string) } catch { /* empty */ }
+    const keyPreview = keyEntities.slice(0, 5).join(', ')
+
+    return `<div style="font-family:'JetBrains Mono',monospace;max-width:320px;background:#0f1520;border:1px solid #1e293b;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,0.5);padding:10px 12px;">
+      <div style="font-size:11px;font-weight:600;color:${color};margin-bottom:2px;">&#9679; ${label}</div>
+      <div style="font-size:10px;color:#94A3B8;margin-bottom:8px;">${status} &middot; ${(conf * 100).toFixed(0)}% coherence</div>
+      <div style="border-top:1px solid #1e293b;padding-top:6px;font-size:10px;color:#94A3B8;">
+        <div style="margin-bottom:3px;">${size} documents &middot; ${keyEntities.length} entities</div>
+        ${keyPreview ? `<div><span style="color:#475569;">Key:</span> ${keyPreview}</div>` : ''}
+      </div>
+      <div style="border-top:1px solid #1e293b;margin-top:8px;padding-top:6px;">
+        <a data-cluster-id="${id}" style="color:#00D4FF;font-size:10px;cursor:pointer;text-decoration:none;">View Details &rarr;</a>
+      </div>
+    </div>`
+  }, [])
 
   // Inject popup styles
   useEffect(() => {
@@ -328,7 +398,7 @@ export function GeographicOverlay() {
       sourcesReady.current = true
     })
 
-    // --- Popup for hover ---
+    // --- Hover popup (transient) ---
     const popup = new mapboxgl.Popup({
       closeButton: false,
       closeOnClick: false,
@@ -336,11 +406,24 @@ export function GeographicOverlay() {
     })
     popupRef.current = popup
 
-    // Entity hover
+    // --- Click popup (persistent) ---
+    const clickPopup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: false,
+      offset: 14,
+      maxWidth: '340px',
+    })
+    clickPopupRef.current = clickPopup
+    clickPopup.on('close', () => {
+      clickPopupFeatureId.current = null
+    })
+
+    // Entity hover — skip if click popup is open on same feature
     map.on('mouseenter', LAYERS.circles, (e) => {
       map.getCanvas().style.cursor = 'pointer'
       if (!e.features || e.features.length === 0) return
       const props = e.features[0].properties!
+      if (clickPopupFeatureId.current === props.id) return
       const geom = e.features[0].geometry as GeoJSON.Point
       const conf = props.confidence as number
       const color = confidenceColor(conf)
@@ -357,18 +440,40 @@ export function GeographicOverlay() {
       popup.remove()
     })
 
-    // Entity click
+    // Entity click — flyTo + click popup + setSelectedElement
     map.on('click', LAYERS.circles, (e) => {
       if (!e.features || e.features.length === 0) return
-      const id = e.features[0].properties!.id as string
+      e.originalEvent.stopPropagation()
+      const props = e.features[0].properties!
+      const geom = e.features[0].geometry as GeoJSON.Point
+      const id = props.id as string
+      const coords = geom.coordinates as [number, number]
+
+      // Fly to entity
+      map.flyTo({
+        center: coords,
+        zoom: Math.max(map.getZoom(), 8),
+        duration: 1500,
+        essential: true,
+      })
+
+      // Remove hover popup, show click popup
+      popup.remove()
+      clickPopupFeatureId.current = id
+      clickPopup.setLngLat(coords)
+        .setHTML(buildEntityPopupHTML(props as unknown as Record<string, unknown>))
+        .addTo(map)
+
+      // Open detail panel
       useStore.getState().setSelectedElement({ type: 'entity', id })
     })
 
-    // Cluster hover
+    // Cluster hover — skip if click popup is open on same feature
     map.on('mouseenter', LAYERS.clusterFill, (e) => {
       map.getCanvas().style.cursor = 'pointer'
       if (!e.features || e.features.length === 0) return
       const props = e.features[0].properties!
+      if (clickPopupFeatureId.current === props.id) return
       const conf = props.confidence as number
       const color = confidenceColor(conf)
       popup.setLngLat(e.lngLat)
@@ -384,12 +489,59 @@ export function GeographicOverlay() {
       popup.remove()
     })
 
-    // Cluster click
+    // Cluster click — fitBounds + click popup + setSelectedElement
     map.on('click', LAYERS.clusterFill, (e) => {
       if (!e.features || e.features.length === 0) return
-      const id = e.features[0].properties!.id as string
+      e.originalEvent.stopPropagation()
+      const feature = e.features[0]
+      const props = feature.properties!
+      const id = props.id as string
+
+      // Fit to polygon bounds
+      const bounds = new mapboxgl.LngLatBounds()
+      const coords = (feature.geometry as GeoJSON.Polygon).coordinates[0]
+      coords.forEach(c => bounds.extend(c as [number, number]))
+      map.fitBounds(bounds, {
+        padding: 80,
+        duration: 1500,
+        maxZoom: 12,
+      })
+
+      // Remove hover popup, show click popup
+      popup.remove()
+      clickPopupFeatureId.current = id
+      clickPopup.setLngLat(e.lngLat)
+        .setHTML(buildClusterPopupHTML(props as unknown as Record<string, unknown>))
+        .addTo(map)
+
+      // Open detail panel
       useStore.getState().setSelectedElement({ type: 'cluster', id })
     })
+
+    // Click on empty space — close click popup, don't deselect
+    map.on('click', (e) => {
+      // Only handle if click didn't hit an entity or cluster (those handlers call stopPropagation)
+      const entityFeatures = map.queryRenderedFeatures(e.point, { layers: [LAYERS.circles] })
+      const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: [LAYERS.clusterFill] })
+      if (entityFeatures.length === 0 && clusterFeatures.length === 0) {
+        clickPopup.remove()
+      }
+    })
+
+    // Delegated click listener for "View Details" links in popups
+    const handlePopupClick = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement
+      const entityId = target.getAttribute('data-entity-id')
+      const clusterId = target.getAttribute('data-cluster-id')
+      if (entityId) {
+        ev.preventDefault()
+        useStore.getState().setSelectedElement({ type: 'entity', id: entityId })
+      } else if (clusterId) {
+        ev.preventDefault()
+        useStore.getState().setSelectedElement({ type: 'cluster', id: clusterId })
+      }
+    }
+    mapContainerRef.current?.addEventListener('click', handlePopupClick)
 
     // Relationship hover
     const relHover = (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.GeoJSONFeature[] }) => {
@@ -410,14 +562,19 @@ export function GeographicOverlay() {
     map.on('mouseleave', LAYERS.linesDashed, relLeave)
 
     mapRef.current = map
+    const container = mapContainerRef.current
 
     return () => {
+      container?.removeEventListener('click', handlePopupClick)
       popup.remove()
+      clickPopup.remove()
       map.remove()
       mapRef.current = null
+      clickPopupRef.current = null
+      clickPopupFeatureId.current = null
       sourcesReady.current = false
     }
-  }, [])
+  }, [buildEntityPopupHTML, buildClusterPopupHTML])
 
   // Update source data when snapshot / highlights change
   useEffect(() => {
