@@ -505,7 +505,8 @@ class TestModels:
 
 
 class TestGeocodingCache:
-    def test_put_and_get(self):
+    @pytest.mark.asyncio
+    async def test_put_and_get(self):
         from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
 
         cache = GeocodingCache()
@@ -516,20 +517,22 @@ class TestGeocodingCache:
             confidence=0.9,
             geocoding_source="test",
         )
-        cache.put("Washington D.C.", data)
-        assert cache.get("Washington D.C.") is not None
-        assert cache.get("washington d.c.") is not None  # case insensitive
-        assert cache.get("New York") is None
+        await cache.put("Washington D.C.", data)
+        assert await cache.get("Washington D.C.") is not None
+        assert await cache.get("washington d.c.") is not None  # case insensitive
+        assert await cache.get("New York") is None
 
-    def test_cache_length(self):
+    @pytest.mark.asyncio
+    async def test_cache_length(self):
         from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
 
         cache = GeocodingCache()
         assert len(cache) == 0
-        cache.put("A", GeospatialData(geocoding_source="test"))
+        await cache.put("A", GeospatialData(geocoding_source="test"))
         assert len(cache) == 1
 
-    def test_cache_with_country_context(self):
+    @pytest.mark.asyncio
+    async def test_cache_with_country_context(self):
         from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
 
         cache = GeocodingCache()
@@ -547,21 +550,23 @@ class TestGeocodingCache:
             confidence=1.0,
             geocoding_source="test",
         )
-        cache.put("St. Petersburg", data_russia, country_context="Russia")
-        cache.put("St. Petersburg", data_florida, country_context="United States")
+        await cache.put("St. Petersburg", data_russia, country_context="Russia")
+        await cache.put("St. Petersburg", data_florida, country_context="United States")
 
-        result_russia = cache.get("St. Petersburg", "Russia")
-        result_us = cache.get("St. Petersburg", "United States")
+        result_russia = await cache.get("St. Petersburg", "Russia")
+        result_us = await cache.get("St. Petersburg", "United States")
         assert result_russia is not None
         assert result_us is not None
         assert result_russia.latitude != result_us.latitude
 
-    def test_persistent_cache(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_persistent_cache(self, tmp_path):
         """Test SQLite-backed persistent cache."""
         from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
 
         db_path = str(tmp_path / "test_geocache.db")
         cache = GeocodingCache(db_path=db_path)
+        await cache.initialize()
         data = GeospatialData(
             resolved=True,
             latitude=51.5074,
@@ -572,19 +577,21 @@ class TestGeocodingCache:
             confidence=1.0,
             geocoding_source="test",
         )
-        cache.put("London", data, country_context="United Kingdom")
-        cache.close()
+        await cache.put("London", data, country_context="United Kingdom")
+        await cache.close()
 
         # Reopen and verify persistence
         cache2 = GeocodingCache(db_path=db_path)
-        result = cache2.get("London", "United Kingdom")
+        await cache2.initialize()
+        result = await cache2.get("London", "United Kingdom")
         assert result is not None
         assert result.latitude == 51.5074
         assert result.display_name == "London, UK"
         assert result.hierarchy.country == "United Kingdom"
-        cache2.close()
+        await cache2.close()
 
-    def test_seed_from_file(self):
+    @pytest.mark.asyncio
+    async def test_seed_from_file(self):
         """Test seeding cache from the geospatial_seeds.json file."""
         from periphery.enrichment.stages.geospatial_resolution import GeocodingCache
 
@@ -593,21 +600,21 @@ class TestGeocodingCache:
             pytest.skip("Seed file not found")
 
         cache = GeocodingCache()
-        count = cache.seed_from_file(str(seed_path))
+        count = await cache.seed_from_file(str(seed_path))
         assert count > 100  # Should have 200+ entries
 
         # Check some well-known locations
-        dc = cache.get("Washington D.C.")
+        dc = await cache.get("Washington D.C.")
         assert dc is not None
         assert dc.resolved is True
         assert abs(dc.latitude - 38.9072) < 0.01
 
-        hormuz = cache.get("Strait of Hormuz")
+        hormuz = await cache.get("Strait of Hormuz")
         assert hormuz is not None
         assert hormuz.location_type == "maritime_chokepoint"
         assert hormuz.bounding_box is not None
 
-        kremlin = cache.get("Kremlin")
+        kremlin = await cache.get("Kremlin")
         assert kremlin is not None
         assert kremlin.location_type == "facility"
 
@@ -961,13 +968,13 @@ class TestGeospatialResolutionStage:
         )
 
         cache = GeocodingCache()
-        cache.put("Damascus", GeospatialData(
+        await cache.put("Damascus", GeospatialData(
             resolved=True, latitude=33.5138, longitude=36.2765,
             display_name="Damascus, Syria", location_type="city",
             hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
             confidence=1.0, geocoding_source="cache",
         ))
-        cache.put("Beirut", GeospatialData(
+        await cache.put("Beirut", GeospatialData(
             resolved=True, latitude=33.8938, longitude=35.5018,
             display_name="Beirut, Lebanon", location_type="city",
             hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
@@ -1011,13 +1018,13 @@ class TestGeospatialResolutionStage:
         )
 
         cache = GeocodingCache()
-        cache.put("Damascus", GeospatialData(
+        await cache.put("Damascus", GeospatialData(
             resolved=True, latitude=33.5138, longitude=36.2765,
             display_name="Damascus, Syria", location_type="city",
             hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
             confidence=1.0, geocoding_source="cache",
         ))
-        cache.put("Beirut", GeospatialData(
+        await cache.put("Beirut", GeospatialData(
             resolved=True, latitude=33.8938, longitude=35.5018,
             display_name="Beirut, Lebanon", location_type="city",
             hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
@@ -1100,13 +1107,13 @@ class TestGeospatialResolutionStage:
         )
 
         cache = GeocodingCache()
-        cache.put("Damascus", GeospatialData(
+        await cache.put("Damascus", GeospatialData(
             resolved=True, latitude=33.5138, longitude=36.2765,
             display_name="Damascus, Syria", location_type="city",
             hierarchy=GeoHierarchy(city="Damascus", country="Syria", continent="Asia"),
             confidence=1.0, geocoding_source="cache",
         ))
-        cache.put("Beirut", GeospatialData(
+        await cache.put("Beirut", GeospatialData(
             resolved=True, latitude=33.8938, longitude=35.5018,
             display_name="Beirut, Lebanon", location_type="city",
             hierarchy=GeoHierarchy(city="Beirut", country="Lebanon", continent="Asia"),
@@ -1291,7 +1298,7 @@ class TestGeospatialPipelineIntegration:
         )
 
         cache = GeocodingCache()
-        cache.put("Washington D.C.", GeospatialData(
+        await cache.put("Washington D.C.", GeospatialData(
             resolved=True, latitude=38.9072, longitude=-77.0369,
             display_name="Washington, D.C., United States", location_type="city",
             hierarchy=GeoHierarchy(city="Washington", country="United States", continent="North America"),
