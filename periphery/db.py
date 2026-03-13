@@ -221,6 +221,43 @@ CREATE TABLE IF NOT EXISTS analyst_annotations (
     created_at TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_annotation_target ON analyst_annotations(target_type, target_id);
+
+-- ===== Entity Resolution =====
+CREATE TABLE IF NOT EXISTS canonical_entities (
+    canonical_id TEXT PRIMARY KEY,
+    canonical_name TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    aliases JSON DEFAULT '[]',
+    first_seen TIMESTAMP,
+    last_seen TIMESTAMP,
+    source_documents JSON DEFAULT '[]',
+    document_count INTEGER DEFAULT 0,
+    credibility_floor INTEGER DEFAULT 4,
+    merge_confidence REAL DEFAULT 1.0,
+    bio_short TEXT,
+    bio_long TEXT,
+    bio_generated_at TIMESTAMP,
+    location_lat REAL,
+    location_lon REAL,
+    location_name TEXT,
+    metadata JSON
+);
+
+CREATE INDEX IF NOT EXISTS idx_canonical_name ON canonical_entities(canonical_name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_canonical_type ON canonical_entities(entity_type);
+CREATE INDEX IF NOT EXISTS idx_canonical_doc_count ON canonical_entities(document_count DESC);
+
+CREATE TABLE IF NOT EXISTS entity_aliases (
+    alias_text TEXT NOT NULL COLLATE NOCASE,
+    canonical_id TEXT NOT NULL REFERENCES canonical_entities(canonical_id),
+    alias_type TEXT DEFAULT 'exact',
+    match_score REAL DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (alias_text, canonical_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alias_text ON entity_aliases(alias_text COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_alias_canonical ON entity_aliases(canonical_id);
 """
 
 # ---------------------------------------------------------------------------

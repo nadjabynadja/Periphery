@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api", tags=["query-interface"])
 # Set by main.py during initialization
 _analytical_engine = None
 _crystallizer_worker = None
+_entity_index = None
 
 # Module-level cache for enrichment data, keyed by snapshot_id
 _enrichment_cache: dict[str, dict[str, Any]] = {}
@@ -97,10 +98,11 @@ async def _load_enrichment_entities(
                 doc_entities[did] = entities_raw if isinstance(entities_raw, list) else []
                 doc_relationships[did] = rels_raw if isinstance(rels_raw, list) else []
 
-    # Build deduplicated entity list — key by lowercase text, keep highest confidence
-    best_entity: dict[str, dict] = {}  # lowercase name -> best entity dict
-    entity_doc_count: dict[str, int] = {}  # lowercase name -> document count
-    entity_cluster_ids: dict[str, set] = {}  # lowercase name -> set of cluster IDs
+    # Build deduplicated entity list — resolve through entity index if available
+    # key by canonical_id (from entity index) for proper deduplication
+    best_entity: dict[str, dict] = {}  # canonical_id -> best entity dict
+    entity_doc_count: dict[str, int] = {}  # canonical_id -> document count
+    entity_cluster_ids: dict[str, set] = {}  # canonical_id -> set of cluster IDs
 
     # Build reverse map: doc_id -> list of cluster_ids
     doc_to_clusters: dict[str, list[str]] = {}
@@ -112,9 +114,27 @@ async def _load_enrichment_entities(
         for ent in ents:
             if not isinstance(ent, dict) or "text" not in ent:
                 continue
-            key = ent["text"].strip().lower()
-            if not key:
+            text = ent["text"].strip()
+            if not text:
                 continue
+
+            # Resolve through entity index for canonical deduplication
+            resolved_id = ent.get("canonical_id", text)
+            resolved_name = text
+            resolved_aliases: list[str] = []
+            resolved_type = ent.get("entity_type", "entity")
+
+            if _entity_index is not None:
+                idx_entity = _entity_index.lookup_exact(text)
+                if idx_entity is None:
+                    idx_entity = _entity_index.lookup_alias(text)
+                if idx_entity is not None:
+                    resolved_id = idx_entity.canonical_id
+                    resolved_name = idx_entity.canonical_name
+                    resolved_aliases = idx_entity.aliases
+                    resolved_type = idx_entity.entity_type
+
+            key = resolved_id
 
             # Track document count
             entity_doc_count[key] = entity_doc_count.get(key, 0) + 1
@@ -128,7 +148,13 @@ async def _load_enrichment_entities(
             # Keep highest-confidence version
             new_conf = ent.get("confidence", 0.0)
             if key not in best_entity or new_conf > best_entity[key].get("confidence", 0.0):
-                best_entity[key] = ent
+                best_entity[key] = {
+                    **ent,
+                    "canonical_id": resolved_id,
+                    "text": resolved_name,
+                    "entity_type": resolved_type,
+                    "aliases": resolved_aliases,
+                }
 
     # Build final entity list
     entities: list[dict[str, Any]] = []
@@ -138,6 +164,8 @@ async def _load_enrichment_entities(
     for key, ent in best_entity.items():
         canonical_id = ent.get("canonical_id", ent["text"])
         entity_canonical_ids.add(canonical_id)
+        # Also add the text as a canonical_id for relationship matching
+        entity_canonical_ids.add(ent["text"])
 
         geo = ent.get("geospatial")
         location = None
@@ -151,19 +179,37 @@ async def _load_enrichment_entities(
                 "lon": geo["longitude"],
             }
 
+        # Check entity index for location data if not in enrichment
+        if location is None and _entity_index is not None:
+            extras = _entity_index._db_extras.get(canonical_id, {})
+            if extras.get("location_lat") is not None:
+                location = {
+                    "lat": extras["location_lat"],
+                    "lon": extras["location_lon"],
+                }
+
         entity_conf = ent.get("confidence", 0.5)
         rendering = confidence_to_rendering(entity_conf).model_dump() if include_rendering else {}
+
+        # Use entity index data for first_seen/last_seen if available
+        first_seen = generated_at_iso
+        last_seen = generated_at_iso
+        if _entity_index is not None:
+            idx_entity = _entity_index.get(canonical_id)
+            if idx_entity is not None:
+                first_seen = idx_entity.first_seen.isoformat() if idx_entity.first_seen else generated_at_iso
+                last_seen = idx_entity.last_seen.isoformat() if idx_entity.last_seen else generated_at_iso
 
         entities.append({
             "canonical_id": canonical_id,
             "name": ent["text"],
             "entity_type": ent.get("entity_type", "entity"),
-            "aliases": [],
+            "aliases": ent.get("aliases", []),
             "confidence": entity_conf,
             "source_count": entity_doc_count.get(key, 1),
             "cluster_ids": sorted(entity_cluster_ids.get(key, set())),
-            "first_seen": generated_at_iso,
-            "last_seen": generated_at_iso,
+            "first_seen": first_seen,
+            "last_seen": last_seen,
             "location": location,
             "rendering": rendering,
         })
@@ -227,6 +273,11 @@ def set_analytical_engine(engine) -> None:
 def set_crystallizer_worker(worker) -> None:
     global _crystallizer_worker
     _crystallizer_worker = worker
+
+
+def set_entity_index(index) -> None:
+    global _entity_index
+    _entity_index = index
 
 
 def _get_engine():
@@ -459,42 +510,213 @@ async def get_snapshot(
 
 @router.get("/entity/{canonical_id}")
 async def get_entity(canonical_id: str):
-    """Return full entity detail with relationships and cluster memberships."""
+    """Return full entity profile with relationships and cluster memberships."""
     engine = _get_engine()
+
+    # Resolve entity through the index
+    entity_index = _entity_index
+    if entity_index is None:
+        return {"error": "Entity index not available", "entity": None}
+
+    canonical = entity_index.get(canonical_id)
+    if canonical is None:
+        canonical = entity_index.lookup_exact(canonical_id)
+    if canonical is None:
+        canonical = entity_index.lookup_alias(canonical_id)
+    if canonical is None:
+        canonical, _score = entity_index.lookup_fuzzy(canonical_id, "")
+
+    if canonical is None:
+        return {"error": "Entity not found", "entity": None}
+
+    # Get full profile
+    profile = await entity_index.get_profile(canonical.canonical_id)
+
+    # Find cluster memberships from snapshot
     snapshot = engine.snapshot
-
-    if snapshot is None:
-        return {"error": "No snapshot available", "entity": None}
-
-    # Search for entity across clusters
     cluster_memberships = []
-    relationships = []
-    source_documents: set[str] = set()
-
-    for cluster in snapshot.clusters:
-        for entity_name in cluster.key_entities:
-            if canonical_id in entity_name or entity_name in canonical_id:
+    if snapshot:
+        entity_names = {canonical.canonical_name.lower()} | {a.lower() for a in canonical.aliases}
+        for cluster in snapshot.clusters:
+            cluster_entity_names = {e.lower() for e in cluster.key_entities}
+            if entity_names & cluster_entity_names:
                 cluster_memberships.append({
                     "cluster_id": cluster.cluster_id,
                     "label": cluster.label,
                     "confidence": cluster.confidence,
                     "size": cluster.size,
+                    "role": "member",
                 })
-                source_documents.update(cluster.member_document_ids[:10])
-                relationships.extend(cluster.key_relationships[:5])
-                break
 
-    entity_data = {
-        "canonical_id": canonical_id,
-        "cluster_memberships": cluster_memberships,
-        "relationships": relationships,
-        "source_documents": list(source_documents)[:50],
-        "rendering": confidence_to_rendering(
-            max((cm["confidence"] for cm in cluster_memberships), default=0.0)
-        ).model_dump(),
+    # Fetch relationships from document_enrichments
+    entity_relationships = []
+    if profile and profile.get("source_documents"):
+        try:
+            async with get_connection() as db:
+                doc_ids = profile["source_documents"][:50]
+                placeholders = ",".join("?" for _ in doc_ids)
+                cursor = await db.execute(
+                    f"SELECT document_id, relationships FROM document_enrichments WHERE document_id IN ({placeholders})",
+                    doc_ids,
+                )
+                seen_rels: set[str] = set()
+                entity_names_lower = {canonical.canonical_name.lower()} | {a.lower() for a in canonical.aliases}
+                for row in await cursor.fetchall():
+                    try:
+                        rels = json.loads(row[1]) if row[1] else []
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    for rel in rels:
+                        if not isinstance(rel, dict):
+                            continue
+                        subj = rel.get("subject_text", rel.get("subject_id", ""))
+                        obj = rel.get("object_text", rel.get("object_id", ""))
+                        pred = rel.get("predicate", "")
+                        if subj.lower() in entity_names_lower or obj.lower() in entity_names_lower:
+                            rel_key = f"{subj}|{pred}|{obj}"
+                            if rel_key not in seen_rels:
+                                seen_rels.add(rel_key)
+                                direction = "outgoing" if subj.lower() in entity_names_lower else "incoming"
+                                other_name = obj if direction == "outgoing" else subj
+                                entity_relationships.append({
+                                    "relationship_id": f"rel-{hash(rel_key) & 0xFFFFFF:06x}",
+                                    "predicate": pred,
+                                    "other_entity_name": other_name,
+                                    "direction": direction,
+                                    "confidence": rel.get("confidence", 0.5),
+                                    "temporal_context": rel.get("temporal_context", {}).get("status", "current") if isinstance(rel.get("temporal_context"), dict) else "current",
+                                    "evidence_sentence": rel.get("evidence", ""),
+                                    "extraction_tier": rel.get("extraction_method", "co_occurrence"),
+                                })
+        except Exception:
+            logger.debug("entity_relationships_fetch_failed", exc_info=True)
+
+    # Fetch source documents metadata
+    source_docs = []
+    if profile and profile.get("source_documents"):
+        try:
+            async with get_connection() as db:
+                doc_ids = profile["source_documents"][:20]
+                placeholders = ",".join("?" for _ in doc_ids)
+                cursor = await db.execute(
+                    f"SELECT id, title, source_feed, published, content_quality FROM documents WHERE id IN ({placeholders})",
+                    doc_ids,
+                )
+                for row in await cursor.fetchall():
+                    source_docs.append({
+                        "document_id": row[0],
+                        "title": row[1] or "Untitled",
+                        "source": row[2] or "",
+                        "date": str(row[3] or ""),
+                        "content_quality": row[4] or "full",
+                    })
+        except Exception:
+            logger.debug("entity_source_docs_fetch_failed", exc_info=True)
+
+    # Build temporal history
+    temporal_history = []
+    if profile and profile.get("source_documents"):
+        try:
+            async with get_connection() as db:
+                doc_ids = profile["source_documents"]
+                placeholders = ",".join("?" for _ in doc_ids)
+                cursor = await db.execute(
+                    f"""SELECT DATE(published) as day, COUNT(*) as cnt
+                         FROM documents
+                         WHERE id IN ({placeholders}) AND published IS NOT NULL
+                        GROUP BY DATE(published)
+                         ORDER BY day""",
+                    doc_ids,
+                )
+                for row in await cursor.fetchall():
+                    temporal_history.append({"date": row[0], "count": row[1]})
+        except Exception:
+            pass
+
+    bio_short = profile.get("bio_short") if profile else None
+    bio_long = profile.get("bio_long") if profile else None
+
+    return {
+        "entity": {
+            "canonical_id": canonical.canonical_id,
+            "name": canonical.canonical_name,
+            "entity_type": canonical.entity_type,
+            "confidence": canonical.merge_confidence,
+            "aliases": canonical.aliases,
+            "bio_short": bio_short,
+            "bio_long": bio_long,
+            "cluster_memberships": cluster_memberships,
+            "relationships": entity_relationships,
+            "source_documents": source_docs,
+            "temporal_history": temporal_history,
+            "confidence_explanation": {
+                "factors": [
+                    {"name": "Merge confidence", "score": canonical.merge_confidence, "weight": 0.3, "description": "How confidently this entity was resolved across mentions"},
+                    {"name": "Source diversity", "score": min(1.0, len(canonical.source_documents) / 10), "weight": 0.3, "description": f"Mentioned in {len(canonical.source_documents)} documents"},
+                    {"name": "Credibility floor", "score": 1.0 - (canonical.credibility_floor - 1) / 4, "weight": 0.4, "description": f"Best source credibility tier: {canonical.credibility_floor}"},
+                ],
+            },
+            "location": {
+                "lat": profile.get("location_lat"),
+                "lon": profile.get("location_lon"),
+                "name": profile.get("location_name"),
+            } if profile and profile.get("location_lat") else None,
+            "first_seen": canonical.first_seen.isoformat() if canonical.first_seen else None,
+            "last_seen": canonical.last_seen.isoformat() if canonical.last_seen else None,
+            "document_count": len(canonical.source_documents),
+        }
     }
 
-    return {"entity": entity_data}
+
+@router.post("/entity/{canonical_id}/generate-bio")
+async def generate_entity_bio(canonical_id: str):
+    """Trigger bio generation for an entity. Called lazily from the frontend."""
+    entity_index = _entity_index
+    if entity_index is None:
+        return {"error": "Entity index not available"}
+
+    canonical = entity_index.get(canonical_id)
+    if canonical is None:
+        return {"error": "Entity not found"}
+
+    # Fetch content from source documents
+    doc_contents = []
+    try:
+        async with get_connection() as db:
+            doc_ids = canonical.source_documents[:10]
+            if doc_ids:
+                placeholders = ",".join("?" for _ in doc_ids)
+                cursor = await db.execute(
+                    f"SELECT content FROM documents WHERE id IN ({placeholders})",
+                    doc_ids,
+                )
+                for row in await cursor.fetchall():
+                    if row[0]:
+                        doc_contents.append(row[0][:500])
+    except Exception:
+        logger.debug("bio_doc_fetch_failed", exc_info=True)
+
+    if not doc_contents:
+        return {"error": "No source documents available for bio generation"}
+
+    # Get anthropic client
+    from periphery.config import get_settings
+    _settings = get_settings()
+    if not _settings.anthropic_api_key:
+        return {"error": "Anthropic API key not configured"}
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=_settings.anthropic_api_key)
+
+    bio_short, bio_long = await entity_index.generate_bio(
+        canonical_id, client, doc_contents
+    )
+
+    return {
+        "canonical_id": canonical_id,
+        "bio_short": bio_short,
+        "bio_long": bio_long,
+    }
 
 
 # ── Cluster Detail Endpoint ──────────────────────────────────────────────
@@ -698,3 +920,122 @@ async def get_legibility_gradient():
     """Return the legibility gradient specification for frontend reference."""
     from periphery.query.renderer import LEGIBILITY_GRADIENT
     return {"gradient": LEGIBILITY_GRADIENT}
+
+
+# ── Entity Backfill Endpoint ─────────────────────────────────────────────
+
+
+async def backfill_entity_index(entity_index, db_path: str = "") -> int:
+    """Backfill canonical entities from existing document_enrichments data.
+
+    Iterates through all enrichment rows, parses entities, and runs them
+    through the entity index resolution logic (exact → alias → fuzzy → register).
+    """
+    from periphery.enrichment.stages.entity_resolution import FUZZY_MATCH_THRESHOLD
+
+    total_processed = 0
+    batch_size = 500
+
+    async with get_connection() as db:
+        # Count total enrichment rows
+        cursor = await db.execute("SELECT COUNT(*) FROM document_enrichments")
+        row = await cursor.fetchone()
+        total_rows = row[0] if row else 0
+        logger.info("backfill_starting total_enrichment_rows=%d", total_rows)
+
+        offset = 0
+        while offset < total_rows:
+            cursor = await db.execute(
+                "SELECT document_id, entities FROM document_enrichments "
+                "ORDER BY document_id LIMIT ? OFFSET ?",
+                (batch_size, offset),
+            )
+            rows = await cursor.fetchall()
+            if not rows:
+                break
+
+            for row in rows:
+                doc_id = row[0]
+                try:
+                    entities_raw = json.loads(row[1]) if row[1] else []
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                if not isinstance(entities_raw, list):
+                    continue
+
+                for ent in entities_raw:
+                    if not isinstance(ent, dict) or "text" not in ent:
+                        continue
+                    text = ent["text"].strip()
+                    if not text:
+                        continue
+                    entity_type = ent.get("entity_type", "entity")
+                    credibility_tier = ent.get("credibility_tier", 4)
+
+                    # Resolution logic: exact → alias → fuzzy → register
+                    canonical = entity_index.lookup_exact(text)
+                    if canonical:
+                        await entity_index.update(
+                            canonical.canonical_id,
+                            doc_id=doc_id,
+                            credibility_tier=credibility_tier,
+                        )
+                        continue
+
+                    canonical = entity_index.lookup_alias(text)
+                    if canonical:
+                        await entity_index.update(
+                            canonical.canonical_id,
+                            new_alias=text,
+                            doc_id=doc_id,
+                            credibility_tier=credibility_tier,
+                        )
+                        continue
+
+                    canonical, score = entity_index.lookup_fuzzy(text, entity_type)
+                    if canonical and score >= FUZZY_MATCH_THRESHOLD:
+                        await entity_index.update(
+                            canonical.canonical_id,
+                            new_alias=text,
+                            doc_id=doc_id,
+                            credibility_tier=credibility_tier,
+                        )
+                        canonical.merge_confidence = min(canonical.merge_confidence, score)
+                        continue
+
+                    await entity_index.register(text, entity_type, doc_id, credibility_tier)
+                    total_processed += 1
+
+                # Periodically flush dirty entities
+                if entity_index._dirty and len(entity_index._dirty) >= 50:
+                    await entity_index.flush()
+
+            offset += batch_size
+            logger.info(
+                "backfill_progress offset=%d total=%d index_size=%d",
+                offset, total_rows, len(entity_index),
+            )
+
+    # Final flush
+    await entity_index.flush()
+    logger.info(
+        "backfill_complete new_entities=%d total_index_size=%d",
+        total_processed, len(entity_index),
+    )
+    return len(entity_index)
+
+
+@router.post("/admin/backfill-entities")
+async def admin_backfill_entities():
+    """Trigger entity backfill from existing document_enrichments data."""
+    entity_index = _entity_index
+    if entity_index is None:
+        return {"error": "Entity index not available"}
+
+    count = await backfill_entity_index(entity_index)
+    return {
+        "status": "ok",
+        "total_canonical_entities": count,
+        "message": f"Backfill complete. {count} canonical entities in index.",
+    }
