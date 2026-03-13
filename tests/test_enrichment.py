@@ -294,69 +294,77 @@ class TestSourceCredibility:
 
 
 class TestEntityIndex:
-    def test_register_and_exact_lookup(self):
+    @pytest.mark.asyncio
+    async def test_register_and_exact_lookup(self):
         idx = EntityIndex()
-        ent = idx.register("Lockheed Martin", "ORG", "doc1")
+        ent = await idx.register("Lockheed Martin", "ORG", "doc1")
         assert ent.canonical_name == "Lockheed Martin"
 
         found = idx.lookup_exact("Lockheed Martin")
         assert found is not None
         assert found.canonical_id == ent.canonical_id
 
-    def test_case_insensitive_exact(self):
+    @pytest.mark.asyncio
+    async def test_case_insensitive_exact(self):
         idx = EntityIndex()
-        idx.register("Lockheed Martin", "ORG", "doc1")
+        await idx.register("Lockheed Martin", "ORG", "doc1")
         found = idx.lookup_exact("lockheed martin")
         assert found is not None
 
-    def test_alias_lookup(self):
+    @pytest.mark.asyncio
+    async def test_alias_lookup(self):
         idx = EntityIndex()
-        ent = idx.register("Mohammed bin Salman", "PERSON", "doc1")
-        idx.update(ent.canonical_id, new_alias="MBS")
+        ent = await idx.register("Mohammed bin Salman", "PERSON", "doc1")
+        await idx.update(ent.canonical_id, new_alias="MBS")
 
         found = idx.lookup_alias("MBS")
         assert found is not None
         assert found.canonical_id == ent.canonical_id
 
-    def test_fuzzy_lookup_same_type(self):
+    @pytest.mark.asyncio
+    async def test_fuzzy_lookup_same_type(self):
         idx = EntityIndex()
-        idx.register("Lockheed Martin Corporation", "ORG", "doc1")
+        await idx.register("Lockheed Martin Corporation", "ORG", "doc1")
 
         found, score = idx.lookup_fuzzy("Lockheed Martin Corporation Ltd", "ORG")
         assert found is not None
         assert score >= 0.88
 
-    def test_fuzzy_no_cross_type(self):
+    @pytest.mark.asyncio
+    async def test_fuzzy_no_cross_type(self):
         idx = EntityIndex()
-        idx.register("Lockheed Martin", "ORG", "doc1")
+        await idx.register("Lockheed Martin", "ORG", "doc1")
 
         # Searching as PERSON should not match an ORG
         found, score = idx.lookup_fuzzy("Lockheed Martin", "PERSON")
         assert found is None
 
-    def test_update_tracks_documents(self):
+    @pytest.mark.asyncio
+    async def test_update_tracks_documents(self):
         idx = EntityIndex()
-        ent = idx.register("CIA", "ORG", "doc1")
-        idx.update(ent.canonical_id, doc_id="doc2")
+        ent = await idx.register("CIA", "ORG", "doc1")
+        await idx.update(ent.canonical_id, doc_id="doc2")
         updated = idx.get(ent.canonical_id)
         assert updated is not None
         assert "doc2" in updated.source_documents
 
-    def test_credibility_floor(self):
+    @pytest.mark.asyncio
+    async def test_credibility_floor(self):
         idx = EntityIndex()
-        ent = idx.register("OFAC", "ORG", "doc1", credibility_tier=3)
+        ent = await idx.register("OFAC", "ORG", "doc1", credibility_tier=3)
         assert ent.credibility_floor == 3
 
-        idx.update(ent.canonical_id, credibility_tier=1)
+        await idx.update(ent.canonical_id, credibility_tier=1)
         updated = idx.get(ent.canonical_id)
         assert updated is not None
         assert updated.credibility_floor == 1  # takes the minimum
 
-    def test_index_length(self):
+    @pytest.mark.asyncio
+    async def test_index_length(self):
         idx = EntityIndex()
         assert len(idx) == 0
-        idx.register("A", "ORG", "d1")
-        idx.register("B", "ORG", "d1")
+        await idx.register("A", "ORG", "d1")
+        await idx.register("B", "ORG", "d1")
         assert len(idx) == 2
 
 
@@ -423,7 +431,7 @@ class TestEntityResolutionStage:
         )
 
         idx = EntityIndex()
-        ent = idx.register("Lockheed Martin", "ORG", "old-doc")
+        ent = await idx.register("Lockheed Martin", "ORG", "old-doc")
         stage = EntityResolutionStage(entity_index=idx)
 
         doc = _make_pipeline_doc()

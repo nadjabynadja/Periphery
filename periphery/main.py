@@ -216,12 +216,19 @@ async def lifespan(app: FastAPI):
     )
     set_engine(engine)
 
+    # Load persistent entity index for the query engine
+    from periphery.enrichment.stages.entity_resolution import EntityIndex
+    entity_index = EntityIndex(db_path=db_path)
+    await entity_index.load()
+    logger.info("Entity index loaded for query engine: %d entities", len(entity_index))
+
     # Layer 4b: Initialize analytical query engine (new NLP-powered pipeline)
-    from periphery.query.api import set_analytical_engine, set_crystallizer_worker
+    from periphery.query.api import set_analytical_engine, set_crystallizer_worker, set_entity_index
+    set_entity_index(entity_index)
     analytical_engine = AnalyticalQueryEngine(
         faiss_store=store,
         multi_space=multi_space_manager,
-        entity_index=None,
+        entity_index=entity_index,
         anthropic_api_key=settings.anthropic_api_key,
         exa_api_key=settings.exa_api_key,
         db_path=db_path,

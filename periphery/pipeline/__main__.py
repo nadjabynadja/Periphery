@@ -164,8 +164,12 @@ async def main() -> None:
 
     worker.on_crystallize = critic_callback
 
-    # Build enrichment pipeline
-    enrichment_pipeline = build_enrichment_pipeline(settings)
+    # Build enrichment pipeline with persistent entity index
+    from periphery.enrichment.stages.entity_resolution import EntityIndex
+    entity_index = EntityIndex(db_path=db_path)
+    await entity_index.load()
+
+    enrichment_pipeline = build_enrichment_pipeline(settings, entity_index=entity_index)
 
     # Build consumers
     enrichment = EnrichmentConsumer(
