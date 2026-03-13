@@ -279,7 +279,7 @@ class EnrichmentPipeline:
         )
 
 
-def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
+def build_enrichment_pipeline(settings: Settings, entity_index=None) -> EnrichmentPipeline:
     """Build a fully configured EnrichmentPipeline from application settings.
 
     Assembles all six stages in the correct order:
@@ -334,6 +334,7 @@ def build_enrichment_pipeline(settings: Settings) -> EnrichmentPipeline:
             llm_enabled=settings.enrichment_llm_disambiguator_enabled,
         ),
         EntityResolutionStage(
+            entity_index=entity_index,
             fuzzy_threshold=settings.enrichment_fuzzy_match_threshold,
         ),
     ]
