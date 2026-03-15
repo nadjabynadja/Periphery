@@ -299,6 +299,9 @@ class PipelineDocument(BaseModel):
     # LLM enrichment status tracking for async Tier 3
     llm_enrichment_status: str = "skipped"  # pending | complete | skipped | budget_exhausted
 
+    # Original ingest metadata (source-specific fields like lat/lon from sources)
+    ingest_metadata: dict[str, Any] = Field(default_factory=dict)
+
     # Pipeline metadata
     enrichment_stages_completed: list[str] = Field(default_factory=list)
     enrichment_failures: list[str] = Field(default_factory=list)

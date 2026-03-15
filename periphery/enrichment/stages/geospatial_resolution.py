@@ -1197,6 +1197,10 @@ class GeospatialResolutionStage(EnrichmentStage):
 
     async def process(self, doc: PipelineDocument) -> PipelineDocument:
         """Resolve location entities to coordinates."""
+        # If this document comes from a source with embedded coordinates,
+        # inject them directly as a pre-resolved geospatial target.
+        self._apply_source_metadata(doc)
+
         # Identify all geocoding targets
         targets = _identify_geocoding_targets(doc)
 
@@ -1248,6 +1252,72 @@ class GeospatialResolutionStage(EnrichmentStage):
             cache_size=len(self._cache),
         )
         return doc
+
+    # -------------------------------------------------------------------
+    # Source metadata extraction
+    # -------------------------------------------------------------------
+
+    _SOURCE_TYPE_MAP: dict[str, str] = {
+        "aircraft_position": "aviation",
+        "vessel_position": "maritime",
+        "osm_feature": "infrastructure",
+        "cctv_camera": "surveillance",
+    }
+
+    def _apply_source_metadata(self, doc: PipelineDocument) -> None:
+        """Inject pre-resolved coordinates from source metadata.
+
+        Sources like OpenSky, ADS-B, Maritime AIS, OpenStreetMap, and CCTV
+        already carry latitude/longitude in their metadata.  Rather than
+        running these through the full tiered geocoding pipeline, we attach
+        them directly as resolved geospatial data.
+        """
+        meta = doc.ingest_metadata
+        if not meta:
+            return
+
+        lat = meta.get("latitude")
+        lon = meta.get("longitude")
+        if lat is None or lon is None:
+            return
+
+        try:
+            lat, lon = float(lat), float(lon)
+        except (ValueError, TypeError):
+            return
+
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return
+
+        source_type = meta.get("source_type", "")
+        category = self._SOURCE_TYPE_MAP.get(source_type, source_type)
+
+        # Build a display name from available metadata
+        name = (
+            meta.get("callsign")
+            or meta.get("vessel_name")
+            or meta.get("name")
+            or meta.get("camera_name")
+            or doc.title
+        )
+        if isinstance(name, str):
+            name = name.strip()
+
+        entity_key = f"{name}:{source_type}"
+
+        doc.geospatial_data[entity_key] = GeospatialData(
+            resolved=True,
+            latitude=lat,
+            longitude=lon,
+            display_name=name or f"{lat:.4f}, {lon:.4f}",
+            location_type=category,
+            confidence=1.0,
+            geocoding_source="source_metadata",
+        )
+
+    # -------------------------------------------------------------------
+    # Document context
+    # -------------------------------------------------------------------
 
     def _build_document_context(self, doc: PipelineDocument, targets: list[dict]) -> dict:
         """Build disambiguation context from the document.

@@ -59,7 +59,11 @@ class EnrichmentConsumer(StageConsumer):
         for doc_row in doc_rows:
             try:
                 enriched = await self._enrich_document(doc_row)
-                await self._store_enrichment(db, enriched)
+                # Pass original metadata so spatial observations can be stored
+                metadata = doc_row.get("metadata")
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata) if metadata else {}
+                await self._store_enrichment(db, enriched, metadata=metadata)
                 success_ids.append(doc_row["id"])
             except Exception:
                 logger.exception(
@@ -92,7 +96,8 @@ class EnrichmentConsumer(StageConsumer):
         return await self._pipeline.process_document(ingested_doc)
 
     async def _store_enrichment(
-        self, db: aiosqlite.Connection, enriched: EnrichedDocument
+        self, db: aiosqlite.Connection, enriched: EnrichedDocument,
+        metadata: dict | None = None,
     ) -> None:
         """Write enrichment results to document_enrichments table."""
         entities_json = json.dumps(
@@ -111,5 +116,95 @@ class EnrichmentConsumer(StageConsumer):
             """,
             (enriched.id, entities_json, relationships_json, metadata_json),
         )
+
+        # Populate spatial_observations for source documents with coordinates
+        if metadata:
+            await self._store_spatial_observation(db, enriched.id, metadata)
+
         await db.commit()
         logger.debug("enrichment_stored", doc_id=enriched.id)
+
+    async def _store_spatial_observation(
+        self,
+        db: aiosqlite.Connection,
+        doc_id: str,
+        metadata: dict,
+    ) -> None:
+        """Insert a spatial observation row when source metadata has coordinates."""
+        lat = metadata.get("latitude")
+        lon = metadata.get("longitude")
+        source_type = metadata.get("source_type", "")
+        if lat is None or lon is None or not source_type:
+            return
+
+        try:
+            lat, lon = float(lat), float(lon)
+        except (ValueError, TypeError):
+            return
+
+        # Derive entity_id and entity_name from source-specific fields
+        entity_id = (
+            metadata.get("icao24")
+            or metadata.get("mmsi")
+            or metadata.get("norad_id")
+            or metadata.get("osm_id")
+            or metadata.get("camera_id")
+            or ""
+        )
+        entity_name = (
+            metadata.get("callsign")
+            or metadata.get("vessel_name")
+            or metadata.get("name")
+            or metadata.get("camera_name")
+            or ""
+        )
+        if isinstance(entity_name, str):
+            entity_name = entity_name.strip()
+
+        import hashlib
+        obs_id = hashlib.sha256(
+            f"{doc_id}:{source_type}:{entity_id}".encode()
+        ).hexdigest()[:24]
+
+        observed_at = metadata.get("api_time")
+        if observed_at is None:
+            from datetime import datetime, timezone
+            observed_at = datetime.now(timezone.utc).isoformat()
+
+        # Extra observation metadata (altitude, speed, heading, etc.)
+        obs_meta = {}
+        for key in (
+            "origin_country", "on_ground", "squawk", "destination",
+            "flag", "nav_status", "vessel_type", "feature_type",
+            "camera_type", "status", "osm_type", "tags",
+        ):
+            val = metadata.get(key)
+            if val is not None:
+                obs_meta[key] = val
+
+        await db.execute(
+            """
+            INSERT OR REPLACE INTO spatial_observations
+                (observation_id, document_id, source_type, entity_id,
+                 entity_name, latitude, longitude, altitude_m, speed_kts,
+                 heading_deg, observed_at, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                obs_id,
+                doc_id,
+                source_type,
+                str(entity_id),
+                entity_name,
+                lat,
+                lon,
+                metadata.get("baro_altitude_m") or metadata.get("geo_altitude_m"),
+                metadata.get("speed_kts") or (
+                    metadata.get("velocity_ms") * 1.94384
+                    if metadata.get("velocity_ms") is not None else None
+                ),
+                metadata.get("heading_deg") or metadata.get("true_track_deg") or metadata.get("course_deg"),
+                observed_at,
+                json.dumps(obs_meta) if obs_meta else None,
+            ),
+        )

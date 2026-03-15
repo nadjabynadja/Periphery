@@ -11,15 +11,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
-from periphery.sources.base import DataSource, make_document_id
-from periphery.sources.opensky import OpenSkySource
-from periphery.sources.adsb_exchange import ADSBExchangeSource
-from periphery.sources.maritime import MaritimeSource
-from periphery.sources.celestrak import CelesTrakSource, _period_minutes, _apogee_perigee_km
-from periphery.sources.openstreetmap import OpenStreetMapSource
-from periphery.sources.cctv import CCTVSource
-from periphery.sources.daemon import SourcesDaemon
-from periphery.sources.factory import build_sources, _parse_csv, _parse_float_tuple
+from periphery.ingest.sources.base import DataSource, make_document_id
+from periphery.ingest.sources.opensky import OpenSkySource
+from periphery.ingest.sources.adsb_exchange import ADSBExchangeSource
+from periphery.ingest.sources.maritime import MaritimeSource
+from periphery.ingest.sources.celestrak import CelesTrakSource, _period_minutes, _apogee_perigee_km
+from periphery.ingest.sources.openstreetmap import OpenStreetMapSource
+from periphery.ingest.sources.cctv import CCTVSource
+from periphery.ingest.sources.daemon import SourcesDaemon
+from periphery.ingest.sources.factory import build_sources, _parse_csv, _parse_float_tuple
 from periphery.rss_ingest.models import IngestedDocument
 
 

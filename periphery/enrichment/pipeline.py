@@ -193,6 +193,7 @@ class EnrichmentPipeline:
             published=doc.published,
             ingested=doc.ingested,
             priority=doc.metadata.get("priority", 3),
+            ingest_metadata=doc.metadata,
         )
 
     def _pipeline_to_enriched(

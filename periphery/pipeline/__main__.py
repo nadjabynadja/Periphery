@@ -220,8 +220,8 @@ async def main() -> None:
     # Start external data sources daemon
     sources_daemon = None
     if settings.sources_enabled:
-        from periphery.sources.factory import build_sources
-        from periphery.sources.daemon import SourcesDaemon
+        from periphery.ingest.sources.factory import build_sources
+        from periphery.ingest.sources.daemon import SourcesDaemon
         from periphery.rss_ingest.document_store import DocumentStore
 
         ext_sources = build_sources(settings)
