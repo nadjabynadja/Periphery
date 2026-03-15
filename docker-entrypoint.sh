@@ -7,6 +7,23 @@ mkdir -p /app/data
 # Initialize SpaCy model if not present (should be baked into image, but safety check)
 python -m spacy validate 2>/dev/null || python -m spacy download en_core_web_sm
 
+# Initialize databases (creates files + schemas before any service starts)
+echo "[periphery] Initializing databases..."
+python -c "
+import asyncio
+from periphery.db import ensure_database, ensure_geotag_database
+import os
+
+async def init():
+    docs_db = os.environ.get('PIPELINE_DB_PATH', '/app/data/periphery_documents.db')
+    geotag_db = os.environ.get('GEOTAG_DB_PATH', '/app/data/geotag_embeddings.db')
+    await ensure_database(docs_db)
+    await ensure_geotag_database(geotag_db)
+    print(f'[periphery] Databases ready: {docs_db}, {geotag_db}')
+
+asyncio.run(init())
+"
+
 # Start RSS daemon in background
 echo "[periphery] Starting RSS ingest daemon..."
 python -m periphery.rss_ingest --no-server &
