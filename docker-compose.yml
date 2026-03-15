@@ -12,6 +12,7 @@ services:
       - EXA_API_KEY=${EXA_API_KEY:-}
       - PIPELINE_DB_PATH=/app/data/periphery_documents.db
       - CRYSTALLIZER_DB_PATH=/app/data/periphery_documents.db
+      - GEOTAG_DB_PATH=/app/data/geotag_embeddings.db
       - ENRICHMENT_GEOCODE_CACHE_DB=/app/data/geocoding_cache.db
       - ENRICHMENT_GEONAMES_DB=/app/data/geonames.db
       - ENRICHMENT_GEOSPATIAL_SEED_FILE=/app/data/geospatial_seeds.json

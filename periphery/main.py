@@ -86,9 +86,11 @@ async def lifespan(app: FastAPI):
     ]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize database schema before any component starts
-    from periphery.db import ensure_database
+    # Initialize database schemas before any component starts
+    from periphery.db import ensure_database, ensure_geotag_database
     await ensure_database(settings.pipeline_db_path)
+    await ensure_geotag_database(settings.geotag_db_path)
+    logger.info("Databases initialized: %s, %s", settings.pipeline_db_path, settings.geotag_db_path)
 
     # Initialize full-text search indexes
     from periphery.search.setup import initialize_fts, rebuild_search_indexes

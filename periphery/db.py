@@ -387,6 +387,48 @@ CREATE INDEX IF NOT EXISTS idx_user_views ON user_saved_views(user_id);
 # Uses ADD COLUMN which is safe to run repeatedly (SQLite ignores if exists).
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Geotag Embeddings schema — mirrors geospatial-related tables from the
+# main database into a dedicated geotag_embeddings.db file.
+# ---------------------------------------------------------------------------
+
+GEOTAG_SCHEMA_SQL = """
+-- ===== Spatial Observations (mirror) =====
+CREATE TABLE IF NOT EXISTS spatial_observations (
+    observation_id TEXT PRIMARY KEY,
+    document_id TEXT,
+    source_type TEXT NOT NULL,
+    entity_id TEXT,
+    entity_name TEXT,
+    latitude REAL,
+    longitude REAL,
+    altitude_m REAL,
+    speed_kts REAL,
+    heading_deg REAL,
+    observed_at TIMESTAMP NOT NULL,
+    metadata JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_spatial_source_type ON spatial_observations(source_type);
+CREATE INDEX IF NOT EXISTS idx_spatial_entity ON spatial_observations(source_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_spatial_time ON spatial_observations(observed_at);
+CREATE INDEX IF NOT EXISTS idx_spatial_document ON spatial_observations(document_id);
+CREATE INDEX IF NOT EXISTS idx_spatial_coords ON spatial_observations(latitude, longitude);
+
+-- ===== Geotag Embeddings =====
+CREATE TABLE IF NOT EXISTS geotag_embeddings (
+    document_id TEXT PRIMARY KEY,
+    geospatial_vector JSON,
+    embedding_model TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_geotag_model ON geotag_embeddings(embedding_model);
+CREATE INDEX IF NOT EXISTS idx_geotag_updated ON geotag_embeddings(updated_at);
+"""
+
 MIGRATION_SQL = """
 -- Add org_id to existing tables for multi-tenancy scoping
 ALTER TABLE documents ADD COLUMN org_id TEXT;
@@ -776,3 +818,25 @@ async def ensure_database(db_path: str | Path) -> None:
     convenience entry point for main.py and tests.
     """
     await init_pool(db_path)
+
+
+async def ensure_geotag_database(db_path: str | Path) -> None:
+    """Create the geotag embeddings database with its schema.
+
+    Uses a direct connection (not the main pool) since this is a
+    separate database file.
+    """
+    path = Path(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    db = await aiosqlite.connect(str(path))
+    try:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=30000")
+        await db.execute("PRAGMA foreign_keys=ON")
+        await db.execute("PRAGMA synchronous=NORMAL")
+        await db.executescript(GEOTAG_SCHEMA_SQL)
+        await db.commit()
+        logger.info("geotag_database_initialized db=%s", str(path))
+    finally:
+        await db.close()
