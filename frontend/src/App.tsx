@@ -18,12 +18,16 @@ import { TemporalTimeline } from './components/graph/TemporalTimeline'
 import { QueryBar } from './components/query/QueryBar'
 import { QueryResults } from './components/query/QueryResults'
 import { DetailPanel } from './components/detail/DetailPanel'
+import { AuthProvider } from './components/auth/AuthProvider'
+import { LoginPage } from './components/auth/LoginPage'
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: 'graph', label: 'GRAPH' },
   { id: 'map', label: 'MAP' },
   { id: 'timeline', label: 'TIMELINE' },
 ]
+
+const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
 export default function App() {
   const setSnapshot = useStore(s => s.setSnapshot)
@@ -114,12 +118,13 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        setSearchPanelOpen(!searchPanelOpen)
+        const current = useStore.getState().searchPanelOpen
+        setSearchPanelOpen(!current)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [searchPanelOpen, setSearchPanelOpen])
+  }, [setSearchPanelOpen])
 
   // --- Sidebar resize ---
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -148,8 +153,13 @@ export default function App() {
   }, [isResizingSidebar, setFeedSidebarWidth])
 
   const detailPanelWidth = selectedElement ? 360 : 0
+  const isAuthenticated = useStore(s => s.isAuthenticated)
 
   return (
+    <AuthProvider>
+    {AUTH_ENABLED && !isAuthenticated ? (
+      <LoginPage />
+    ) : (
     <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
       <div className="scanline-overlay" />
 
@@ -222,5 +232,7 @@ export default function App() {
         )}
       </div>
     </div>
+    )}
+    </AuthProvider>
   )
 }

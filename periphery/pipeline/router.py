@@ -15,6 +15,13 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 _orchestrator: PipelineOrchestrator | None = None
 _multi_space_manager: MultiSpaceIndexManager | None = None
+_sources_daemon: Any = None
+
+
+def set_sources_daemon(daemon: Any) -> None:
+    """Bind the sources daemon for the health endpoint."""
+    global _sources_daemon  # noqa: PLW0603
+    _sources_daemon = daemon
 
 
 def set_orchestrator(orchestrator: PipelineOrchestrator) -> None:
@@ -110,3 +117,11 @@ async def embedding_stats() -> dict[str, Any]:
             result["model_info"] = models
 
     return result
+
+
+@router.get("/sources")
+async def sources_health() -> dict[str, Any]:
+    """Return health and metrics for all external data sources."""
+    if _sources_daemon is None:
+        return {"enabled": False, "sources": {}}
+    return _sources_daemon.health()

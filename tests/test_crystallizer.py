@@ -5,8 +5,10 @@ detection, relational gradient analysis, and anomaly detection, plus
 the persistence layer, auto-labeling, and living ontology snapshot assembly.
 """
 
+import asyncio
 import tempfile
 from datetime import datetime, timezone, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
@@ -37,6 +39,7 @@ from periphery.crystallizer.labeler import (
     extract_key_relationships,
 )
 from periphery.crystallizer.persistence import CrystallizerStore
+from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.models import Document
 
 
@@ -952,3 +955,175 @@ async def test_persistence_mark_dissolved():
         active = await store.get_active_cluster_ids()
         assert "c1" not in active
         assert "c2" in active
+
+
+# ── Incremental Scheduling Tests ─────────────────────────────────────────
+
+def test_should_full_recluster_first_run():
+    """First run (no previous full recluster) should always be full."""
+    store = MagicMock()
+    worker = CrystallizerWorker(store, {}, interval=300)
+    assert worker._should_full_recluster() is True
+
+
+def test_should_full_recluster_doc_threshold():
+    """Should trigger full recluster when doc threshold is met."""
+    store = MagicMock()
+    worker = CrystallizerWorker(
+        store, {}, interval=300,
+        full_recluster_interval_docs=50,
+        full_recluster_interval_seconds=999999,
+    )
+    worker._last_full_recluster = datetime.now(timezone.utc)
+    worker._docs_since_last_full = 50
+    assert worker._should_full_recluster() is True
+
+
+def test_should_full_recluster_time_threshold():
+    """Should trigger full recluster when time threshold is met."""
+    store = MagicMock()
+    worker = CrystallizerWorker(
+        store, {}, interval=300,
+        full_recluster_interval_docs=999999,
+        full_recluster_interval_seconds=60,
+    )
+    worker._last_full_recluster = datetime.now(timezone.utc) - timedelta(seconds=120)
+    worker._docs_since_last_full = 0
+    assert worker._should_full_recluster() is True
+
+
+def test_should_full_recluster_incremental():
+    """Should return False when neither threshold is met."""
+    store = MagicMock()
+    worker = CrystallizerWorker(
+        store, {}, interval=300,
+        full_recluster_interval_docs=100,
+        full_recluster_interval_seconds=3600,
+    )
+    worker._last_full_recluster = datetime.now(timezone.utc)
+    worker._docs_since_last_full = 5
+    assert worker._should_full_recluster() is False
+
+
+# ── Pattern Classification Tests ─────────────────────────────────────────
+
+def test_classify_pattern_deceleration():
+    detector = TrajectoryDetector()
+    pattern = detector._classify_pattern(velocity=0.05, acceleration=-0.02, confidence=0.8)
+    assert pattern == "deceleration"
+
+
+def test_classify_pattern_divergence():
+    detector = TrajectoryDetector()
+    pattern = detector._classify_pattern(velocity=0.1, acceleration=0.0, confidence=0.7)
+    assert pattern == "divergence"
+
+
+def test_classify_pattern_acceleration():
+    detector = TrajectoryDetector()
+    pattern = detector._classify_pattern(velocity=0.05, acceleration=0.02, confidence=0.8)
+    assert pattern == "acceleration"
+
+
+def test_classify_pattern_stable_low_confidence():
+    detector = TrajectoryDetector()
+    pattern = detector._classify_pattern(velocity=0.1, acceleration=0.05, confidence=0.2)
+    assert pattern == "stable"
+
+
+def test_classify_pattern_stable_low_velocity():
+    detector = TrajectoryDetector()
+    pattern = detector._classify_pattern(velocity=0.0005, acceleration=0.0, confidence=0.9)
+    assert pattern == "stable"
+
+
+# ── Health Check Tests ───────────────────────────────────────────────────
+
+def test_health_initial_state():
+    store = MagicMock()
+    worker = CrystallizerWorker(store, {}, interval=300)
+    h = worker.health()
+
+    assert h["running"] is False
+    assert h["last_run"] is None
+    assert h["consecutive_failures"] == 0
+    assert h["last_snapshot_id"] is None
+    assert h["docs_since_last_full"] == 0
+    assert h["mode"] == "full"  # first run is always full
+    assert h["total_runs"] == 0
+    assert h["total_errors"] == 0
+    assert h["last_error"] is None
+    assert h["last_duration_ms"] == 0
+
+
+def test_health_after_activity():
+    store = MagicMock()
+    worker = CrystallizerWorker(store, {}, interval=300)
+    worker._running = True
+    worker._consecutive_failures = 2
+    worker._total_runs = 10
+    worker._total_errors = 2
+    worker._last_error = "some error"
+    worker._last_duration_ms = 500
+    worker.last_run = datetime(2026, 3, 14, tzinfo=timezone.utc)
+    worker._last_full_recluster = datetime.now(timezone.utc)
+    worker._docs_since_last_full = 5
+
+    h = worker.health()
+    assert h["running"] is True
+    assert h["consecutive_failures"] == 2
+    assert h["total_runs"] == 10
+    assert h["total_errors"] == 2
+    assert h["last_error"] == "some error"
+    assert h["last_duration_ms"] == 500
+    assert h["mode"] == "incremental"
+
+
+# ── Graceful Shutdown Tests ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_while_crystallizing():
+    """Stop should wait for in-progress crystallization to finish."""
+    store = MagicMock()
+    worker = CrystallizerWorker(store, {}, interval=300)
+
+    crystallize_started = asyncio.Event()
+    crystallize_release = asyncio.Event()
+
+    original_crystallize = worker.crystallize
+
+    async def slow_crystallize():
+        crystallize_started.set()
+        await crystallize_release.wait()
+        return {"status": "complete"}
+
+    worker.crystallize = slow_crystallize
+    worker._running = True
+    worker._task = asyncio.create_task(worker._loop())
+
+    # Wait for crystallize to start
+    await asyncio.wait_for(crystallize_started.wait(), timeout=2.0)
+    assert worker._crystallizing is False  # slow_crystallize doesn't set this
+
+    # Release and stop
+    crystallize_release.set()
+    await worker.stop(timeout=2.0)
+    assert worker._running is False
+
+
+@pytest.mark.asyncio
+async def test_stop_when_idle():
+    """Stop when no crystallization is running should complete immediately."""
+    store = MagicMock()
+    worker = CrystallizerWorker(store, {}, interval=9999)
+    worker._running = True
+
+    async def idle_loop():
+        while worker._running:
+            await asyncio.sleep(0.01)
+
+    worker._task = asyncio.create_task(idle_loop())
+    await asyncio.sleep(0.05)
+
+    await worker.stop(timeout=1.0)
+    assert worker._running is False

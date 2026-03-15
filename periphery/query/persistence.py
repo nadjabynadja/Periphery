@@ -73,7 +73,6 @@ class QueryStore:
 
     async def initialize(self) -> None:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript(QUERY_SCHEMA_SQL)
             await db.commit()
         self._initialized = True
@@ -91,7 +90,6 @@ class QueryStore:
         response_time_ms: int = 0,
     ) -> None:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT INTO query_history
@@ -127,7 +125,6 @@ class QueryStore:
         self, limit: int = 20, session_id: str | None = None
     ) -> list[dict[str, Any]]:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             if session_id:
                 cursor = await db.execute(
                     "SELECT query_id, query_text, parsed_intent, result_summary, "
@@ -158,7 +155,6 @@ class QueryStore:
     async def save_session(self, session_id: str, state: dict[str, Any]) -> None:
         now = datetime.now(timezone.utc).isoformat()
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT OR REPLACE INTO query_sessions
@@ -174,7 +170,6 @@ class QueryStore:
 
     async def load_session(self, session_id: str) -> dict[str, Any] | None:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT state FROM query_sessions WHERE session_id = ?",
                 (session_id,),
@@ -188,7 +183,6 @@ class QueryStore:
         self, query_id: str, session_id: str, label: str = ""
     ) -> None:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT INTO query_bookmarks (query_id, session_id, label, created_at)
@@ -200,7 +194,6 @@ class QueryStore:
 
     async def get_bookmarks(self, session_id: str) -> list[dict[str, Any]]:
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 """
                 SELECT b.query_id, b.label, b.created_at, h.query_text
@@ -231,7 +224,6 @@ class QueryStore:
     ) -> None:
         """Save an analyst annotation (entity merge, relationship confirmation, etc.)."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT INTO analyst_annotations
@@ -255,7 +247,6 @@ class QueryStore:
     ) -> None:
         """Save analyst feedback on a query result."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 "UPDATE query_history SET analyst_feedback = ? WHERE query_id = ?",
                 (json.dumps(feedback), query_id),
@@ -265,7 +256,6 @@ class QueryStore:
     async def get_query_stats(self) -> dict[str, Any]:
         """Return aggregate query statistics."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT COUNT(*), AVG(response_time_ms), "
                 "MIN(response_time_ms), MAX(response_time_ms) "

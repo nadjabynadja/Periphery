@@ -1194,17 +1194,15 @@ class TestGeospatialResolutionStage:
         assert moscow_data.geocoding_source == "cache"
 
     @pytest.mark.asyncio
-    async def test_nominatim_fallback(self):
-        """When cache misses, falls back to Nominatim (mocked)."""
+    async def test_photon_fallback(self):
+        """When cache misses, falls back to Photon (mocked)."""
         from periphery.enrichment.stages.geospatial_resolution import (
             GeocodingCache,
             GeospatialResolutionStage,
-            NominatimClient,
+            PhotonClient,
         )
 
-        mock_nominatim = NominatimClient()
-        # Mock the geocode method
-        original_geocode = mock_nominatim.geocode
+        mock_photon = PhotonClient()
 
         async def mock_geocode(location, country_context=""):
             return [{
@@ -1227,11 +1225,11 @@ class TestGeospatialResolutionStage:
                 "city": "New York",
             }]
 
-        mock_nominatim.geocode = mock_geocode
+        mock_photon.geocode = mock_geocode
 
         stage = GeospatialResolutionStage(
             cache=GeocodingCache(),
-            nominatim=mock_nominatim,
+            photon=mock_photon,
         )
         doc = _make_pipeline_doc()
         doc.extracted_entities = [
@@ -1247,27 +1245,27 @@ class TestGeospatialResolutionStage:
         data = result.geospatial_data.get("Sometown:GPE")
         assert data is not None
         assert data.resolved is True
-        assert data.geocoding_source == "nominatim"
+        assert data.geocoding_source == "photon"
 
     @pytest.mark.asyncio
-    async def test_nominatim_failure_returns_unresolved(self):
-        """When Nominatim returns nothing, entity is marked unresolved."""
+    async def test_photon_failure_returns_unresolved(self):
+        """When Photon returns nothing, entity is marked unresolved."""
         from periphery.enrichment.stages.geospatial_resolution import (
             GeocodingCache,
             GeospatialResolutionStage,
-            NominatimClient,
+            PhotonClient,
         )
 
-        mock_nominatim = NominatimClient()
+        mock_photon = PhotonClient()
 
         async def mock_geocode(location, country_context=""):
             return []
 
-        mock_nominatim.geocode = mock_geocode
+        mock_photon.geocode = mock_geocode
 
         stage = GeospatialResolutionStage(
             cache=GeocodingCache(),
-            nominatim=mock_nominatim,
+            photon=mock_photon,
         )
         doc = _make_pipeline_doc()
         doc.extracted_entities = [

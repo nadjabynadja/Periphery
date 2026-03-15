@@ -61,6 +61,9 @@ class CriticRunner:
         fine_tune_epochs: int = 20,
         perturbation_variants: int = 4,
         ensemble_weights: dict[str, float] | None = None,
+        drift_mean_threshold: float = 0.15,
+        drift_low_confidence_ratio: float = 0.5,
+        drift_window_size: int = 5,
     ):
         self.model = model
         self.trainer = trainer
@@ -85,6 +88,41 @@ class CriticRunner:
         self._last_retrain_time: datetime | None = None
         self._last_scoring_results: list[dict[str, Any]] = []
         self._confidence_history: dict[str, list[float]] = {}
+        self._bootstrapped: bool = False
+
+        # Drift detection settings
+        self._drift_mean_threshold = drift_mean_threshold
+        self._drift_low_confidence_ratio = drift_low_confidence_ratio
+        self._drift_window_size = drift_window_size
+        self._drift_alerts: list[dict[str, Any]] = []
+
+    async def load_state(self) -> None:
+        """Load persisted confidence history and latest scores from DB."""
+        if not self.store:
+            return
+        try:
+            self._confidence_history = await self.store.load_confidence_history()
+            latest = await self.store.get_latest_scores()
+            if latest:
+                self._last_scoring_results = [
+                    {
+                        "id": s.get("structure_id", ""),
+                        "type": s.get("structure_type", ""),
+                        "confidence": s.get("confidence", 0.0),
+                        "confidence_raw": s.get("confidence_raw", 0.0),
+                        "confidence_calibrated": s.get("confidence_calibrated", 0.0),
+                        "signal_scores": s.get("signal_scores", {}),
+                        "explanation": s.get("explanation", {}),
+                    }
+                    for s in latest
+                ]
+            logger.info(
+                "critic_state_loaded",
+                history_structures=len(self._confidence_history),
+                latest_scores=len(self._last_scoring_results),
+            )
+        except Exception:
+            logger.exception("critic_state_load_failed")
 
     async def score_snapshot(
         self, snapshot: LivingOntologySnapshot
@@ -94,6 +132,10 @@ class CriticRunner:
         Returns a summary dict with scoring stats and the scored structures.
         """
         start_time = time.monotonic()
+
+        # Bootstrap: train on first snapshot if no checkpoint exists
+        if self.trainer.model_version == 0 and not self._bootstrapped:
+            await self._bootstrap(snapshot)
 
         # Build structure dicts for scoring
         structures = self._snapshot_to_structures(snapshot)
@@ -113,7 +155,8 @@ class CriticRunner:
         # Propagate scores
         scored = self._propagate_scores(scored, snapshot)
 
-        # Generate explanations
+        # Generate explanations and update history
+        changed_structures: dict[str, list[float]] = {}
         for s in scored:
             structure_id = s.get("id", "")
             history = self._confidence_history.get(structure_id)
@@ -127,6 +170,7 @@ class CriticRunner:
                 # Keep last 20 snapshots
                 self._confidence_history[structure_id] = \
                     self._confidence_history[structure_id][-20:]
+                changed_structures[structure_id] = self._confidence_history[structure_id]
 
         # Write confidence back to snapshot clusters
         self._apply_scores_to_snapshot(scored, snapshot)
@@ -146,7 +190,8 @@ class CriticRunner:
             "scoring_time_ms": elapsed_ms,
         }
 
-        # Persist run
+        # Persist run and scores
+        run_id = None
         if self.store:
             run_id = f"cr_{uuid.uuid4().hex[:12]}"
             try:
@@ -161,11 +206,22 @@ class CriticRunner:
                     high_confidence_count=stats["high_confidence_count"],
                     scoring_time_ms=elapsed_ms,
                 )
+                await self.store.save_scores(run_id, scored)
             except Exception:
                 logger.exception("critic_run_save_failed")
 
+            # Persist changed confidence history
+            try:
+                if changed_structures:
+                    await self.store.save_confidence_history(changed_structures)
+            except Exception:
+                logger.exception("critic_history_save_failed")
+
         self._last_scoring_results = scored
         self._runs_since_retrain += 1
+
+        # Check for score drift
+        self._check_drift(stats)
 
         logger.info(
             "critic_scoring_complete",
@@ -176,6 +232,47 @@ class CriticRunner:
         )
 
         return stats
+
+    async def _bootstrap(self, snapshot: LivingOntologySnapshot) -> None:
+        """Train the model on the first snapshot when no checkpoint exists."""
+        logger.info("critic_bootstrap_starting")
+        samples = self._perturbation_engine.generate_dataset(
+            clusters=snapshot.clusters,
+            gradients=snapshot.relational_gradients,
+            trajectories=snapshot.trajectories,
+            variants_per_structure=self._perturbation_variants,
+        )
+        if not samples:
+            self._bootstrapped = True
+            return
+
+        from periphery.config import get_settings
+        settings = get_settings()
+        result = self.trainer.train_on_samples(
+            samples, epochs=settings.critic_initial_training_epochs
+        )
+
+        # Fit calibrator on validation data
+        if result.get("status") == "trained" and self.trainer._last_val_data is not None:
+            import torch
+            X_val, y_val = self.trainer._last_val_data
+            self.model.eval()
+            with torch.no_grad():
+                raw_preds = self.model(X_val).cpu().numpy()
+            self.model.train()
+            self._calibrator.fit(raw_preds, y_val.numpy())
+
+        self.trainer.save_checkpoint(
+            val_accuracy=result.get("final_val_accuracy", 0.0),
+            dataset_size=len(samples),
+            calibration_params=self._calibrator.get_params(),
+        )
+        self._bootstrapped = True
+        logger.info(
+            "critic_bootstrap_complete",
+            status=result.get("status"),
+            val_accuracy=result.get("final_val_accuracy"),
+        )
 
     async def maybe_retrain(
         self, snapshot: LivingOntologySnapshot
@@ -194,6 +291,12 @@ class CriticRunner:
         ):
             return None
 
+        return await self.force_retrain(snapshot)
+
+    async def force_retrain(
+        self, snapshot: LivingOntologySnapshot
+    ) -> dict[str, Any]:
+        """Force retraining regardless of schedule."""
         logger.info("critic_retraining_triggered", runs_since=self._runs_since_retrain)
 
         # Generate new perturbation dataset from current snapshot
@@ -207,10 +310,11 @@ class CriticRunner:
         if not samples:
             return {"status": "skipped", "reason": "no_samples"}
 
-        # Retrain with rollback protection
+        # Retrain with rollback protection, passing calibrator
         result = self.trainer.retrain_with_rollback(
             samples,
             fine_tune_epochs=self._fine_tune_epochs,
+            calibrator=self._calibrator,
         )
 
         self._runs_since_retrain = 0
@@ -223,6 +327,36 @@ class CriticRunner:
         )
 
         return result
+
+    def _check_drift(self, current_stats: dict[str, Any]) -> None:
+        """Check for score drift by comparing against recent runs."""
+        if not self.store:
+            return
+
+        # Use in-memory data from last_scoring_results history
+        mean_conf = current_stats.get("mean_confidence", 0.0)
+        structures_scored = current_stats.get("structures_scored", 0)
+        low_count = current_stats.get("low_confidence_count", 0)
+
+        alerts = []
+
+        # Check low-confidence ratio spike
+        if structures_scored > 0:
+            low_ratio = low_count / structures_scored
+            if low_ratio >= self._drift_low_confidence_ratio:
+                alerts.append({
+                    "type": "low_confidence_ratio_spike",
+                    "value": low_ratio,
+                    "threshold": self._drift_low_confidence_ratio,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+        # Store alerts
+        if alerts:
+            self._drift_alerts.extend(alerts)
+            # Keep last 50 alerts
+            self._drift_alerts = self._drift_alerts[-50:]
+            logger.warning("critic_drift_detected", alerts=alerts)
 
     def _snapshot_to_structures(
         self, snapshot: LivingOntologySnapshot
@@ -366,6 +500,10 @@ class CriticRunner:
     def last_retrain_time(self) -> datetime | None:
         return self._last_retrain_time
 
+    @property
+    def drift_alerts(self) -> list[dict[str, Any]]:
+        return self._drift_alerts
+
     def get_monitoring_stats(self) -> dict[str, Any]:
         """Return monitoring stats for the pipeline stats endpoint."""
         confidences = [s["confidence"] for s in self._last_scoring_results]
@@ -394,4 +532,5 @@ class CriticRunner:
             "structures_scored": len(confidences),
             "mean_confidence": float(np.mean(confidences)) if confidences else 0.0,
             "retraining_status": "idle",
+            "drift_alerts": self._drift_alerts[-10:],
         }

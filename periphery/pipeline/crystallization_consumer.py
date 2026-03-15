@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import aiosqlite
 from periphery.db import get_connection
 import structlog
 

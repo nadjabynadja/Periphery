@@ -185,6 +185,7 @@ class EnrichmentPipeline:
         return PipelineDocument(
             id=doc.id,
             source_feed=doc.source_feed,
+            source_name=doc.metadata.get("source_name", ""),
             source_category=doc.source_category,
             title=doc.title,
             url=doc.url,
@@ -284,8 +285,8 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
 
     Assembles all six stages in the correct order:
       1. Entity Extraction (SpaCy NER + OSINT regex patterns)
-      2. Relationship Extraction (co-occurrence, dependency, LLM tiers)
-      3. Source Credibility Tagging
+      2. Source Credibility Tagging (must run before relationship extraction)
+      3. Relationship Extraction (co-occurrence, dependency, LLM tiers)
       4. Temporal Tagging
       5. Geospatial Resolution
       6. Entity Resolution (must run after extraction stages)
@@ -312,6 +313,7 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
 
     stages: list[EnrichmentStage] = [
         EntityExtractionStage(spacy_model=settings.enrichment_spacy_model),
+        SourceCredibilityStage(),
         RelationshipExtractionStage(
             budget_tracker=budget_tracker,
             anthropic_client=anthropic_client,
@@ -321,7 +323,6 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
             llm_timeout_seconds=settings.enrichment_llm_timeout_seconds,
             llm_max_tokens_per_request=settings.enrichment_llm_max_tokens_per_request,
         ),
-        SourceCredibilityStage(),
         TemporalTaggingStage(),
         GeospatialResolutionStage(
             geocoder=settings.enrichment_geocoder,

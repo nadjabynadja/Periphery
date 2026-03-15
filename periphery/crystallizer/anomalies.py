@@ -63,6 +63,12 @@ class AnomalyDetector:
         all_spaces = set(noise_doc_ids.keys())
         anomalies: list[Anomaly] = []
 
+        # Pre-build doc_id -> index lookup dicts for O(1) access
+        doc_id_index: dict[str, dict[str, int]] = {
+            space: {did: i for i, did in enumerate(ids)}
+            for space, ids in space_doc_ids.items()
+        }
+
         for doc_id, outlier_spaces in doc_outlier_spaces.items():
             # Multi-space anomaly consistency
             multi_space_ratio = len(outlier_spaces) / len(all_spaces) if all_spaces else 0
@@ -74,13 +80,13 @@ class AnomalyDetector:
 
             for space in outlier_spaces:
                 centroids = space_centroids.get(space, {})
-                doc_ids_list = space_doc_ids.get(space, [])
+                idx_map = doc_id_index.get(space, {})
                 vectors = space_vectors.get(space)
 
-                if vectors is None or doc_id not in doc_ids_list or not centroids:
+                if vectors is None or doc_id not in idx_map or not centroids:
                     continue
 
-                doc_idx = doc_ids_list.index(doc_id)
+                doc_idx = idx_map[doc_id]
                 doc_vec = vectors[doc_idx]
 
                 for cid, centroid in centroids.items():

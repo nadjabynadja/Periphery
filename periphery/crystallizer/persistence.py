@@ -123,7 +123,6 @@ class CrystallizerStore:
     async def save_snapshot(self, snapshot: LivingOntologySnapshot) -> None:
         """Persist a full ontology snapshot."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT OR REPLACE INTO crystallizer_snapshots
@@ -175,7 +174,6 @@ class CrystallizerStore:
     async def load_latest_snapshot(self) -> LivingOntologySnapshot | None:
         """Load the most recent ontology snapshot."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT snapshot_data FROM crystallizer_snapshots "
                 "ORDER BY generated_at DESC LIMIT 1"
@@ -189,8 +187,6 @@ class CrystallizerStore:
         """Upsert a cluster record."""
         now = datetime.now(timezone.utc).isoformat()
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-
             await db.execute(
                 """
                 INSERT INTO clusters
@@ -245,54 +241,61 @@ class CrystallizerStore:
             return
         now = datetime.now(timezone.utc).isoformat()
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-
-            for cluster in clusters:
-                await db.execute(
-                    """
-                    INSERT INTO clusters
-                        (cluster_id, first_seen, last_seen, status, current_size,
-                         cross_space_coherence, label, key_entities, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(cluster_id) DO UPDATE SET
-                        last_seen = excluded.last_seen,
-                        status = excluded.status,
-                        current_size = excluded.current_size,
-                        cross_space_coherence = excluded.cross_space_coherence,
-                        label = excluded.label,
-                        key_entities = excluded.key_entities,
-                        metadata = excluded.metadata
-                    """,
-                    (
-                        cluster.cluster_id,
-                        now,
-                        now,
-                        cluster.status,
-                        cluster.size,
-                        cluster.cross_space_coherence,
-                        cluster.label,
-                        json.dumps(cluster.key_entities),
-                        json.dumps({
-                            "primary_space": cluster.primary_space,
-                            "density": cluster.density,
-                            "stability": cluster.stability,
-                        }),
-                    ),
+            # Upsert cluster records (ON CONFLICT requires per-row for correctness)
+            cluster_rows = [
+                (
+                    cluster.cluster_id,
+                    now,
+                    now,
+                    cluster.status,
+                    cluster.size,
+                    cluster.cross_space_coherence,
+                    cluster.label,
+                    json.dumps(cluster.key_entities),
+                    json.dumps({
+                        "primary_space": cluster.primary_space,
+                        "density": cluster.density,
+                        "stability": cluster.stability,
+                    }),
                 )
+                for cluster in clusters
+            ]
+            await db.executemany(
+                """
+                INSERT INTO clusters
+                    (cluster_id, first_seen, last_seen, status, current_size,
+                     cross_space_coherence, label, key_entities, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cluster_id) DO UPDATE SET
+                    last_seen = excluded.last_seen,
+                    status = excluded.status,
+                    current_size = excluded.current_size,
+                    cross_space_coherence = excluded.cross_space_coherence,
+                    label = excluded.label,
+                    key_entities = excluded.key_entities,
+                    metadata = excluded.metadata
+                """,
+                cluster_rows,
+            )
 
-                await db.execute(
-                    """
-                    INSERT INTO cluster_snapshots (cluster_id, timestamp, size, centroid, coherence)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        cluster.cluster_id,
-                        now,
-                        cluster.size,
-                        json.dumps(cluster.centroid[:10]) if cluster.centroid else "[]",
-                        cluster.cross_space_coherence,
-                    ),
+            # Batch insert cluster snapshots
+            snapshot_rows = [
+                (
+                    cluster.cluster_id,
+                    now,
+                    cluster.size,
+                    json.dumps(cluster.centroid[:10]) if cluster.centroid else "[]",
+                    cluster.cross_space_coherence,
                 )
+                for cluster in clusters
+            ]
+            await db.executemany(
+                """
+                INSERT INTO cluster_snapshots (cluster_id, timestamp, size, centroid, coherence)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                snapshot_rows,
+            )
 
             await db.commit()
 
@@ -300,7 +303,6 @@ class CrystallizerStore:
         """Upsert a trajectory record."""
         now = datetime.now(timezone.utc).isoformat()
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT INTO trajectories
@@ -336,7 +338,6 @@ class CrystallizerStore:
     async def save_anomaly(self, anomaly: Anomaly) -> None:
         """Upsert an anomaly record."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 INSERT OR REPLACE INTO anomalies
@@ -364,44 +365,39 @@ class CrystallizerStore:
         if not anomalies:
             return
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-            for anomaly in anomalies:
-                await db.execute(
-                    """
-                    INSERT OR REPLACE INTO anomalies
-                        (anomaly_id, document_id, anomaly_type, anomaly_score,
-                         outlier_spaces, source_credibility, first_detected,
-                         resolved, resolved_into_cluster)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        anomaly.anomaly_id,
-                        anomaly.document_id,
-                        anomaly.anomaly_type,
-                        anomaly.anomaly_score,
-                        json.dumps(anomaly.outlier_spaces),
-                        anomaly.source_credibility,
-                        anomaly.first_detected.isoformat(),
-                        anomaly.resolved,
-                        anomaly.resolved_into_cluster,
-                    ),
+            rows = [
+                (
+                    anomaly.anomaly_id,
+                    anomaly.document_id,
+                    anomaly.anomaly_type,
+                    anomaly.anomaly_score,
+                    json.dumps(anomaly.outlier_spaces),
+                    anomaly.source_credibility,
+                    anomaly.first_detected.isoformat(),
+                    anomaly.resolved,
+                    anomaly.resolved_into_cluster,
                 )
+                for anomaly in anomalies
+            ]
+            await db.executemany(
+                """
+                INSERT OR REPLACE INTO anomalies
+                    (anomaly_id, document_id, anomaly_type, anomaly_score,
+                     outlier_spaces, source_credibility, first_detected,
+                     resolved, resolved_into_cluster)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
             await db.commit()
 
     async def save_gradients(self, gradients: list[RelationalGradient]) -> None:
         """Replace all gradient records with current set."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             # Clear old gradients (they're regenerated each run)
             await db.execute("DELETE FROM relational_gradients")
-            for g in gradients:
-                await db.execute(
-                    """
-                    INSERT INTO relational_gradients
-                        (source_cluster, target_cluster, gradient_score,
-                         components, first_detected, trend)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
+            if gradients:
+                rows = [
                     (
                         g.source_cluster,
                         g.target_cluster,
@@ -409,7 +405,17 @@ class CrystallizerStore:
                         g.components.model_dump_json(),
                         g.first_detected.isoformat(),
                         g.gradient_trend,
-                    ),
+                    )
+                    for g in gradients
+                ]
+                await db.executemany(
+                    """
+                    INSERT INTO relational_gradients
+                        (source_cluster, target_cluster, gradient_score,
+                         components, first_detected, trend)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    rows,
                 )
             await db.commit()
 
@@ -419,7 +425,6 @@ class CrystallizerStore:
             return
         now = datetime.now(timezone.utc).isoformat()
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             placeholders = ",".join("?" for _ in cluster_ids)
             await db.execute(
                 f"UPDATE clusters SET status = 'dissolved', last_seen = ? "
@@ -431,7 +436,6 @@ class CrystallizerStore:
     async def get_cluster_history(self, cluster_id: str) -> list[dict[str, Any]]:
         """Get the size history for a cluster."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT timestamp, size, coherence FROM cluster_snapshots "
                 "WHERE cluster_id = ? ORDER BY timestamp",
@@ -445,7 +449,6 @@ class CrystallizerStore:
     async def get_active_cluster_ids(self) -> set[str]:
         """Return IDs of all non-dissolved clusters."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
             cursor = await db.execute(
                 "SELECT cluster_id FROM clusters WHERE status != 'dissolved'"
             )
@@ -454,8 +457,6 @@ class CrystallizerStore:
     async def get_telemetry(self) -> dict[str, Any]:
         """Return monitoring telemetry for the Crystallizer."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-
             # Cluster counts by status
             cursor = await db.execute(
                 "SELECT status, COUNT(*) FROM clusters GROUP BY status"

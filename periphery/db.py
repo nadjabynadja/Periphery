@@ -177,6 +177,28 @@ CREATE TABLE IF NOT EXISTS critic_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_critic_run_time ON critic_runs(timestamp);
 
+CREATE TABLE IF NOT EXISTS critic_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT REFERENCES critic_runs(run_id),
+    structure_id TEXT NOT NULL,
+    structure_type TEXT NOT NULL,
+    confidence FLOAT,
+    confidence_raw FLOAT,
+    confidence_calibrated FLOAT,
+    signal_scores JSON,
+    explanation JSON
+);
+CREATE INDEX IF NOT EXISTS idx_critic_score_run ON critic_scores(run_id);
+CREATE INDEX IF NOT EXISTS idx_critic_score_structure ON critic_scores(structure_id);
+
+CREATE TABLE IF NOT EXISTS critic_confidence_history (
+    structure_id TEXT NOT NULL,
+    snapshot_index INTEGER NOT NULL,
+    confidence FLOAT NOT NULL,
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (structure_id, snapshot_index)
+);
+
 -- ===== Query =====
 CREATE TABLE IF NOT EXISTS query_history (
     query_id TEXT PRIMARY KEY,
@@ -258,6 +280,123 @@ CREATE TABLE IF NOT EXISTS entity_aliases (
 
 CREATE INDEX IF NOT EXISTS idx_alias_text ON entity_aliases(alias_text COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_alias_canonical ON entity_aliases(canonical_id);
+
+-- ===== Spatial Observations =====
+CREATE TABLE IF NOT EXISTS spatial_observations (
+    observation_id TEXT PRIMARY KEY,
+    document_id TEXT REFERENCES documents(id),
+    source_type TEXT NOT NULL,  -- aircraft_position, vessel_position, satellite_tle, osm_feature, cctv_camera
+    entity_id TEXT,  -- ICAO hex, MMSI, NORAD ID, OSM ID, camera ID
+    entity_name TEXT,
+    latitude REAL,
+    longitude REAL,
+    altitude_m REAL,
+    speed_kts REAL,
+    heading_deg REAL,
+    observed_at TIMESTAMP NOT NULL,
+    metadata JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_spatial_source_type ON spatial_observations(source_type);
+CREATE INDEX IF NOT EXISTS idx_spatial_entity ON spatial_observations(source_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_spatial_time ON spatial_observations(observed_at);
+CREATE INDEX IF NOT EXISTS idx_spatial_document ON spatial_observations(document_id);
+CREATE INDEX IF NOT EXISTS idx_spatial_coords ON spatial_observations(latitude, longitude);
+
+-- ===== Auth =====
+CREATE TABLE IF NOT EXISTS organizations (
+    org_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    settings JSON DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(org_id),
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'analyst',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP,
+    settings JSON DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_user_org ON users(org_id);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    session_token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(user_id),
+    org_id TEXT NOT NULL REFERENCES organizations(org_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    last_seen TIMESTAMP,
+    user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_session_user ON auth_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_session_expires ON auth_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS auth_challenges (
+    challenge_id TEXT PRIMARY KEY,
+    challenge_code TEXT NOT NULL,
+    qr_payload TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    user_id TEXT,
+    org_id TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    session_token TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_challenge_status ON auth_challenges(status, expires_at);
+
+-- ===== Personal Ontology =====
+CREATE TABLE IF NOT EXISTS user_entity_annotations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL REFERENCES users(user_id),
+    canonical_id TEXT NOT NULL,
+    annotation_type TEXT NOT NULL,
+    annotation_data JSON DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, canonical_id, annotation_type)
+);
+CREATE INDEX IF NOT EXISTS idx_user_entity_ann ON user_entity_annotations(user_id);
+
+CREATE TABLE IF NOT EXISTS user_entity_groups (
+    group_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(user_id),
+    name TEXT NOT NULL,
+    description TEXT,
+    entity_ids JSON DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_groups ON user_entity_groups(user_id);
+
+CREATE TABLE IF NOT EXISTS user_saved_views (
+    view_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(user_id),
+    name TEXT NOT NULL,
+    filters JSON DEFAULT '{}',
+    layout JSON DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_views ON user_saved_views(user_id);
+"""
+
+# ---------------------------------------------------------------------------
+# Migration SQL — add org_id/user_id columns to existing tables.
+# Uses ADD COLUMN which is safe to run repeatedly (SQLite ignores if exists).
+# ---------------------------------------------------------------------------
+
+MIGRATION_SQL = """
+-- Add org_id to existing tables for multi-tenancy scoping
+ALTER TABLE documents ADD COLUMN org_id TEXT;
+ALTER TABLE clusters ADD COLUMN org_id TEXT;
+ALTER TABLE canonical_entities ADD COLUMN org_id TEXT;
+ALTER TABLE query_history ADD COLUMN org_id TEXT;
+ALTER TABLE query_sessions ADD COLUMN org_id TEXT;
+ALTER TABLE query_sessions ADD COLUMN user_id TEXT;
+ALTER TABLE analyst_annotations ADD COLUMN org_id TEXT;
+ALTER TABLE query_bookmarks ADD COLUMN org_id TEXT;
 """
 
 # ---------------------------------------------------------------------------
@@ -270,6 +409,7 @@ DEFAULT_RETENTION = {
     "query_history_days": 90,
     "query_sessions_days": 30,
     "cluster_snapshots_per_cluster": 200,
+    "auth_challenge_ttl_minutes": 10,
 }
 
 
@@ -327,6 +467,15 @@ class DatabasePool:
         bootstrap = await self._create_connection()
         try:
             await bootstrap.executescript(SCHEMA_SQL)
+            await bootstrap.commit()
+            # Run migrations (ALTER TABLE ADD COLUMN is a no-op if column exists)
+            for stmt in MIGRATION_SQL.strip().split("\n"):
+                stmt = stmt.strip()
+                if stmt and not stmt.startswith("--"):
+                    try:
+                        await bootstrap.execute(stmt)
+                    except Exception:
+                        pass  # Column already exists
             await bootstrap.commit()
         finally:
             await bootstrap.close()
@@ -492,6 +641,18 @@ class DatabasePool:
                 (per_cluster,),
             )
             deleted["cluster_snapshots"] = cursor.rowcount
+
+            # Expired auth challenges
+            cursor = await db.execute(
+                "DELETE FROM auth_challenges WHERE expires_at < datetime('now')"
+            )
+            deleted["auth_challenges"] = cursor.rowcount
+
+            # Expired auth sessions
+            cursor = await db.execute(
+                "DELETE FROM auth_sessions WHERE expires_at < datetime('now')"
+            )
+            deleted["auth_sessions"] = cursor.rowcount
 
             await db.commit()
 

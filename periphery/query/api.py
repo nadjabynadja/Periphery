@@ -8,12 +8,13 @@ through a FastAPI router.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from periphery.config import Settings
 
 settings = Settings()
@@ -579,7 +580,7 @@ async def get_entity(canonical_id: str):
                                 direction = "outgoing" if subj.lower() in entity_names_lower else "incoming"
                                 other_name = obj if direction == "outgoing" else subj
                                 entity_relationships.append({
-                                    "relationship_id": f"rel-{hash(rel_key) & 0xFFFFFF:06x}",
+                                    "relationship_id": f"rel-{hashlib.sha256(rel_key.encode()).hexdigest()[:8]}",
                                     "predicate": pred,
                                     "other_entity_name": other_name,
                                     "direction": direction,
@@ -1039,3 +1040,171 @@ async def admin_backfill_entities():
         "total_canonical_entities": count,
         "message": f"Backfill complete. {count} canonical entities in index.",
     }
+
+
+# ── Personal Ontology Endpoints ────────────────────────────────────────────
+
+from periphery.auth.middleware import get_current_user
+from periphery.auth.models import (
+    AuthenticatedUser,
+    CreateGroupRequest,
+    CreateViewRequest,
+    UpdateGroupRequest,
+)
+from periphery.auth.personal import (
+    create_group,
+    create_view,
+    delete_group,
+    delete_view,
+    get_personal_overlay,
+    list_groups,
+    list_views,
+    remove_annotation,
+    set_annotation,
+    update_group,
+)
+
+
+@router.post("/personal/pin/{canonical_id}")
+async def pin_entity(
+    canonical_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Pin an entity to your personal ontology."""
+    await set_annotation(user.user_id, canonical_id, "pin")
+    return {"status": "ok", "canonical_id": canonical_id, "pinned": True}
+
+
+@router.delete("/personal/pin/{canonical_id}")
+async def unpin_entity(
+    canonical_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Unpin an entity from your personal ontology."""
+    await remove_annotation(user.user_id, canonical_id, "pin")
+    return {"status": "ok", "canonical_id": canonical_id, "pinned": False}
+
+
+@router.post("/personal/hide/{canonical_id}")
+async def hide_entity(
+    canonical_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Hide an entity from your personal ontology view."""
+    await set_annotation(user.user_id, canonical_id, "hide")
+    return {"status": "ok", "canonical_id": canonical_id, "hidden": True}
+
+
+@router.delete("/personal/hide/{canonical_id}")
+async def unhide_entity(
+    canonical_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Unhide an entity in your personal ontology view."""
+    await remove_annotation(user.user_id, canonical_id, "hide")
+    return {"status": "ok", "canonical_id": canonical_id, "hidden": False}
+
+
+@router.post("/personal/annotate/{canonical_id}")
+async def annotate_entity(
+    canonical_id: str,
+    body: dict[str, Any],
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Add a note or tag to an entity."""
+    ann_type = body.get("type", "note")
+    if ann_type not in ("note", "tag"):
+        ann_type = "note"
+    await set_annotation(user.user_id, canonical_id, ann_type, body.get("data", {}))
+    return {"status": "ok", "canonical_id": canonical_id}
+
+
+@router.post("/personal/groups")
+async def create_entity_group(
+    body: CreateGroupRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Create a custom entity group."""
+    group = await create_group(
+        user.user_id, body.name, body.description, body.entity_ids
+    )
+    return group.model_dump(mode="json")
+
+
+@router.put("/personal/groups/{group_id}")
+async def update_entity_group(
+    group_id: str,
+    body: UpdateGroupRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Update a custom entity group."""
+    group = await update_group(
+        user.user_id, group_id, body.name, body.description, body.entity_ids
+    )
+    if not group:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group.model_dump(mode="json")
+
+
+@router.delete("/personal/groups/{group_id}")
+async def delete_entity_group(
+    group_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Delete a custom entity group."""
+    deleted = await delete_group(user.user_id, group_id)
+    if not deleted:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Group not found")
+    return {"status": "ok", "group_id": group_id}
+
+
+@router.get("/personal/groups")
+async def get_entity_groups(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """List your custom entity groups."""
+    groups = await list_groups(user.user_id)
+    return [g.model_dump(mode="json") for g in groups]
+
+
+@router.get("/personal/views")
+async def get_saved_views(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """List your saved ontology views."""
+    views = await list_views(user.user_id)
+    return [v.model_dump(mode="json") for v in views]
+
+
+@router.post("/personal/views")
+async def create_saved_view(
+    body: CreateViewRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Create a saved ontology view."""
+    view = await create_view(user.user_id, body.name, body.filters, body.layout)
+    return view.model_dump(mode="json")
+
+
+@router.delete("/personal/views/{view_id}")
+async def delete_saved_view(
+    view_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Delete a saved ontology view."""
+    deleted = await delete_view(user.user_id, view_id)
+    if not deleted:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="View not found")
+    return {"status": "ok", "view_id": view_id}
+
+
+@router.get("/personal/overlay")
+async def get_overlay(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Get the full personal ontology overlay for the current user."""
+    overlay = await get_personal_overlay(user.user_id)
+    return overlay.model_dump(mode="json")

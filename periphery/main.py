@@ -9,11 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from periphery.config import get_settings
-from periphery.critic.network import CoherenceCritic, CoherenceNet
+from periphery.critic.network import CoherenceCritic
 from periphery.critic.persistence import CriticStore
 from periphery.critic.runner import CriticRunner
-from periphery.critic.scoring import score_all_clusters
-from periphery.critic.trainer import AdversarialTrainer, CriticTrainer
+from periphery.critic.trainer import CriticTrainer
 from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore, MultiSpaceIndexManager
@@ -25,8 +24,6 @@ logger = logging.getLogger(__name__)
 store: FAISSStore | None = None
 multi_space_manager: MultiSpaceIndexManager | None = None
 worker: CrystallizerWorker | None = None
-coherence_net: CoherenceNet | None = None
-trainer: AdversarialTrainer | None = None
 critic_model: CoherenceCritic | None = None
 critic_trainer: CriticTrainer | None = None
 critic_runner: CriticRunner | None = None
@@ -36,30 +33,29 @@ analytical_engine: AnalyticalQueryEngine | None = None
 
 async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, float]:
     """Called by crystallizer after each clustering pass to score + train the critic."""
-    if coherence_net is None or trainer is None:
+    if worker is None or worker.current_snapshot is None:
         return {}
 
-    # Legacy pair-based training
-    train_results = trainer.train_multiple(vectors, labels, epochs=5)
-    logger.info("Critic training: %s", train_results[-1] if train_results else "no results")
-
-    # Score all clusters (legacy)
-    scores = score_all_clusters(coherence_net, vectors, labels)
-
-    # Run new Critic scoring on current snapshot if available
-    if critic_runner is not None and worker is not None and worker.current_snapshot is not None:
+    scores: dict[int, float] = {}
+    if critic_runner is not None:
         try:
             await critic_runner.score_snapshot(worker.current_snapshot)
             await critic_runner.maybe_retrain(worker.current_snapshot)
+            scores = {
+                int(s["id"]): s["confidence"]
+                for s in critic_runner.last_scoring_results
+                if s.get("type") == "cluster"
+                and s.get("id", "").isdigit()
+            }
         except Exception:
             logger.exception("critic_runner_scoring_failed")
 
     # Keep the analytical query engine's snapshot in sync
-    if analytical_engine is not None and worker is not None:
+    if analytical_engine is not None:
         analytical_engine.snapshot = worker.current_snapshot
 
     # Broadcast new snapshot to WebSocket clients
-    if worker is not None and worker.current_snapshot is not None:
+    if worker.current_snapshot is not None:
         from periphery.ws.router import broadcast_snapshot, set_current_snapshot
         set_current_snapshot(worker.current_snapshot)
         await broadcast_snapshot(worker.current_snapshot)
@@ -74,7 +70,7 @@ async def lifespan(app: FastAPI):
     The RSS ingest daemon and enrichment pipeline run as separate processes.
     This server handles API endpoints, query engines, and WebSocket updates.
     """
-    global store, multi_space_manager, worker, coherence_net, trainer
+    global store, multi_space_manager, worker
     global critic_model, critic_trainer, critic_runner, critic_store
     global analytical_engine
 
@@ -126,11 +122,7 @@ async def lifespan(app: FastAPI):
     set_store(store)
     documents = get_documents()
 
-    # Layer 3: Initialize critic network (legacy pair-based)
-    coherence_net = CoherenceNet(dim=dim)
-    trainer = AdversarialTrainer(coherence_net, device=settings.device)
-
-    # Layer 3b: Initialize new Continuous Critic
+    # Layer 3: Initialize Continuous Critic
     ensemble_weights = {
         "critic_neural": settings.critic_ensemble_weight_neural,
         "source_diversity": settings.critic_ensemble_weight_source_diversity,
@@ -167,7 +159,18 @@ async def lifespan(app: FastAPI):
         fine_tune_epochs=settings.critic_fine_tune_epochs,
         perturbation_variants=settings.critic_perturbation_variants,
         ensemble_weights=ensemble_weights,
+        drift_mean_threshold=settings.critic_drift_mean_threshold,
+        drift_low_confidence_ratio=settings.critic_drift_low_confidence_ratio,
+        drift_window_size=settings.critic_drift_window_size,
     )
+
+    # Restore calibrator from checkpoint
+    cal_params = checkpoint_result.get("calibration_params")
+    if cal_params:
+        critic_runner._calibrator.load_params(cal_params)
+
+    # Load persisted state (confidence history, latest scores)
+    await critic_runner.load_state()
     logger.info("Continuous Critic initialized")
 
     # Layer 2: Start crystallizer worker (for query serving)
@@ -196,13 +199,9 @@ async def lifespan(app: FastAPI):
     # Wire up critic router
     from periphery.critic.router import set_critic_state
     set_critic_state({
-        "model": coherence_net,
-        "legacy_trainer": trainer,
-        "trainer": critic_trainer,
         "runner": critic_runner,
         "critic_store": critic_store,
         "worker": worker,
-        "store": store,
     })
 
     # Layer 4: Initialize query engine (legacy)
@@ -291,11 +290,13 @@ from periphery.pipeline.router import router as pipeline_router
 from periphery.ws.router import router as ws_router
 from periphery.commands.router import router as commands_router
 from periphery.search.router import router as search_router
+from periphery.auth.router import router as auth_router
 
 # Set search router db_path
 from periphery.search.router import set_db_path as _set_search_db_path
 _set_search_db_path(_settings.pipeline_db_path)
 
+app.include_router(auth_router)
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
 app.include_router(critic_router)

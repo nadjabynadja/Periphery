@@ -62,9 +62,12 @@ class TemporalTaggingStage(EnrichmentStage):
         if not doc.extracted_entities:
             return doc
 
-        nlp = self._get_nlp()
-        text = doc.full_text[:500_000]
-        spacy_doc = nlp(text)
+        # Reuse the SpaCy Doc from entity extraction when available
+        spacy_doc = doc.spacy_doc
+        if spacy_doc is None:
+            nlp = self._get_nlp()
+            text = doc.full_text[:500_000]
+            spacy_doc = nlp(text)
 
         # Build sentence index for tense analysis
         sentences = list(spacy_doc.sents)

@@ -26,7 +26,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
 
 from periphery.critic.features import to_input_vector
-from periphery.critic.network import CoherenceCritic, CoherenceNet, StructuralDiscriminator
+from periphery.critic.network import CoherenceCritic
 from periphery.critic.perturbations import PerturbationSample
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,7 @@ class CriticTrainer:
         self._current_version = 0
         self._best_val_accuracy = 0.0
         self._training_history: list[dict[str, Any]] = []
+        self._last_val_data: tuple[torch.Tensor, torch.Tensor] | None = None
 
     def train_on_samples(
         self,
@@ -142,6 +143,9 @@ class CriticTrainer:
                 )
 
         final_val_acc = val_accuracies[-1] if val_accuracies else 0.0
+
+        # Store validation data for calibrator fitting
+        self._last_val_data = (X_val, y_val)
 
         result = {
             "status": "trained",
@@ -298,8 +302,14 @@ class CriticTrainer:
         samples: list[PerturbationSample],
         fine_tune_epochs: int = 20,
         validation_split: float = 0.2,
+        calibrator: Any | None = None,
     ) -> dict[str, Any]:
-        """Retrain incrementally with rollback on regression."""
+        """Retrain incrementally with rollback on regression.
+
+        If a calibrator is provided and training succeeds (no rollback),
+        the calibrator is fitted on validation data and its params are
+        saved into the checkpoint.
+        """
         pre_retrain_state = {
             k: v.clone() for k, v in self.model.state_dict().items()
         }
@@ -329,9 +339,21 @@ class CriticTrainer:
             self._best_val_accuracy = new_val_accuracy
             result["rolled_back"] = False
 
+            # Fit calibrator on validation predictions
+            calibration_params = None
+            if calibrator is not None and self._last_val_data is not None:
+                X_val, y_val = self._last_val_data
+                self.model.eval()
+                with torch.no_grad():
+                    raw_preds = self.model(X_val.to(self.device)).cpu().numpy()
+                self.model.train()
+                calibrator.fit(raw_preds, y_val.numpy())
+                calibration_params = calibrator.get_params()
+
             self.save_checkpoint(
                 val_accuracy=new_val_accuracy,
                 dataset_size=len(samples),
+                calibration_params=calibration_params,
             )
             self.save_perturbation_dataset(samples)
 
@@ -344,118 +366,3 @@ class CriticTrainer:
     @property
     def training_history(self) -> list[dict[str, Any]]:
         return self._training_history
-
-
-# ── Legacy compatibility ────────────────────────────────────────────────
-
-
-class AdversarialTrainer:
-    """Legacy trainer for backward compatibility with existing code."""
-
-    def __init__(self, coherence_net: CoherenceNet, device: str = "cpu"):
-        self.coherence_net = coherence_net
-        dim = coherence_net.dim if hasattr(coherence_net, 'dim') else 20
-        self.discriminator = StructuralDiscriminator(dim).to(device)
-        self.device = device
-
-        self.coherence_opt = torch.optim.Adam(coherence_net.parameters(), lr=1e-3)
-        self.disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-3)
-        self.criterion = nn.BCELoss()
-
-    def _sample_pairs(
-        self, vectors: np.ndarray, labels: np.ndarray, n_pairs: int, same_cluster: bool
-    ) -> torch.Tensor:
-        n = vectors.shape[0]
-        pairs = []
-        attempts = 0
-        max_attempts = n_pairs * 10
-
-        while len(pairs) < n_pairs and attempts < max_attempts:
-            attempts += 1
-            i, j = np.random.randint(0, n, size=2)
-            if i == j:
-                continue
-            if same_cluster and labels[i] != labels[j]:
-                continue
-            if not same_cluster and labels[i] == labels[j]:
-                continue
-            if labels[i] == -1 or labels[j] == -1:
-                continue
-            pair = np.concatenate([vectors[i], vectors[j]])
-            pairs.append(pair)
-
-        if not pairs:
-            return torch.empty(0, vectors.shape[1] * 2, device=self.device)
-        return torch.tensor(np.array(pairs), dtype=torch.float32, device=self.device)
-
-    def _generate_perturbations(
-        self, vectors: np.ndarray, labels: np.ndarray, n_pairs: int
-    ) -> torch.Tensor:
-        shuffled = labels.copy()
-        np.random.shuffle(shuffled)
-        return self._sample_pairs(vectors, shuffled, n_pairs, same_cluster=True)
-
-    def train_epoch(
-        self, vectors: np.ndarray, labels: np.ndarray, n_pairs: int = 256
-    ) -> dict:
-        unique_labels = set(labels) - {-1}
-        if len(unique_labels) < 2:
-            return {"status": "skipped", "reason": "insufficient_clusters"}
-
-        real_pairs = self._sample_pairs(vectors, labels, n_pairs, same_cluster=True)
-        neg_pairs = self._sample_pairs(vectors, labels, n_pairs, same_cluster=False)
-        perturbed = self._generate_perturbations(vectors, labels, n_pairs)
-
-        if real_pairs.shape[0] == 0 or neg_pairs.shape[0] == 0:
-            return {"status": "skipped", "reason": "insufficient_pairs"}
-
-        self.discriminator.train()
-        self.disc_opt.zero_grad()
-
-        real_scores = self.discriminator(real_pairs)
-        real_labels_t = torch.ones(real_scores.shape[0], device=self.device)
-        loss_real = self.criterion(real_scores, real_labels_t)
-
-        if perturbed.shape[0] > 0:
-            fake_scores = self.discriminator(perturbed)
-            fake_labels_t = torch.zeros(fake_scores.shape[0], device=self.device)
-            loss_fake = self.criterion(fake_scores, fake_labels_t)
-        else:
-            loss_fake = torch.tensor(0.0)
-
-        disc_loss = loss_real + loss_fake
-        disc_loss.backward()
-        self.disc_opt.step()
-
-        self.coherence_net.train()
-        self.coherence_opt.zero_grad()
-
-        coh_real = self.coherence_net(real_pairs)
-        coh_neg = self.coherence_net(neg_pairs)
-
-        coh_loss = (
-            self.criterion(coh_real, torch.ones_like(coh_real))
-            + self.criterion(coh_neg, torch.zeros_like(coh_neg))
-        )
-        coh_loss.backward()
-        self.coherence_opt.step()
-
-        return {
-            "status": "trained",
-            "disc_loss": float(disc_loss.item()),
-            "coherence_loss": float(coh_loss.item()),
-            "real_pairs": int(real_pairs.shape[0]),
-            "neg_pairs": int(neg_pairs.shape[0]),
-        }
-
-    def train_multiple(
-        self, vectors: np.ndarray, labels: np.ndarray, epochs: int = 10
-    ) -> list[dict]:
-        results = []
-        for epoch in range(epochs):
-            result = self.train_epoch(vectors, labels)
-            result["epoch"] = epoch
-            results.append(result)
-            if result["status"] == "skipped":
-                break
-        return results

@@ -29,7 +29,7 @@ function highlightText(text: string, query: string): JSX.Element {
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part) ? (
+        i % 2 === 1 ? (
           <mark
             key={i}
             style={{

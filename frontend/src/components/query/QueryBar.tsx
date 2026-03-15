@@ -42,6 +42,7 @@ export function QueryBar() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [queryError, setQueryError] = useState<string | null>(null)
 
   // ---- Auto-grow textarea ----
   const autoGrow = useCallback(() => {
@@ -100,6 +101,7 @@ export function QueryBar() {
     setIsQuerying(true)
     setParsedIntent(null)
     setShowSuggestions(false)
+    setQueryError(null)
 
     try {
       const result = await peripheryApi.query(text)
@@ -117,6 +119,7 @@ export function QueryBar() {
       setParsedIntent(result.parsed_intent as unknown as Record<string, unknown>)
     } catch (err) {
       console.error('[QueryBar] query failed:', err)
+      setQueryError(err instanceof Error ? err.message : 'Query failed. Please try again.')
     } finally {
       setIsQuerying(false)
       setHistoryIndex(-1)
@@ -323,6 +326,40 @@ export function QueryBar() {
               animation: 'scan-line-move 1.5s ease-in-out infinite',
             }}
           />
+        </div>
+      )}
+
+      {/* Query error display */}
+      {queryError && !isQuerying && (
+        <div
+          style={{
+            padding: '4px 12px 4px 28px',
+            background: '#0a0e17',
+            borderLeft: '2px solid var(--accent-red, #FF4444)',
+            fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--accent-red, #FF4444)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ flex: 1 }}>{queryError}</span>
+          <button
+            type="button"
+            onClick={() => setQueryError(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 14,
+              padding: '0 2px',
+            }}
+          >
+            &times;
+          </button>
         </div>
       )}
 

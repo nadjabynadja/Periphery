@@ -262,7 +262,7 @@ export function GeographicOverlay() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
     if (!MAPBOX_TOKEN) {
-      console.warn('Periphery: VITE_MAPBOX_TOKEN not set. Map will not render.')
+      console.warn('Periphery: VITE_MAPBOX_ACCESS_TOKEN not set. Map will not render.')
       return
     }
 
@@ -641,7 +641,7 @@ export function GeographicOverlay() {
         <div className="absolute inset-0 flex items-center justify-center z-[1000] pointer-events-none">
           <div className="text-center bg-base-800/60 px-4 py-3" style={{ borderRadius: '2px', backdropFilter: 'blur(4px)' }}>
             <div className="data-readout mb-1">Mapbox token missing</div>
-            <div className="text-xxs text-text-dim">Set VITE_MAPBOX_TOKEN in frontend/.env</div>
+            <div className="text-xxs text-text-dim">Set VITE_MAPBOX_ACCESS_TOKEN in frontend/.env</div>
           </div>
         </div>
       )}

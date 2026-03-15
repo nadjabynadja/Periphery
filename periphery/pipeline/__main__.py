@@ -19,11 +19,10 @@ import numpy as np
 import structlog
 
 from periphery.config import get_settings
-from periphery.critic.network import CoherenceCritic, CoherenceNet
+from periphery.critic.network import CoherenceCritic
 from periphery.critic.persistence import CriticStore
 from periphery.critic.runner import CriticRunner
-from periphery.critic.scoring import score_all_clusters
-from periphery.critic.trainer import AdversarialTrainer, CriticTrainer
+from periphery.critic.trainer import CriticTrainer
 from periphery.crystallizer.worker import CrystallizerWorker
 from periphery.enrichment.pipeline import build_enrichment_pipeline
 from periphery.ingest import embedder
@@ -84,11 +83,7 @@ async def main() -> None:
     set_store(store)
     documents = get_documents()
 
-    # Initialize critic network (legacy pair-based)
-    coherence_net = CoherenceNet(dim=dim)
-    adversarial_trainer = AdversarialTrainer(coherence_net, device=settings.device)
-
-    # Initialize new Continuous Critic
+    # Initialize Continuous Critic
     ensemble_weights = {
         "critic_neural": settings.critic_ensemble_weight_neural,
         "source_diversity": settings.critic_ensemble_weight_source_diversity,
@@ -123,7 +118,18 @@ async def main() -> None:
         fine_tune_epochs=settings.critic_fine_tune_epochs,
         perturbation_variants=settings.critic_perturbation_variants,
         ensemble_weights=ensemble_weights,
+        drift_mean_threshold=settings.critic_drift_mean_threshold,
+        drift_low_confidence_ratio=settings.critic_drift_low_confidence_ratio,
+        drift_window_size=settings.critic_drift_window_size,
     )
+
+    # Restore calibrator from checkpoint
+    cal_params = checkpoint_result.get("calibration_params")
+    if cal_params:
+        critic_runner._calibrator.load_params(cal_params)
+
+    # Load persisted state (confidence history, latest scores)
+    await critic_runner.load_state()
     logger.info("pipeline_critic_initialized")
 
     # Initialize crystallizer worker
@@ -146,21 +152,20 @@ async def main() -> None:
 
     async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, float]:
         """Score and train the critic after each clustering pass."""
-        train_results = adversarial_trainer.train_multiple(vectors, labels, epochs=5)
-        logger.info(
-            "pipeline_critic_training",
-            result=train_results[-1] if train_results else "no results",
-        )
-        scores = score_all_clusters(coherence_net, vectors, labels)
-
-        if worker.current_snapshot is not None:
-            try:
-                await critic_runner.score_snapshot(worker.current_snapshot)
-                await critic_runner.maybe_retrain(worker.current_snapshot)
-            except Exception:
-                logger.exception("pipeline_critic_scoring_failed")
-
-        return scores
+        if worker.current_snapshot is None:
+            return {}
+        try:
+            await critic_runner.score_snapshot(worker.current_snapshot)
+            await critic_runner.maybe_retrain(worker.current_snapshot)
+            return {
+                int(s["id"]): s["confidence"]
+                for s in critic_runner.last_scoring_results
+                if s.get("type") == "cluster"
+                and s.get("id", "").isdigit()
+            }
+        except Exception:
+            logger.exception("pipeline_critic_scoring_failed")
+            return {}
 
     worker.on_crystallize = critic_callback
 
@@ -212,6 +217,30 @@ async def main() -> None:
     # Start crystallizer worker
     await worker.start()
 
+    # Start external data sources daemon
+    sources_daemon = None
+    if settings.sources_enabled:
+        from periphery.sources.factory import build_sources
+        from periphery.sources.daemon import SourcesDaemon
+        from periphery.rss_ingest.document_store import DocumentStore
+
+        ext_sources = build_sources(settings)
+        enabled_sources = [s for s in ext_sources if s.enabled]
+        if enabled_sources:
+            doc_store = DocumentStore(db_path)
+            await doc_store.initialize()
+            sources_daemon = SourcesDaemon(
+                ext_sources, document_store=doc_store,
+            )
+            await sources_daemon.start()
+            logger.info(
+                "sources_daemon_started",
+                enabled=[s.name for s in enabled_sources],
+            )
+
+            from periphery.pipeline.router import set_sources_daemon
+            set_sources_daemon(sources_daemon)
+
     # Handle shutdown signals
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -240,6 +269,8 @@ async def main() -> None:
 
     # Graceful shutdown
     logger.info("pipeline_shutting_down")
+    if sources_daemon is not None:
+        await sources_daemon.stop()
     await orchestrator.stop()
     orchestrator_task.cancel()
     try:

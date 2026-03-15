@@ -81,6 +81,21 @@ interface PeripheryState {
   setSearchPanelOpen: (open: boolean) => void
   searchQuery: string
   setSearchQuery: (q: string) => void
+
+  // Auth
+  authUser: AuthUser | null
+  setAuthUser: (u: AuthUser | null) => void
+  sessionToken: string | null
+  setSessionToken: (t: string | null) => void
+  isAuthenticated: boolean
+}
+
+export interface AuthUser {
+  user_id: string
+  org_id: string
+  org_name: string
+  display_name: string
+  role: string
 }
 
 export interface GraphSettings {
@@ -166,4 +181,17 @@ export const useStore = create<PeripheryState>((set) => ({
   setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
   searchQuery: '',
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  authUser: null,
+  setAuthUser: (u) => set({ authUser: u, isAuthenticated: u !== null }),
+  sessionToken: localStorage.getItem('periphery_session') || null,
+  setSessionToken: (t) => {
+    if (t) {
+      localStorage.setItem('periphery_session', t)
+    } else {
+      localStorage.removeItem('periphery_session')
+    }
+    set({ sessionToken: t, isAuthenticated: t !== null })
+  },
+  isAuthenticated: !!localStorage.getItem('periphery_session'),
 }))

@@ -203,7 +203,6 @@ class MultiSpaceRetriever:
                     from periphery.db import get_connection
 
                     async with get_connection(self._db_path) as db:
-                        await db.execute("PRAGMA journal_mode=WAL")
                         placeholders = ",".join("?" for _ in all_source_ids)
                         cursor = await db.execute(
                             f"""SELECT id, title, content, source_feed, published, summary
@@ -296,7 +295,6 @@ class MultiSpaceRetriever:
                 from periphery.db import get_connection
 
                 async with get_connection(self._db_path) as db:
-                    await db.execute("PRAGMA journal_mode=WAL")
                     batch_size = 100
                     for i in range(0, len(doc_ids), batch_size):
                         batch = doc_ids[i:i + batch_size]
@@ -324,7 +322,6 @@ class MultiSpaceRetriever:
                 from periphery.db import get_connection
 
                 async with get_connection(self._db_path) as db:
-                    await db.execute("PRAGMA journal_mode=WAL")
                     top_ids = doc_ids[:20]
                     placeholders = ",".join("?" for _ in top_ids)
                     cursor = await db.execute(
@@ -474,24 +471,49 @@ class MultiSpaceRetriever:
         snapshot: LivingOntologySnapshot | None,
         completed: dict[str, Any],
     ) -> dict[str, Any]:
-        """Filter by temporal scope."""
-        # Temporal filtering would use the temporal FAISS index
-        # For now, return all clusters with temporal center data
+        """Filter clusters by temporal scope (start/end dates)."""
         clusters: list[ClusterResult] = []
         if not snapshot:
             return {"clusters": clusters}
 
+        start_str = op.parameters.get("start")
+        end_str = op.parameters.get("end")
+
+        # Parse date boundaries
+        start_dt = None
+        end_dt = None
+        if start_str:
+            try:
+                from datetime import datetime
+                start_dt = datetime.fromisoformat(start_str)
+            except (ValueError, TypeError):
+                pass
+        if end_str:
+            try:
+                from datetime import datetime
+                end_dt = datetime.fromisoformat(end_str)
+            except (ValueError, TypeError):
+                pass
+
         for c in snapshot.clusters:
-            if c.temporal_center is not None:
-                clusters.append(ClusterResult(
-                    cluster_id=c.cluster_id,
-                    label=c.label,
-                    confidence=c.confidence,
-                    size=c.size,
-                    key_entities=[{"name": e} for e in c.key_entities],
-                    temporal_center=c.temporal_center.isoformat(),
-                    relevance_score=0.6,
-                ))
+            if c.temporal_center is None:
+                continue
+
+            # Filter by date range if boundaries are provided
+            if start_dt and c.temporal_center < start_dt:
+                continue
+            if end_dt and c.temporal_center > end_dt:
+                continue
+
+            clusters.append(ClusterResult(
+                cluster_id=c.cluster_id,
+                label=c.label,
+                confidence=c.confidence,
+                size=c.size,
+                key_entities=[{"name": e} for e in c.key_entities],
+                temporal_center=c.temporal_center.isoformat(),
+                relevance_score=0.6,
+            ))
 
         return {"clusters": clusters}
 

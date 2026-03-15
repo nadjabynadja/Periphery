@@ -30,16 +30,41 @@ def get_critic_state() -> dict[str, Any]:
 
 @router.get("/scores", response_model=list[CriticScore])
 async def get_scores():
-    """Get coherence scores for all clusters."""
+    """Get coherence scores for all scored structures."""
     state = get_critic_state()
-    clusters = state["worker"].clusters
+    runner = state.get("runner")
+    if runner is None:
+        return []
+
+    results = runner.last_scoring_results
+    if not results:
+        # Fall back to persisted scores
+        critic_store = state.get("critic_store")
+        if critic_store:
+            results = await critic_store.get_latest_scores()
+            return [
+                CriticScore(
+                    structure_id=s.get("structure_id", ""),
+                    structure_type=s.get("structure_type", ""),
+                    confidence=s.get("confidence", 0.0),
+                    confidence_raw=s.get("confidence_raw", 0.0),
+                    confidence_calibrated=s.get("confidence_calibrated", 0.0),
+                    signal_scores=s.get("signal_scores", {}),
+                )
+                for s in results
+            ]
+        return []
+
     return [
         CriticScore(
-            cluster_id=c.id,
-            coherence_score=c.coherence_score or 0.0,
-            document_count=len(c.document_ids),
+            structure_id=s.get("id", ""),
+            structure_type=s.get("type", ""),
+            confidence=s.get("confidence", 0.0),
+            confidence_raw=s.get("confidence_raw", 0.0),
+            confidence_calibrated=s.get("confidence_calibrated", 0.0),
+            signal_scores=s.get("signal_scores", {}),
         )
-        for c in clusters
+        for s in results
     ]
 
 
@@ -102,26 +127,7 @@ async def trigger_retrain():
     if snapshot is None:
         return {"status": "no_snapshot"}
 
-    result = await runner.maybe_retrain(snapshot)
-    if result is None:
-        # Force retrain even if not scheduled
-        from periphery.critic.perturbations import PerturbationEngine
-
-        engine = PerturbationEngine()
-        samples = engine.generate_dataset(
-            clusters=snapshot.clusters,
-            gradients=snapshot.relational_gradients,
-            trajectories=snapshot.trajectories,
-        )
-        if not samples:
-            return {"status": "no_data"}
-
-        trainer = state.get("trainer")
-        if trainer is None:
-            return {"status": "no_trainer"}
-
-        result = trainer.retrain_with_rollback(samples)
-
+    result = await runner.force_retrain(snapshot)
     return {"training_result": result}
 
 
@@ -143,104 +149,23 @@ async def score_current_snapshot():
     return result
 
 
-@router.post("/evaluate")
-async def evaluate_document(document_id: str):
-    """Evaluate coherence of a specific document within its cluster (legacy)."""
-    from periphery.critic.scoring import score_document
-
-    state = get_critic_state()
-    store = state["store"]
-    worker = state["worker"]
-    model = state["model"]
-
-    doc_ids = store.get_all_ids()
-    if document_id not in doc_ids:
-        return {"error": "Document not found"}
-
-    if worker.labels is None:
-        return {"error": "No clustering results available"}
-
-    idx = doc_ids.index(document_id)
-    label = int(worker.labels[idx])
-
-    if label == -1:
-        return {"document_id": document_id, "cluster_id": -1, "coherence_score": 0.0, "status": "noise"}
-
-    vectors = store.get_all_vectors()
-    doc_vec = vectors[idx]
-    cluster_mask = worker.labels == label
-    cluster_vecs = vectors[cluster_mask]
-
-    score = score_document(model, doc_vec, cluster_vecs)
-    return {"document_id": document_id, "cluster_id": label, "coherence_score": score}
-
-
 @router.get("/outliers")
 async def get_outliers(limit: int = 10):
     """Get structures with lowest coherence scores."""
     state = get_critic_state()
     runner = state.get("runner")
 
-    if runner and runner.last_scoring_results:
-        results = sorted(runner.last_scoring_results, key=lambda s: s.get("confidence", 0.0))
-        return {
-            "outliers": [
-                {
-                    "id": s.get("id", ""),
-                    "type": s.get("type", ""),
-                    "confidence": s.get("confidence", 0.0),
-                }
-                for s in results[:limit]
-            ]
-        }
-
-    # Legacy fallback
-    from periphery.critic.scoring import score_document
-
-    store = state["store"]
-    worker = state["worker"]
-    model = state["model"]
-
-    if worker.labels is None:
+    if not runner or not runner.last_scoring_results:
         return {"outliers": []}
 
-    doc_ids = store.get_all_ids()
-    vectors = store.get_all_vectors()
-    scores = []
-
-    for i, doc_id in enumerate(doc_ids):
-        label = int(worker.labels[i])
-        if label == -1:
-            scores.append((doc_id, label, 0.0))
-            continue
-        cluster_mask = worker.labels == label
-        cluster_vecs = vectors[cluster_mask]
-        s = score_document(model, vectors[i], cluster_vecs)
-        scores.append((doc_id, label, s))
-
-    scores.sort(key=lambda x: x[2])
+    results = sorted(runner.last_scoring_results, key=lambda s: s.get("confidence", 0.0))
     return {
         "outliers": [
-            {"document_id": did, "cluster_id": cid, "coherence_score": s}
-            for did, cid, s in scores[:limit]
+            {
+                "id": s.get("id", ""),
+                "type": s.get("type", ""),
+                "confidence": s.get("confidence", 0.0),
+            }
+            for s in results[:limit]
         ]
     }
-
-
-@router.post("/train")
-async def trigger_training(epochs: int = 10):
-    """Trigger adversarial training of the critic network (legacy)."""
-    state = get_critic_state()
-    store = state["store"]
-    worker = state["worker"]
-    legacy_trainer = state.get("legacy_trainer")
-
-    if legacy_trainer is None:
-        return {"status": "not_available", "reason": "use /critic/retrain instead"}
-
-    if worker.labels is None:
-        return {"status": "skipped", "reason": "no_clustering_results"}
-
-    vectors = store.get_all_vectors()
-    results = legacy_trainer.train_multiple(vectors, worker.labels, epochs=epochs)
-    return {"training_results": results}

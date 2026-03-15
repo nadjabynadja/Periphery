@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import traceback
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -129,9 +130,17 @@ class CrystallizerWorker:
         # Background task management
         self._task: asyncio.Task | None = None
         self._running = False
+        self._crystallizing = False
 
         # Callback for critic scoring
         self.on_crystallize: Callable | None = None
+
+        # Run metrics
+        self._consecutive_failures: int = 0
+        self._total_runs: int = 0
+        self._total_errors: int = 0
+        self._last_error: str | None = None
+        self._last_duration_ms: int = 0
 
     @property
     def current_snapshot(self) -> LivingOntologySnapshot | None:
@@ -164,25 +173,49 @@ class CrystallizerWorker:
         self._task = asyncio.create_task(self._loop())
         logger.info("crystallizer_worker_started", interval=self.interval)
 
-    async def stop(self) -> None:
-        """Stop the background loop."""
+    async def stop(self, timeout: float = 30.0) -> None:
+        """Stop the background loop, waiting for any in-progress crystallization."""
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            if self._crystallizing:
+                # Wait for current crystallization to finish
+                try:
+                    await asyncio.wait_for(self._task, timeout=timeout)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    self._task.cancel()
+                    try:
+                        await self._task
+                    except asyncio.CancelledError:
+                        pass
+            else:
+                self._task.cancel()
+                try:
+                    await self._task
+                except asyncio.CancelledError:
+                    pass
         logger.info("crystallizer_worker_stopped")
 
     async def _loop(self) -> None:
-        """Main loop — run crystallization on schedule."""
+        """Main loop — run crystallization on schedule with exponential backoff."""
         while self._running:
+            if not self._running:
+                break
             try:
                 await self.crystallize()
+                self._consecutive_failures = 0
             except Exception:
-                logger.exception("crystallizer_run_failed")
-            await asyncio.sleep(self.interval)
+                self._consecutive_failures += 1
+                self._total_errors += 1
+                self._last_error = traceback.format_exc()
+                logger.exception(
+                    "crystallizer_run_failed",
+                    consecutive_failures=self._consecutive_failures,
+                )
+            backoff = min(
+                self.interval * (2 ** self._consecutive_failures),
+                3600,
+            ) if self._consecutive_failures > 0 else self.interval
+            await asyncio.sleep(backoff)
 
     async def crystallize(self) -> dict:
         """Run one full crystallization pass.
@@ -191,34 +224,58 @@ class CrystallizerWorker:
         gradient analysis, anomaly detection, and assembles the living
         ontology snapshot.
         """
+        self._crystallizing = True
         start_time = time.monotonic()
 
-        # Determine if we should do full reclustering or incremental
-        should_full = self._should_full_recluster()
+        try:
+            # Determine if we should do full reclustering or incremental
+            should_full = self._should_full_recluster()
 
-        if self._multi_space is not None:
-            result = await self._crystallize_multi_space(full_recluster=should_full)
-        else:
-            result = await self._crystallize_legacy()
+            if self._multi_space is not None:
+                result = await self._crystallize_multi_space(full_recluster=should_full)
+            else:
+                result = await self._crystallize_legacy()
 
-        elapsed_ms = int((time.monotonic() - start_time) * 1000)
-        result["processing_time_ms"] = elapsed_ms
-        self.last_run = datetime.now(timezone.utc)
-        self.stats = result
+            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            result["processing_time_ms"] = elapsed_ms
+            self.last_run = datetime.now(timezone.utc)
+            self.stats = result
+            self._total_runs += 1
+            self._last_duration_ms = elapsed_ms
 
-        logger.info(
-            "crystallization_complete",
-            mode="full" if should_full else "incremental",
-            elapsed_ms=elapsed_ms,
-            clusters=result.get("n_clusters", 0),
-            anomalies=result.get("n_anomalies", 0),
-        )
+            logger.info(
+                "crystallization_complete",
+                mode="full" if should_full else "incremental",
+                elapsed_ms=elapsed_ms,
+                clusters=result.get("n_clusters", 0),
+                anomalies=result.get("n_anomalies", 0),
+                total_runs=self._total_runs,
+            )
 
-        return result
+            return result
+        finally:
+            self._crystallizing = False
 
     async def notify_new_documents(self, count: int) -> None:
         """Called when new documents are embedded, to track recluster scheduling."""
         self._docs_since_last_full += count
+
+    def health(self) -> dict:
+        """Return health/status information for operational monitoring."""
+        return {
+            "running": self._running,
+            "last_run": self.last_run.isoformat() if self.last_run else None,
+            "consecutive_failures": self._consecutive_failures,
+            "last_snapshot_id": (
+                self._current_snapshot.snapshot_id if self._current_snapshot else None
+            ),
+            "docs_since_last_full": self._docs_since_last_full,
+            "mode": "full" if self._should_full_recluster() else "incremental",
+            "total_runs": self._total_runs,
+            "total_errors": self._total_errors,
+            "last_error": self._last_error,
+            "last_duration_ms": self._last_duration_ms,
+        }
 
     async def _crystallize_multi_space(self, full_recluster: bool = True) -> dict:
         """Full multi-space crystallization pipeline."""
@@ -266,14 +323,14 @@ class CrystallizerWorker:
                 correlations, space_vectors, space_doc_ids,
                 doc_entities, doc_relationships,
             )
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"BUILD DETECTED CLUSTERS FAILED: {type(e).__name__}: {e}", flush=True)
+        except Exception:
+            logger.exception("build_detected_clusters_failed")
             raise
 
         # Phase 6: Cluster lifecycle tracking
         self._track_cluster_lifecycle(detected_clusters)
+        active_ids = {c.cluster_id for c in detected_clusters}
+        self._trajectory_detector.cleanup_dissolved(active_ids)
 
         # Phase 7: Trajectory detection (only after full reclustering)
         trajectories: list[Trajectory] = []
@@ -333,13 +390,9 @@ class CrystallizerWorker:
             noise_doc_ids, space_vectors, space_doc_ids, all_centroids,
         )
 
-        
-#         Phase 11: Run critic scoring if available
+        # Phase 11: Coherence scores placeholder
         coherence_scores = {}
-        if self.on_crystallize and "semantic" in space_vectors:
-            semantic_vectors = space_vectors["semantic"]
-            semantic_clusterer = self._cluster_engine.clusterers.get("semantic")
-            
+
         # Phase 12: Build legacy cluster objects for backward compatibility
         self._build_legacy_clusters(
             space_vectors, space_doc_ids, coherence_scores,
@@ -371,6 +424,13 @@ class CrystallizerWorker:
             processing_time_ms=0,  # set by caller
         )
         self._current_snapshot = snapshot
+
+        # Phase 14: Run critic callback if available
+        if self.on_crystallize:
+            try:
+                await self.on_crystallize(snapshot)
+            except Exception:
+                logger.exception("critic_callback_failed")
 
         # Persist
         if self._store_db:
@@ -487,7 +547,8 @@ class CrystallizerWorker:
 
     def _should_full_recluster(self) -> bool:
         """Determine if a full reclustering is needed."""
-        return True
+        if self._last_full_recluster is None:
+            return True
 
         if self._docs_since_last_full >= self._full_recluster_interval_docs:
             return True
@@ -512,6 +573,11 @@ class CrystallizerWorker:
             space: clusterer.get_cluster_densities()
             for space, clusterer in self._cluster_engine.clusterers.items()
         }
+        # Pre-build doc_id -> index lookup dicts for O(1) access
+        doc_id_index: dict[str, dict[str, int]] = {
+            space: {did: i for i, did in enumerate(ids)}
+            for space, ids in space_doc_ids.items()
+        }
 
         for corr in correlations:
             members = frozenset(corr["member_document_ids"])
@@ -534,12 +600,12 @@ class CrystallizerWorker:
             clusterer = self._cluster_engine.clusterers.get(primary_space)
             if clusterer:
                 vectors = space_vectors.get(primary_space)
-                doc_ids = space_doc_ids.get(primary_space, [])
+                idx_map = doc_id_index.get(primary_space, {})
                 if vectors is not None:
                     indices = [
-                        doc_ids.index(did)
+                        idx_map[did]
                         for did in member_list
-                        if did in doc_ids
+                        if did in idx_map
                     ]
                     if indices:
                         centroid = vectors[indices].mean(axis=0).tolist()
@@ -827,8 +893,8 @@ class CrystallizerWorker:
 
             for traj in trajectories:
                 await self._store_db.save_trajectory(traj)
-                await self._store_db.save_anomalies_batch(anomalies)
-                await self._store_db.save_gradients(gradients)
+            await self._store_db.save_anomalies_batch(anomalies)
+            await self._store_db.save_gradients(gradients)
 
         except Exception:
             logger.exception("crystallizer_persist_failed")

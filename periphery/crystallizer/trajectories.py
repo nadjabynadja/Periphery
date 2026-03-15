@@ -250,8 +250,11 @@ class TrajectoryDetector:
 
         if acceleration > 0.01 and velocity > 0.01:
             return "acceleration"
+        if acceleration < -0.01 and velocity > 0.01:
+            return "deceleration"
+        if velocity > 0.05 and confidence > 0.5:
+            return "divergence"
         if velocity < 0.001:
             return "stable"
 
-        # Default to stable for moderate movement
         return "stable"

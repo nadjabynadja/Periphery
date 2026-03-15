@@ -179,6 +179,11 @@ class RelationshipExtractionStage(EnrichmentStage):
         if not doc.extracted_entities:
             return doc
 
+        # Use source credibility tier if available (from SourceCredibilityStage),
+        # otherwise fall back to doc.priority
+        if doc.source_credibility:
+            doc.priority = doc.source_credibility.source_credibility_tier
+
         # Check if document *would* qualify for Tier 3 (ignoring budget)
         tiers_if_budget = assign_extraction_tiers(
             doc,
@@ -482,9 +487,14 @@ class RelationshipExtractionStage(EnrichmentStage):
         for child in verb_token.children:
             span_text = _get_subtree_text(child)
 
-            if child.dep_ in ("nsubj", "nsubjpass"):
+            if child.dep_ == "nsubj":
                 if span_text.lower() in entity_texts:
                     subjects.append(span_text)
+
+            elif child.dep_ == "nsubjpass":
+                # In passive voice, the grammatical subject is the logical object
+                if span_text.lower() in entity_texts:
+                    objects.append(span_text)
 
             elif child.dep_ in ("dobj", "attr", "oprd"):
                 if span_text.lower() in entity_texts:
@@ -510,13 +520,6 @@ class RelationshipExtractionStage(EnrichmentStage):
                         pobj_text = _get_subtree_text(pobj)
                         if pobj_text.lower() in entity_texts:
                             subjects.append(pobj_text)
-
-        # For passive voice, reverse subject/object
-        if is_passive and subjects and objects:
-            # In passive: nsubjpass is actually the object, agent/by-phrase is subject
-            # subjects list already has the "by" agent from prep handling above
-            # objects list has the nsubjpass — but we need to check
-            pass  # The prep handler already places "by X" into subjects
 
         # Determine confidence based on extraction quality
         for subj in subjects:
@@ -671,18 +674,28 @@ class RelationshipExtractionStage(EnrichmentStage):
 
             relationships = []
             for t in triples:
+                subject_text = t.get("subject", {}).get("name", "")
+                object_text = t.get("object", {}).get("name", "")
+                # Skip triples with empty subject or object
+                if not subject_text or not object_text:
+                    continue
+                try:
+                    confidence = float(t.get("confidence", 0.5))
+                    confidence = max(0.0, min(1.0, confidence))
+                except (TypeError, ValueError):
+                    confidence = 0.5
                 relationships.append(
                     ExtractedRelationship(
-                        subject_text=t.get("subject", {}).get("name", ""),
+                        subject_text=subject_text,
                         subject_type=t.get("subject", {}).get(
                             "type", "UNKNOWN"
                         ),
                         predicate=t.get("predicate", "related_to"),
-                        object_text=t.get("object", {}).get("name", ""),
+                        object_text=object_text,
                         object_type=t.get("object", {}).get(
                             "type", "UNKNOWN"
                         ),
-                        confidence=float(t.get("confidence", 0.5)),
+                        confidence=confidence,
                         extraction_tier=3,
                         extraction_method="llm",
                         evidence=t.get("evidence", ""),

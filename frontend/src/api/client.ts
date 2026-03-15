@@ -71,8 +71,13 @@ async function request<T>(
   const timer = setTimeout(() => controller.abort(), timeout)
 
   try {
+    const token = localStorage.getItem('periphery_session')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
     const res = await fetch(`${BASE_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       signal: controller.signal,
       ...init,
     })
@@ -498,6 +503,64 @@ export const peripheryApi = {
     if (params?.q) qs.set('q', params.q)
     const qsStr = qs.toString()
     return requestWithRetry<FacetsResponse>(`/api/search/facets${qsStr ? `?${qsStr}` : ''}`)
+  },
+
+  // --- Auth ---
+  startChallenge(): Promise<{ challenge_id: string; qr_data: string; expires_at: string }> {
+    return request('/auth/challenge', { method: 'POST' })
+  },
+
+  pollChallengeStatus(challengeId: string): Promise<{ status: string; user_display_name?: string }> {
+    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/status`)
+  },
+
+  scanChallenge(challengeId: string, userId: string): Promise<{ challenge_code: string }> {
+    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/scan`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    })
+  },
+
+  confirmChallenge(challengeId: string, code: string): Promise<{
+    session_token: string; user_id: string; org_id: string;
+    display_name: string; role: string; expires_at: string;
+  }> {
+    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    })
+  },
+
+  logout(): Promise<{ ok: boolean }> {
+    return request('/auth/logout', { method: 'POST' })
+  },
+
+  getMe(): Promise<{
+    user_id: string; org_id: string; org_name: string;
+    display_name: string; role: string;
+  }> {
+    return request('/auth/me')
+  },
+
+  createOrg(name: string): Promise<{ org_id: string; name: string }> {
+    return request('/auth/orgs', { method: 'POST', body: JSON.stringify({ name }) })
+  },
+
+  listOrgs(): Promise<{ org_id: string; name: string; created_at: string }[]> {
+    return request('/auth/orgs')
+  },
+
+  createUser(orgId: string, displayName: string, role = 'analyst'): Promise<{
+    user_id: string; org_id: string; display_name: string; role: string;
+  }> {
+    return request(`/auth/orgs/${encodeURIComponent(orgId)}/users`, {
+      method: 'POST',
+      body: JSON.stringify({ display_name: displayName, role }),
+    })
+  },
+
+  getPersonalOverlay(): Promise<any> {
+    return request('/api/personal/overlay')
   },
 }
 

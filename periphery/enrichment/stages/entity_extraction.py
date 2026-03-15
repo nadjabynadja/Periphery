@@ -161,7 +161,7 @@ class EntityExtractionStage(EnrichmentStage):
                     entity_type=ent.label_,
                     start_char=ent.start_char,
                     end_char=ent.end_char,
-                    confidence=round(ent.kb_id_ and 1.0 or 0.85, 2),
+                    confidence=1.0 if ent.kb_id_ else 0.85,
                     extraction_method="spacy",
                     context_window=_get_sentence_context(
                         text, ent.start_char, ent.end_char

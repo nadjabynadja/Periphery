@@ -78,12 +78,62 @@ class Settings(BaseSettings):
     critic_ensemble_weight_temporal: float = 0.15
     critic_ensemble_weight_cross_space: float = 0.15
     critic_ensemble_weight_stability: float = 0.15
+    critic_drift_mean_threshold: float = 0.15
+    critic_drift_low_confidence_ratio: float = 0.5
+    critic_drift_window_size: int = 5
 
     # RSS ingest settings
     rss_enabled: bool = True
     rss_feeds_config: str = ""  # path to feeds.yaml; empty = bundled default
     rss_fetch_full_articles: bool = True
     rss_queue_maxsize: int = 10_000
+
+    # External data source settings
+    sources_enabled: bool = True
+    sources_config: str = ""  # path to sources.yaml; empty = use env vars
+
+    # OpenSky Network
+    opensky_enabled: bool = False
+    opensky_poll_interval: int = 15
+    opensky_username: str = ""
+    opensky_password: str = ""
+    opensky_bbox: str = ""  # "lamin,lomin,lamax,lomax" or empty for global
+
+    # ADS-B Exchange (via Position-API)
+    adsb_enabled: bool = False
+    adsb_poll_interval: int = 30
+    adsb_position_api_url: str = "http://localhost:3000"
+    adsb_icao_watchlist: str = ""  # comma-separated ICAO hex codes
+
+    # Maritime (via Position-API)
+    maritime_enabled: bool = False
+    maritime_poll_interval: int = 60
+    maritime_position_api_url: str = "http://localhost:3000"
+    maritime_mmsi_watchlist: str = ""  # comma-separated MMSI numbers
+    maritime_watch_areas: str = ""  # comma-separated area codes (WMED,EMED,etc)
+
+    # CelesTrak TLE
+    celestrak_enabled: bool = False
+    celestrak_poll_interval: int = 3600
+    celestrak_groups: str = "stations,active"  # comma-separated satellite groups
+    celestrak_norad_ids: str = ""  # comma-separated NORAD catalog IDs
+
+    # OpenStreetMap Overpass
+    osm_enabled: bool = False
+    osm_poll_interval: int = 3600
+    osm_bbox: str = ""  # "south,west,north,east"
+    osm_feature_types: str = "military,aeroway,port,border_crossing,power_plant,embassy"
+    osm_overpass_url: str = "https://overpass-api.de/api/interpreter"
+
+    # Public CCTV
+    cctv_enabled: bool = False
+    cctv_poll_interval: int = 300
+    cctv_dot_endpoints: str = ""  # comma-separated DOT 511 API URLs
+
+    # Auth settings
+    auth_enabled: bool = False
+    auth_session_ttl_hours: int = 720  # 30 days
+    auth_challenge_ttl_minutes: int = 5
 
     # CORS settings
     cors_origins: str = "http://localhost:5173,http://localhost:8000"

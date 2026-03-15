@@ -11,6 +11,7 @@ import asyncio
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -188,7 +189,7 @@ class AnalyticalQueryEngine:
             })
             if len(session.previous_queries) > 10:
                 session.previous_queries = session.previous_queries[-10:]
-            session.last_active = time.time()  # type: ignore[assignment]
+            session.last_active = datetime.now(timezone.utc)
 
         # 11. Persist query history
         if self._query_store:

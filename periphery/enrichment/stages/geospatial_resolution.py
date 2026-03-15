@@ -1545,7 +1545,15 @@ class GeospatialResolutionStage(EnrichmentStage):
         if not best or best.confidence < 0.75:
             return None
 
-        best_entry = emb_entries[0] if emb_entries else {}
+        # Match the resolved best candidate back to its corresponding entry
+        best_entry = {}
+        if best and emb_entries:
+            for cand, entry in zip(emb_candidates, emb_entries):
+                if cand.latitude == best.latitude and cand.longitude == best.longitude:
+                    best_entry = entry
+                    break
+            else:
+                best_entry = emb_entries[0]
         hier_raw = best_entry.get("hierarchy", {})
         hierarchy = GeoHierarchy(**hier_raw) if hier_raw else GeoHierarchy()
         geo_data = GeospatialData(

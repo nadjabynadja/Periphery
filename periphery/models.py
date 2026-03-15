@@ -81,6 +81,9 @@ class QueryResponse(BaseModel):
 
 
 class CriticScore(BaseModel):
-    cluster_id: int
-    coherence_score: float
-    document_count: int
+    structure_id: str
+    structure_type: str
+    confidence: float
+    confidence_raw: float
+    confidence_calibrated: float
+    signal_scores: dict[str, float]
