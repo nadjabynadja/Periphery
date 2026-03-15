@@ -478,7 +478,7 @@ class TestModels:
             latitude=38.9072,
             longitude=-77.0369,
             confidence=0.95,
-            geocoding_source="nominatim",
+            geocoding_source="photon",
         )
         assert g.latitude == 38.9072
 
@@ -649,13 +649,13 @@ class TestGeospatialModels:
         """Legacy property aliases still work."""
         g = GeospatialData(
             confidence=0.9,
-            geocoding_source="nominatim",
+            geocoding_source="photon",
             candidates=[
                 GeoCandidate(latitude=1.0, longitude=2.0, display_name="A", confidence=0.8)
             ],
         )
         assert g.resolution_confidence == 0.9
-        assert g.geo_source == "nominatim"
+        assert g.geo_source == "photon"
         assert len(g.geo_candidates) == 1
 
     def test_geo_candidate_with_population(self):

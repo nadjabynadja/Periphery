@@ -325,8 +325,6 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
         ),
         TemporalTaggingStage(),
         GeospatialResolutionStage(
-            geocoder=settings.enrichment_geocoder,
-            rate_limit_delay=settings.enrichment_geocode_rate_limit,
             cache_db_path=settings.enrichment_geocode_cache_db,
             geonames_db_path=settings.enrichment_geonames_db,
             seed_file_path=settings.enrichment_geospatial_seed_file,

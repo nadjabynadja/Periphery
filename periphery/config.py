@@ -31,8 +31,6 @@ class Settings(BaseSettings):
     enrichment_tier3_min_priority: int = 2
     enrichment_llm_timeout_seconds: float = 30.0
     enrichment_llm_max_tokens_per_request: int = 4000
-    enrichment_geocoder: str = "nominatim"
-    enrichment_geocode_rate_limit: float = 1.0
     enrichment_geocode_cache_db: str = "./data/geocoding_cache.db"
     enrichment_geonames_db: str = "./data/geonames.db"
     enrichment_geospatial_seed_file: str = "./data/geospatial_seeds.json"
@@ -138,7 +136,7 @@ class Settings(BaseSettings):
     # CORS settings
     cors_origins: str = "http://localhost:5173,http://localhost:8000"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 @lru_cache

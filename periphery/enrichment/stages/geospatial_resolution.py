@@ -6,7 +6,7 @@ architecture:
   Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name matching)
   Tier 2:   LLM entity disambiguation (llama.cpp, normalizes entity names)
   Tier 3:   GeoNames local database (fast, free, no rate limits)
-  Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
+  Tier 4:   Photon self-hosted geocoder
 
 Also handles:
   - Location entity identification (ORG+location modifiers, coordinates, addresses)
@@ -19,7 +19,6 @@ Also handles:
 from __future__ import annotations
 import sqlite3
 import asyncio
-from importlib.resources import path
 import json
 import math
 import re
@@ -317,8 +316,9 @@ class GeoNamesIndex:
         if db_path and Path(db_path).exists():
             try:
                 self._db = sqlite3.connect(str(db_path))
+                self._db.row_factory = sqlite3.Row
                 self._db.execute("PRAGMA journal_mode=WAL")
-                self._db.execute("PRAGMA busy_timeout=5000")  
+                self._db.execute("PRAGMA busy_timeout=5000")
             except Exception:
                 logger.warning("geonames_db_open_failed", path=db_path)
                 self._db = None
@@ -539,91 +539,8 @@ class EmbeddingGeoIndex:
 
 
 # ---------------------------------------------------------------------------
-# Component 4: Nominatim API client (Tier 3)
 # ---------------------------------------------------------------------------
-
-class NominatimClient:
-    """Async Nominatim API client with strict rate limiting.
-
-    Respects Nominatim's 1 request/second limit. Uses the same style
-    of rate limiting as the RSS politeness layer.
-    """
-
-    def __init__(self, rate_limit_delay: float = 1.0, user_agent: str = "periphery-enrichment/0.1") -> None:
-        self._rate_limit_delay = rate_limit_delay
-        self._user_agent = user_agent
-        self._last_request_time: float = 0.0
-        self._geocoder = None
-        self._queue: asyncio.Queue[tuple[str, str, asyncio.Future]] = asyncio.Queue()
-        self._processing = False
-
-    def _get_geocoder(self):
-        if self._geocoder is None:
-            from geopy.geocoders import Nominatim
-            self._geocoder = Nominatim(user_agent=self._user_agent)
-        return self._geocoder
-
-    async def geocode(self, location: str, country_context: str = "") -> list[dict]:
-        """Geocode a location string using Nominatim.
-
-        Returns a list of candidate results.
-        """
-        geocoder = self._get_geocoder()
-
-        # Respect rate limits
-        elapsed = time.time() - self._last_request_time
-        if elapsed < self._rate_limit_delay:
-            await asyncio.sleep(self._rate_limit_delay - elapsed)
-
-        try:
-            query = location
-            if country_context and country_context.lower() != location.lower():
-                query = f"{location}, {country_context}"
-
-            results = geocoder.geocode(
-                query, exactly_one=False, limit=5, timeout=10,
-                addressdetails=True,
-            )
-            self._last_request_time = time.time()
-
-            if not results and query != location:
-                # Retry without context
-                results = geocoder.geocode(
-                    location, exactly_one=False, limit=5, timeout=10,
-                    addressdetails=True,
-                )
-                self._last_request_time = time.time()
-
-            if not results:
-                return []
-
-            candidates = []
-            for result in results:
-                raw = result.raw or {}
-                address = raw.get("address", {})
-                candidates.append({
-                    "latitude": result.latitude,
-                    "longitude": result.longitude,
-                    "display_name": result.address,
-                    "type": raw.get("type", ""),
-                    "class": raw.get("class", ""),
-                    "importance": float(raw.get("importance", 0.0)),
-                    "boundingbox": raw.get("boundingbox"),
-                    "address": address,
-                    "country": address.get("country", ""),
-                    "country_code": address.get("country_code", ""),
-                    "state": address.get("state", ""),
-                    "city": address.get("city", address.get("town", address.get("village", ""))),
-                })
-            return candidates
-
-        except Exception as exc:
-            logger.warning("nominatim_geocode_failed", location=location, error=str(exc))
-            return []
-
-
-# ---------------------------------------------------------------------------
-# Component 5: Photon self-hosted geocoder (Tier 4, replaces Nominatim)
+# Component 4: Photon self-hosted geocoder
 # ---------------------------------------------------------------------------
 
 class PhotonClient:
@@ -1099,7 +1016,7 @@ class AmbiguityResolver:
 # ---------------------------------------------------------------------------
 
 def _classify_location_type(raw_type: str, raw_class: str, display_name: str) -> str:
-    """Classify a location into a type category from Nominatim/GeoNames metadata."""
+    """Classify a location into a type category from Photon/GeoNames metadata."""
     display_lower = display_name.lower()
 
     # Check for specific facility/feature types
@@ -1118,7 +1035,7 @@ def _classify_location_type(raw_type: str, raw_class: str, display_name: str) ->
     if any(kw in display_lower for kw in ("border crossing", "checkpoint")):
         return "border_crossing"
 
-    # From Nominatim class/type
+    # From OSM class/type
     type_lower = raw_type.lower() if raw_type else ""
     class_lower = raw_class.lower() if raw_class else ""
 
@@ -1133,7 +1050,7 @@ def _classify_location_type(raw_type: str, raw_class: str, display_name: str) ->
     if class_lower == "building":
         return "facility"
 
-    # Default based on Nominatim class
+    # Default based on OSM class
     if class_lower == "place":
         return "city"
     if class_lower == "boundary":
@@ -1143,7 +1060,7 @@ def _classify_location_type(raw_type: str, raw_class: str, display_name: str) ->
 
 
 def _build_hierarchy_from_address(address: dict) -> GeoHierarchy:
-    """Build a GeoHierarchy from Nominatim address details."""
+    """Build a GeoHierarchy from geocoder address details."""
     return GeoHierarchy(
         city=address.get("city", address.get("town", address.get("village"))),
         region=address.get("state", address.get("county")),
@@ -1175,7 +1092,7 @@ def _nearest_chokepoint(lat: float, lon: float) -> tuple[str, float] | None:
 
 
 def _build_bounding_box(raw_bb: list | None) -> BoundingBox | None:
-    """Build a BoundingBox from Nominatim's boundingbox array [s, n, w, e]."""
+    """Build a BoundingBox from a boundingbox array [s, n, w, e]."""
     if not raw_bb or len(raw_bb) < 4:
         return None
     try:
@@ -1201,7 +1118,7 @@ class GeospatialResolutionStage(EnrichmentStage):
       Tier 1.5: Embedding index (FAISS cosine similarity, fuzzy name match)
       Tier 2:   LLM entity disambiguation (llama.cpp, normalizes names)
       Tier 3:   GeoNames local database (exact + LIKE match)
-      Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
+      Tier 4:   Photon self-hosted geocoder
 
     Also enriches with:
       - Location type classification
@@ -1216,12 +1133,9 @@ class GeospatialResolutionStage(EnrichmentStage):
         self,
         cache: GeocodingCache | None = None,
         geonames: GeoNamesIndex | None = None,
-        nominatim: NominatimClient | None = None,
         photon: PhotonClient | None = None,
         embedding_index: EmbeddingGeoIndex | None = None,
         disambiguator: EntityDisambiguator | None = None,
-        geocoder: str = "nominatim",
-        rate_limit_delay: float = 1.0,
         cache_db_path: str | None = None,
         geonames_db_path: str | None = None,
         seed_file_path: str | None = None,
@@ -1231,13 +1145,11 @@ class GeospatialResolutionStage(EnrichmentStage):
     ) -> None:
         self._cache = cache or GeocodingCache(db_path=cache_db_path)
         self._geonames = geonames or GeoNamesIndex(db_path=geonames_db_path)
-        self._nominatim = nominatim or NominatimClient(rate_limit_delay=rate_limit_delay)
         self._photon = photon or PhotonClient(base_url=photon_base_url)
         self._embedding_index = embedding_index or EmbeddingGeoIndex()
         self._disambiguator = disambiguator or EntityDisambiguator(
             model_path=llm_model_path, enabled=llm_enabled,
         )
-        self._geocoder_name = geocoder
         self._resolver = AmbiguityResolver()
         self._seeded = False
         self._seed_file_path = seed_file_path
@@ -1388,7 +1300,7 @@ class GeospatialResolutionStage(EnrichmentStage):
         Tier 1.5: Embedding index (cosine similarity, fuzzy name matching)
         Tier 2:   LLM entity disambiguation (normalizes names, retries cache/embedding)
         Tier 3:   GeoNames local database
-        Tier 4:   Photon self-hosted geocoder (replaces Nominatim)
+        Tier 4:   Photon self-hosted geocoder
         """
 
         # Determine country context
@@ -1632,86 +1544,6 @@ class GeospatialResolutionStage(EnrichmentStage):
             needs_crystallizer_resolution=needs_crystallizer,
         )
 
-    async def _geocode_nominatim(
-        self,
-        location: str,
-        entity_type: str,
-        doc_context: dict,
-    ) -> GeospatialData:
-        """Geocode using the Nominatim API."""
-        country_ctx = ""
-        for ctx in doc_context.get("country_context", []):
-            if ctx.lower() != location.lower():
-                country_ctx = ctx
-                break
-
-        results = await self._nominatim.geocode(location, country_ctx)
-
-        if not results:
-            return GeospatialData(
-                resolved=False,
-                display_name=location,
-                confidence=0.0,
-                geocoding_source="nominatim",
-                needs_crystallizer_resolution=True,
-            )
-
-        # Build candidates
-        candidates = []
-        for i, r in enumerate(results):
-            confidence = max(0.3, r.get("importance", 0.5))
-            candidates.append(
-                GeoCandidate(
-                    latitude=r["latitude"],
-                    longitude=r["longitude"],
-                    display_name=r["display_name"],
-                    confidence=confidence,
-                    population=None,
-                )
-            )
-
-        # Resolve ambiguity
-        best, all_candidates, needs_crystallizer = self._resolver.resolve(
-            location, candidates, doc_context
-        )
-
-        if not best:
-            return GeospatialData(
-                resolved=False,
-                display_name=location,
-                confidence=0.0,
-                geocoding_source="nominatim",
-                candidates=all_candidates,
-                needs_crystallizer_resolution=True,
-            )
-
-        # Get enrichment data from the best Nominatim result
-        best_raw = results[0]
-        raw_type = best_raw.get("type", "")
-        raw_class = best_raw.get("class", "")
-        location_type = _classify_location_type(raw_type, raw_class, best.display_name)
-        bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
-        address = best_raw.get("address", {})
-        hierarchy = _build_hierarchy_from_address(address)
-
-        # For countries and regions, ensure bounding box is set
-        if location_type in ("country", "region") and not bounding_box:
-            bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
-
-        return GeospatialData(
-            resolved=True,
-            latitude=best.latitude,
-            longitude=best.longitude,
-            display_name=best.display_name,
-            location_type=location_type,
-            bounding_box=bounding_box,
-            hierarchy=hierarchy,
-            confidence=best.confidence,
-            geocoding_source="nominatim",
-            candidates=all_candidates if needs_crystallizer else [],
-            needs_crystallizer_resolution=needs_crystallizer,
-        )
-
     async def _geocode_photon(
         self,
         location: str,
@@ -1765,17 +1597,19 @@ class GeospatialResolutionStage(EnrichmentStage):
                 needs_crystallizer_resolution=True,
             )
 
-        # Get enrichment data from the best Photon result
+        # Get enrichment data from the result matching the resolved best candidate
         best_raw = results[0]
+        for r in results:
+            if (abs(r["latitude"] - best.latitude) < 1e-6
+                    and abs(r["longitude"] - best.longitude) < 1e-6):
+                best_raw = r
+                break
         raw_type = best_raw.get("type", "")
         raw_class = best_raw.get("class", "")
         location_type = _classify_location_type(raw_type, raw_class, best.display_name)
         bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
         address = best_raw.get("address", {})
         hierarchy = _build_hierarchy_from_address(address)
-
-        if location_type in ("country", "region") and not bounding_box:
-            bounding_box = _build_bounding_box(best_raw.get("boundingbox"))
 
         return GeospatialData(
             resolved=True,
