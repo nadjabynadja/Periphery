@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     embedding_region_count: int = 12  # number of fixed regions for one-hot
     embedding_rebuild_interval: int = 10000  # rebuild indices every N docs
 
+    # Geotag embeddings database
+    geotag_db_path: str = "./data/geotag_embeddings.db"
+
     # Processing pipeline settings
     pipeline_db_path: str = "./data/periphery_documents.db"
     pipeline_enrichment_batch_size: int = 10
