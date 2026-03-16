@@ -50,6 +50,117 @@ function highlightText(text: string, query: string): JSX.Element {
   )
 }
 
+function DocumentResultCard({ doc, query }: { doc: DocumentSearchResult; query: string }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div
+      className="finding-card"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+      style={{
+        padding: '8px 10px',
+        background: expanded ? 'var(--bg-tertiary-hover, #1a2435)' : 'var(--bg-tertiary, #141c2b)',
+        borderLeft: `2px solid ${confidenceBorderColor(doc.relevance_score)}`,
+        borderRadius: 2,
+        fontFamily: 'var(--font-mono)',
+        transition: 'background 0.15s ease',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--text-primary)',
+          fontWeight: 500,
+          marginBottom: 3,
+          overflow: expanded ? 'visible' : 'hidden',
+          textOverflow: expanded ? 'unset' : 'ellipsis',
+          whiteSpace: expanded ? 'normal' : 'nowrap',
+        }}
+      >
+        {highlightText(doc.title || '(untitled)', query)}
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-dim)', marginBottom: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span>{doc.source_feed}</span>
+        <span>&middot;</span>
+        <span>{doc.published ? new Date(doc.published).toLocaleDateString() : ''}</span>
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginBottom: 4, display: 'flex', gap: 6 }}>
+        <span style={{ color: 'var(--accent-cyan)', opacity: 0.7 }}>{doc.entity_count} entities</span>
+        <span>&middot;</span>
+        <span style={{ color: 'var(--accent-cyan)', opacity: 0.7 }}>{doc.relationship_count} rels</span>
+        {doc.source_category && (
+          <>
+            <span>&middot;</span>
+            <span style={{ color: 'var(--accent-amber)', opacity: 0.7 }}>{doc.source_category}</span>
+          </>
+        )}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.4,
+          overflow: 'hidden',
+          ...(expanded
+            ? {}
+            : {
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical' as const,
+              }),
+        }}
+      >
+        {highlightText(expanded ? doc.snippet : doc.snippet.slice(0, 200), query)}
+      </div>
+      {expanded && (
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 6,
+            borderTop: '1px solid var(--border-subtle, #1e293b)',
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            fontSize: 9,
+          }}
+        >
+          <span style={{ color: 'var(--text-dim)' }}>
+            Quality: <span style={{ color: 'var(--text-secondary)' }}>{doc.content_quality}</span>
+          </span>
+          <span style={{ color: 'var(--text-dim)' }}>
+            Status: <span style={{ color: 'var(--text-secondary)' }}>{doc.processing_status}</span>
+          </span>
+          <span
+            style={{
+              marginLeft: 'auto',
+              color: confidenceBorderColor(doc.relevance_score),
+            }}
+          >
+            {(doc.relevance_score * 100).toFixed(0)}% relevance
+          </span>
+          {doc.url && (
+            <a
+              href={doc.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'var(--accent-cyan)',
+                textDecoration: 'none',
+                fontSize: 9,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Source &rarr;
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SearchPanel() {
   const searchPanelOpen = useStore((s) => s.searchPanelOpen)
   const setSearchPanelOpen = useStore((s) => s.setSearchPanelOpen)
@@ -227,13 +338,6 @@ export function SearchPanel() {
       setShowSuggestions(false)
     },
     [],
-  )
-
-  const handleDocClick = useCallback(
-    (id: string) => {
-      setSelectedElement({ type: 'entity', id })
-    },
-    [setSelectedElement],
   )
 
   const isFetching = activeTab === 'documents' ? docFetching : activeTab === 'entities' ? entityFetching : relFetching
@@ -601,60 +705,11 @@ export function SearchPanel() {
               {docResults.length} of {docTotal} results
             </div>
             {docResults.map((doc) => (
-              <button
+              <DocumentResultCard
                 key={doc.id}
-                onClick={() => handleDocClick(doc.id)}
-                className="finding-card"
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px 10px',
-                  background: 'var(--bg-tertiary, #141c2b)',
-                  border: 'none',
-                  borderLeft: `2px solid ${confidenceBorderColor(doc.relevance_score)}`,
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-primary)',
-                    fontWeight: 500,
-                    marginBottom: 3,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {highlightText(doc.title || '(untitled)', debouncedQuery)}
-                </div>
-                <div style={{ fontSize: 9, color: 'var(--text-dim)', marginBottom: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span>{doc.source_feed}</span>
-                  <span>&middot;</span>
-                  <span>{doc.published ? new Date(doc.published).toLocaleDateString() : ''}</span>
-                </div>
-                <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginBottom: 4, display: 'flex', gap: 6 }}>
-                  <span style={{ color: 'var(--accent-cyan)', opacity: 0.7 }}>{doc.entity_count} entities</span>
-                  <span>&middot;</span>
-                  <span style={{ color: 'var(--accent-cyan)', opacity: 0.7 }}>{doc.relationship_count} rels</span>
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.4,
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical',
-                  }}
-                >
-                  {highlightText(doc.snippet.slice(0, 200), debouncedQuery)}
-                </div>
-              </button>
+                doc={doc}
+                query={debouncedQuery}
+              />
             ))}
             {docResults.length < docTotal && (
               <button

@@ -140,6 +140,16 @@ function buildClusterGeoJSON(clusters: DetectedCluster[]): GeoJSON.FeatureCollec
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
+/** Lightweight fingerprint of a FeatureCollection — avoids redundant setData() calls. */
+function geoHash(fc: GeoJSON.FeatureCollection): string {
+  const f = fc.features
+  if (f.length === 0) return '0'
+  const first = f[0].geometry
+  const last = f[f.length - 1].geometry
+  const confSum = f.reduce((s, feat) => s + (feat.properties?.confidence ?? 0), 0)
+  return `${f.length}|${JSON.stringify(first)}|${JSON.stringify(last)}|${confSum.toFixed(4)}`
+}
+
 export function GeographicOverlay() {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -147,6 +157,10 @@ export function GeographicOverlay() {
   const clickPopupRef = useRef<mapboxgl.Popup | null>(null)
   const clickPopupFeatureId = useRef<string | null>(null)
   const sourcesReady = useRef(false)
+  const prevEntityHash = useRef('')
+  const prevRelHash = useRef('')
+  const prevRelDashHash = useRef('')
+  const prevClusterHash = useRef('')
 
   const snapshot = useStore(s => s.snapshot)
   const setSelectedElement = useStore(s => s.setSelectedElement)
@@ -576,21 +590,41 @@ export function GeographicOverlay() {
     }
   }, [buildEntityPopupHTML, buildClusterPopupHTML])
 
-  // Update source data when snapshot / highlights change
+  // Update source data when snapshot / highlights change.
+  // Guard each setData() with a fingerprint check so Mapbox only re-renders
+  // layers whose geographic content actually changed.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !sourcesReady.current) return
 
     const updateData = () => {
-      const entSrc = map.getSource(SOURCES.entities) as mapboxgl.GeoJSONSource | undefined
-      const relSrc = map.getSource(SOURCES.relationships) as mapboxgl.GeoJSONSource | undefined
-      const relDashSrc = map.getSource(SOURCES.relationshipsDashed) as mapboxgl.GeoJSONSource | undefined
-      const cluSrc = map.getSource(SOURCES.clusters) as mapboxgl.GeoJSONSource | undefined
+      const eHash = geoHash(entityGeoJSON)
+      if (eHash !== prevEntityHash.current) {
+        prevEntityHash.current = eHash
+        const src = map.getSource(SOURCES.entities) as mapboxgl.GeoJSONSource | undefined
+        if (src) src.setData(entityGeoJSON)
+      }
 
-      if (entSrc) entSrc.setData(entityGeoJSON)
-      if (relSrc) relSrc.setData(relationshipGeoJSON)
-      if (relDashSrc) relDashSrc.setData(relationshipDashedGeoJSON)
-      if (cluSrc) cluSrc.setData(clusterGeoJSON)
+      const rHash = geoHash(relationshipGeoJSON)
+      if (rHash !== prevRelHash.current) {
+        prevRelHash.current = rHash
+        const src = map.getSource(SOURCES.relationships) as mapboxgl.GeoJSONSource | undefined
+        if (src) src.setData(relationshipGeoJSON)
+      }
+
+      const rdHash = geoHash(relationshipDashedGeoJSON)
+      if (rdHash !== prevRelDashHash.current) {
+        prevRelDashHash.current = rdHash
+        const src = map.getSource(SOURCES.relationshipsDashed) as mapboxgl.GeoJSONSource | undefined
+        if (src) src.setData(relationshipDashedGeoJSON)
+      }
+
+      const cHash = geoHash(clusterGeoJSON)
+      if (cHash !== prevClusterHash.current) {
+        prevClusterHash.current = cHash
+        const src = map.getSource(SOURCES.clusters) as mapboxgl.GeoJSONSource | undefined
+        if (src) src.setData(clusterGeoJSON)
+      }
     }
 
     if (map.isStyleLoaded()) {
