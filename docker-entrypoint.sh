@@ -10,19 +10,27 @@ python -m spacy validate 2>/dev/null || python -m spacy download en_core_web_sm
 # Initialize databases (creates files + schemas before any service starts)
 echo "[periphery] Initializing databases..."
 python -c "
-import asyncio
-from periphery.db import ensure_database, ensure_geotag_database
-import os
+import asyncio, sys, os
+from periphery.db import ensure_database, ensure_geotag_database, close_pool
 
 async def init():
     docs_db = os.environ.get('PIPELINE_DB_PATH', '/app/data/periphery_documents.db')
     geotag_db = os.environ.get('GEOTAG_DB_PATH', '/app/data/geotag_embeddings.db')
-    await ensure_database(docs_db)
-    await ensure_geotag_database(geotag_db)
-    print(f'[periphery] Databases ready: {docs_db}, {geotag_db}')
+    try:
+        await ensure_database(docs_db)
+        await ensure_geotag_database(geotag_db)
+        print(f'[periphery] Databases ready: {docs_db}, {geotag_db}')
+    finally:
+        await close_pool()
 
-asyncio.run(init())
-"
+try:
+    asyncio.run(init())
+except Exception as e:
+    print(f'[periphery] Database init failed: {e}', file=sys.stderr)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+" || { echo "[periphery] FATAL: database initialization failed"; exit 1; }
 
 # Start RSS daemon in background
 echo "[periphery] Starting RSS ingest daemon..."
