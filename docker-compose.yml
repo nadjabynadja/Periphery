@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - periphery-data:/app/data
     environment:
@@ -38,13 +38,13 @@ services:
         VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN}
         VITE_API_BASE_URL: ""
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     restart: unless-stopped
 
   photon:
     image: rtuszik/photon-docker:latest
     ports:
-      - "2322:2322"
+      - "127.0.0.1:2322:2322"
     volumes:
       - photon-data:/photon/data
     environment:
