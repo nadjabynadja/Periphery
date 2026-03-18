@@ -19,7 +19,7 @@ services:
       - ENRICHMENT_PHOTON_BASE_URL=http://photon:2322
       - FAISS_INDEX_PATH=/app/data/faiss/index.bin
       - EMBEDDING_INDEX_DIR=/app/data/indices
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000,https://kestralsaber.prphry.com
     env_file:
       .env
     restart: unless-stopped
