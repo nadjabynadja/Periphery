@@ -172,7 +172,7 @@ export function GeographicOverlay() {
   const entityPositions = useMemo(() => {
     const map = new Map<string, [number, number]>()
     if (!snapshot) return map
-    for (const entity of snapshot.entities) {
+    for (const entity of (snapshot.entities ?? [])) {
       if (entity.location) {
         map.set(entity.canonical_id, [entity.location.lon, entity.location.lat])
       }
@@ -182,17 +182,17 @@ export function GeographicOverlay() {
 
   // Build GeoJSON data
   const entityGeoJSON = useMemo(
-    () => (snapshot ? buildEntityGeoJSON(snapshot.entities, highlightedEntityIds) : EMPTY_FC),
+    () => (snapshot ? buildEntityGeoJSON(snapshot.entities ?? [], highlightedEntityIds) : EMPTY_FC),
     [snapshot, highlightedEntityIds],
   )
 
   const relationshipGeoJSON = useMemo(
-    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships, entityPositions, 0.4, Infinity) : EMPTY_FC),
+    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships ?? [], entityPositions, 0.4, Infinity) : EMPTY_FC),
     [snapshot, entityPositions],
   )
 
   const relationshipDashedGeoJSON = useMemo(
-    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships, entityPositions, 0, 0.4) : EMPTY_FC),
+    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships ?? [], entityPositions, 0, 0.4) : EMPTY_FC),
     [snapshot, entityPositions],
   )
 
@@ -665,7 +665,7 @@ export function GeographicOverlay() {
     }
   }, [heatmapMode])
 
-  const entityCount = snapshot?.entities.filter(e => e.location).length || 0
+  const entityCount = snapshot?.entities?.filter(e => e.location).length || 0
 
   return (
     <div className="relative w-full h-full">

@@ -42,7 +42,7 @@ export function TemporalTimeline() {
   const timelineData = useMemo(() => {
     if (!snapshot) return { entities: [], relationships: [], minTime: 0, maxTime: 0 }
 
-    const entities: TimelineEntity[] = snapshot.entities.map(e => ({
+    const entities: TimelineEntity[] = (snapshot.entities ?? []).map(e => ({
       id: e.canonical_id,
       name: e.name,
       type: e.entity_type,
@@ -52,7 +52,7 @@ export function TemporalTimeline() {
       clusterIds: e.cluster_ids,
     }))
 
-    const relationships: TimelineRelationship[] = snapshot.relationships.map(r => ({
+    const relationships: TimelineRelationship[] = (snapshot.relationships ?? []).map(r => ({
       id: r.id,
       subjectId: r.subject_id,
       objectId: r.object_id,
@@ -317,7 +317,7 @@ export function TemporalTimeline() {
     setScrollY(0)
   }, [timelineData.minTime, timelineData.maxTime])
 
-  if (!snapshot || snapshot.entities.length === 0) {
+  if (!snapshot || (snapshot.entities?.length ?? 0) === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
