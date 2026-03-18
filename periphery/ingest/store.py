@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -105,13 +106,24 @@ class FAISSStore:
             json.dump(id_map_data, f)
 
     def load(self) -> None:
-        """Load index and ID mapping from disk."""
+        """Load index and ID mapping from disk.
+
+        Supports both JSON (preferred) and legacy pickle format.
+        Legacy pickle files are automatically migrated to JSON on next save.
+        """
         self.index = faiss.read_index(self.index_path)
-        # Use JSON (not pickle) to avoid arbitrary code execution on load
-        with open(self.id_map_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
-        self.pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
+        try:
+            with open(self.id_map_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
+            self.pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            # Legacy pickle format — migrate on next save()
+            logger.warning("loading_legacy_pickle_id_map", path=self.id_map_path)
+            with open(self.id_map_path, "rb") as f:
+                self.id_to_pos, self.pos_to_id = pickle.load(f)
+            # Immediately re-save as JSON
+            self.save()
 
 
 class MultiSpaceIndexManager:
@@ -167,11 +179,16 @@ class MultiSpaceIndexManager:
             if os.path.exists(idx_path) and os.path.exists(map_path):
                 try:
                     self._indices[space] = faiss.read_index(idx_path)
-                    # Use JSON (not pickle) to avoid arbitrary code execution on load
-                    with open(map_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
-                    pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
+                    # Try JSON first, fall back to legacy pickle
+                    try:
+                        with open(map_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
+                        pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        logger.warning("loading_legacy_pickle_id_map", space=space, path=map_path)
+                        with open(map_path, "rb") as f:
+                            id_to_pos, pos_to_id = pickle.load(f)
                     self._id_maps[space] = {
                         "id_to_pos": id_to_pos,
                         "pos_to_id": pos_to_id,
@@ -182,6 +199,8 @@ class MultiSpaceIndexManager:
                         dim=dim,
                         vectors=self._indices[space].ntotal,
                     )
+                    # Re-save as JSON if loaded from pickle
+                    self.save_space(space)
                     continue
                 except Exception:
                     logger.exception("index_load_failed", space=space)
