@@ -1498,7 +1498,9 @@ class GeospatialResolutionStage(EnrichmentStage):
                     self._embedding_index.add(name, geo_data)
                 return geo_data
 
-        # Nothing resolved -- cache the unresolved result
+        # Nothing resolved — do NOT cache failures permanently.
+        # Transient failures (Photon not ready, network issues) should be
+        # retried on the next enrichment pass rather than persisted forever.
         unresolved = GeospatialData(
             resolved=False,
             display_name=location,
@@ -1506,7 +1508,9 @@ class GeospatialResolutionStage(EnrichmentStage):
             geocoding_source="photon",
             needs_crystallizer_resolution=True,
         )
-        self._cache.put(location, unresolved, country_ctx)
+        # Only keep in memory cache (not SQLite) so it's retried after restart
+        key = (location.lower().strip(), country_ctx.lower().strip())
+        self._cache._memory[key] = unresolved
         return unresolved
 
     def _try_embedding_lookup(
