@@ -284,7 +284,7 @@ export const peripheryApi = {
     const path = `/api/snapshot${qs ? `?${qs}` : ''}`
 
     try {
-      const snapshot = await requestWithRetry<OntologySnapshot>(path)
+      const snapshot = await requestWithRetry<OntologySnapshot>(path, { timeout: QUERY_TIMEOUT })
       if (!filters) {
         setCachedSnapshot(snapshot)
       }

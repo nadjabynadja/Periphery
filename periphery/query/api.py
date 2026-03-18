@@ -283,6 +283,17 @@ async def _load_enrichment_entities(
                 "last_seen": generated_at_iso,
             })
 
+    # Sort entities by source_count (most-referenced first) and cap at 2000
+    entities.sort(key=lambda e: e.get("source_count", 0), reverse=True)
+    if len(entities) > 2000:
+        entities = entities[:2000]
+
+    # Sort relationships by confidence and cap at 5000 to keep response manageable
+    # (full dataset can be 400K+ rels producing 170MB+ JSON responses)
+    relationships.sort(key=lambda r: r.get("confidence", 0), reverse=True)
+    if len(relationships) > 5000:
+        relationships = relationships[:5000]
+
     # Cache results
     _enrichment_cache[snapshot_id] = {
         "entities": entities,
