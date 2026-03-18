@@ -196,6 +196,8 @@ export function OntologyGraph() {
 
   // Store selectors
   const snapshot = useStore((s) => s.snapshot)
+  const storeEntities = useStore((s) => s.entities)
+  const storeRelationships = useStore((s) => s.relationships)
   const selectedElement = useStore((s) => s.selectedElement)
   const setSelectedElement = useStore((s) => s.setSelectedElement)
   const highlightedEntityIds = useStore((s) => s.highlightedEntityIds)
@@ -204,14 +206,17 @@ export function OntologyGraph() {
   const setShowGraphSettings = useStore((s) => s.setShowGraphSettings)
   const setGraphSettings = useStore((s) => s.setGraphSettings)
 
-  // ---- Build / update simulation when snapshot changes ----
+  // ---- Build / update simulation when snapshot or entities changes ----
   useEffect(() => {
     if (!snapshot) return
 
-    const entities = snapshot?.entities ?? []
+    // Prefer store entities (paginated API), fall back to snapshot entities
+    const entities = storeEntities.length > 0 ? storeEntities : (snapshot?.entities ?? [])
     const nodes = buildSimNodes(entities)
     const nodeMap = new Map(nodes.map((n) => [n.id, n]))
-    const links = buildSimLinks(snapshot?.relationships ?? [], nodeMap)
+    // Prefer store relationships, fall back to snapshot relationships
+    const rels = storeRelationships.length > 0 ? storeRelationships : (snapshot?.relationships ?? [])
+    const links = buildSimLinks(rels, nodeMap)
 
     nodesRef.current = nodes
     linksRef.current = links
@@ -283,7 +288,7 @@ export function OntologyGraph() {
     return () => {
       sim.stop()
     }
-  }, [snapshot, graphSettings.chargeStrength, graphSettings.linkStrength, graphSettings.centerStrength, graphSettings.collideRadius, graphSettings.clusterForce])
+  }, [snapshot, storeEntities, storeRelationships, graphSettings.chargeStrength, graphSettings.linkStrength, graphSettings.centerStrength, graphSettings.collideRadius, graphSettings.clusterForce])
 
   // ---- Resize handler ----
   useEffect(() => {

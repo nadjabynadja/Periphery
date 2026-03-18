@@ -553,22 +553,27 @@ function ClusterView({ id }: { id: string }) {
 
 function RelationshipView({ id }: { id: string }) {
   const snapshot = useStore((s) => s.snapshot)
+  const relationships = useStore((s) => s.relationships)
+  const entities = useStore((s) => s.entities)
 
   const rel: Relationship | undefined = useMemo(() => {
-    return snapshot?.relationships.find((r) => r.id === id)
-  }, [snapshot, id])
+    // Check store relationships first, then fall back to snapshot
+    return relationships.find((r) => r.id === id) ?? snapshot?.relationships?.find((r) => r.id === id)
+  }, [relationships, snapshot, id])
 
   const subjectName = useMemo(() => {
-    if (!snapshot || !rel) return rel?.subject_id ?? id
-    const ent = snapshot.entities.find((e) => e.canonical_id === rel.subject_id)
+    if (!rel) return id
+    const ent = entities.find((e) => e.canonical_id === rel.subject_id)
+      ?? snapshot?.entities?.find((e) => e.canonical_id === rel.subject_id)
     return ent?.name ?? rel.subject_id
-  }, [snapshot, rel, id])
+  }, [entities, snapshot, rel, id])
 
   const objectName = useMemo(() => {
-    if (!snapshot || !rel) return rel?.object_id ?? ''
-    const ent = snapshot.entities.find((e) => e.canonical_id === rel.object_id)
+    if (!rel) return ''
+    const ent = entities.find((e) => e.canonical_id === rel.object_id)
+      ?? snapshot?.entities?.find((e) => e.canonical_id === rel.object_id)
     return ent?.name ?? rel.object_id
-  }, [snapshot, rel])
+  }, [entities, snapshot, rel])
 
   if (!rel) {
     return <ErrorBlock message={`Relationship ${id} not found in current snapshot`} />
@@ -642,6 +647,7 @@ function RelationshipView({ id }: { id: string }) {
 
 function AnomalyView({ id }: { id: string }) {
   const snapshot = useStore((s) => s.snapshot)
+  const entities = useStore((s) => s.entities)
 
   const anomaly: Anomaly | undefined = useMemo(() => {
     return snapshot?.anomalies.find((a) => a.anomaly_id === id)
@@ -651,14 +657,14 @@ function AnomalyView({ id }: { id: string }) {
     return <ErrorBlock message={`Anomaly ${id} not found in current snapshot`} />
   }
 
-  // Resolve related entity names
+  // Resolve related entity names from store entities (fall back to snapshot)
   const relatedEntities = useMemo(() => {
-    if (!snapshot) return []
     return anomaly.related_entity_ids.map((eid) => {
-      const ent = snapshot.entities.find((e) => e.canonical_id === eid)
+      const ent = entities.find((e) => e.canonical_id === eid)
+        ?? snapshot?.entities?.find((e) => e.canonical_id === eid)
       return { id: eid, name: ent?.name ?? eid }
     })
-  }, [snapshot, anomaly.related_entity_ids])
+  }, [entities, snapshot, anomaly.related_entity_ids])
 
   // Nearest cluster label
   const nearestClusterLabel = useMemo(() => {

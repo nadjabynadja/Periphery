@@ -8,6 +8,8 @@ import type {
   HealthStatus,
   LegacyOntologySnapshot,
   OntologySnapshot,
+  PaginatedEntities,
+  PaginatedRelationships,
   AnalyticalQueryResponse,
   EntityDetail,
   ClusterDetail,
@@ -298,6 +300,46 @@ export const peripheryApi = {
       }
       return converted
     }
+  },
+
+  // --- Paginated Entities ---
+  getEntities(params: {
+    page?: number
+    limit?: number
+    cluster_id?: string
+    entity_type?: string
+    search?: string
+    sort_by?: string
+  } = {}): Promise<PaginatedEntities> {
+    const qs = new URLSearchParams()
+    if (params.page != null) qs.set('page', String(params.page))
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    if (params.cluster_id != null) qs.set('cluster_id', params.cluster_id)
+    if (params.entity_type != null) qs.set('entity_type', params.entity_type)
+    if (params.search != null) qs.set('search', params.search)
+    if (params.sort_by != null) qs.set('sort_by', params.sort_by)
+    const qsStr = qs.toString()
+    return requestWithRetry<PaginatedEntities>(`/api/entities${qsStr ? `?${qsStr}` : ''}`, { timeout: QUERY_TIMEOUT })
+  },
+
+  // --- Paginated Relationships ---
+  getRelationships(params: {
+    page?: number
+    limit?: number
+    entity_id?: string
+    cluster_id?: string
+    min_confidence?: number
+    sort_by?: string
+  } = {}): Promise<PaginatedRelationships> {
+    const qs = new URLSearchParams()
+    if (params.page != null) qs.set('page', String(params.page))
+    if (params.limit != null) qs.set('limit', String(params.limit))
+    if (params.entity_id != null) qs.set('entity_id', params.entity_id)
+    if (params.cluster_id != null) qs.set('cluster_id', params.cluster_id)
+    if (params.min_confidence != null) qs.set('min_confidence', String(params.min_confidence))
+    if (params.sort_by != null) qs.set('sort_by', params.sort_by)
+    const qsStr = qs.toString()
+    return requestWithRetry<PaginatedRelationships>(`/api/relationships${qsStr ? `?${qsStr}` : ''}`, { timeout: QUERY_TIMEOUT })
   },
 
   // --- Entity Detail ---

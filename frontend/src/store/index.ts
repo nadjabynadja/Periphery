@@ -5,6 +5,8 @@
 import { create } from 'zustand'
 import type {
   OntologySnapshot,
+  EntityNode,
+  Relationship,
   SelectedElement,
   ViewMode,
   ConnectionStatus,
@@ -19,6 +21,14 @@ interface PeripheryState {
   // Ontology snapshot (cached)
   snapshot: OntologySnapshot | null
   setSnapshot: (s: OntologySnapshot) => void
+
+  // Entities and relationships (loaded separately via paginated API)
+  entities: EntityNode[]
+  setEntities: (entities: EntityNode[]) => void
+  relationships: Relationship[]
+  setRelationships: (relationships: Relationship[]) => void
+  loadingEntities: boolean
+  setLoadingEntities: (loading: boolean) => void
 
   // Selected element in graph
   selectedElement: SelectedElement
@@ -127,6 +137,13 @@ const defaultGraphSettings: GraphSettings = {
 export const useStore = create<PeripheryState>((set) => ({
   snapshot: null,
   setSnapshot: (s) => set({ snapshot: s }),
+
+  entities: [],
+  setEntities: (entities) => set({ entities }),
+  relationships: [],
+  setRelationships: (relationships) => set({ relationships }),
+  loadingEntities: false,
+  setLoadingEntities: (loading) => set({ loadingEntities: loading }),
 
   selectedElement: null,
   setSelectedElement: (el) => set({ selectedElement: el }),

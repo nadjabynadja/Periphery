@@ -283,16 +283,11 @@ async def _load_enrichment_entities(
                 "last_seen": generated_at_iso,
             })
 
-    # Sort entities by source_count (most-referenced first) and cap at 2000
+    # Sort entities by source_count (most-referenced first) — no cap, pagination handles volume
     entities.sort(key=lambda e: e.get("source_count", 0), reverse=True)
-    if len(entities) > 2000:
-        entities = entities[:2000]
 
-    # Sort relationships by confidence and cap at 5000 to keep response manageable
-    # (full dataset can be 400K+ rels producing 170MB+ JSON responses)
+    # Sort relationships by confidence — no cap, pagination handles volume
     relationships.sort(key=lambda r: r.get("confidence", 0), reverse=True)
-    if len(relationships) > 5000:
-        relationships = relationships[:5000]
 
     # Cache results
     _enrichment_cache[snapshot_id] = {
@@ -391,13 +386,8 @@ async def get_snapshot(
         if g.source_cluster in cluster_id_set or g.target_cluster in cluster_id_set
     ]
 
-    # Build entity and relationship lists from enrichment data
-    enrichment_available = False
-    entities: list[dict[str, Any]] = []
-    relationships: list[dict[str, Any]] = []
-
+    # Warm the enrichment cache if not already loaded, so /api/entities is fast on first call
     try:
-        # Collect all member document IDs and build cluster->docs map
         all_member_doc_ids: list[str] = []
         cluster_doc_map: dict[str, list[str]] = {}
         seen_doc_ids: set[str] = set()
@@ -408,90 +398,35 @@ async def get_snapshot(
                     seen_doc_ids.add(did)
                     all_member_doc_ids.append(did)
 
-        if all_member_doc_ids:
-            entities, relationships = await _load_enrichment_entities(
+        if all_member_doc_ids and snapshot.snapshot_id not in _enrichment_cache:
+            await _load_enrichment_entities(
                 member_doc_ids=all_member_doc_ids,
                 cluster_doc_map=cluster_doc_map,
                 snapshot_id=snapshot.snapshot_id,
                 generated_at_iso=snapshot.generated_at.isoformat(),
                 include_rendering=include_rendering,
             )
-            enrichment_available = True
-            logger.info(
-                "snapshot_enrichment_loaded entities=%d relationships=%d",
-                len(entities),
-                len(relationships),
-            )
+            logger.info("snapshot_enrichment_cache_warmed snapshot_id=%s", snapshot.snapshot_id)
     except Exception:
         logger.warning(
-            "snapshot_enrichment_fallback: could not load enrichment data, "
-            "falling back to cluster key_entities",
-            exc_info=True,
+            "snapshot_enrichment_cache_warm_failed", exc_info=True,
         )
 
-    # Fallback: build entities from cluster key_entities if enrichment unavailable
-    if not enrichment_available:
-        seen_entities: set[str] = set()
-        for c in clusters:
-            for entity_name in c.key_entities:
-                if entity_name not in seen_entities:
-                    seen_entities.add(entity_name)
-                    entity_confidence = c.confidence
-                    rendering = confidence_to_rendering(entity_confidence).model_dump() if include_rendering else {}
-                    entities.append({
-                        "canonical_id": entity_name,
-                        "name": entity_name,
-                        "entity_type": "entity",
-                        "aliases": [],
-                        "confidence": entity_confidence,
-                        "source_count": len(c.member_document_ids),
-                        "cluster_ids": [c.cluster_id],
-                        "first_seen": snapshot.generated_at.isoformat(),
-                        "last_seen": snapshot.generated_at.isoformat(),
-                        "rendering": rendering,
-                    })
-
-        for c in clusters:
-            for i, rel in enumerate(c.key_relationships):
-                if isinstance(rel, dict):
-                    relationships.append({
-                        "id": f"rel-{c.cluster_id}-{i}",
-                        "subject_id": rel.get("subject", rel.get("source", "")),
-                        "predicate": rel.get("predicate", rel.get("type", "related_to")),
-                        "object_id": rel.get("object", rel.get("target", "")),
-                        "confidence": rel.get("confidence", c.confidence),
-                        "evidence_sentences": [],
-                        "temporal_context": "current",
-                        "extraction_tier": "co_occurrence",
-                        "source_count": 1,
-                        "first_seen": snapshot.generated_at.isoformat(),
-                        "last_seen": snapshot.generated_at.isoformat(),
-                    })
-                elif isinstance(rel, str):
-                    relationships.append({
-                        "id": f"rel-{c.cluster_id}-{i}",
-                        "subject_id": c.cluster_id,
-                        "predicate": rel,
-                        "object_id": "",
-                        "confidence": c.confidence,
-                        "evidence_sentences": [],
-                        "temporal_context": "current",
-                        "extraction_tier": "co_occurrence",
-                        "source_count": 1,
-                        "first_seen": snapshot.generated_at.isoformat(),
-                        "last_seen": snapshot.generated_at.isoformat(),
-                    })
+    # Get total counts from corpus_stats or enrichment cache
+    cached = _enrichment_cache.get(snapshot.snapshot_id)
+    total_entities = len(cached["entities"]) if cached else snapshot.corpus_stats.total_entities
+    total_relationships = len(cached["relationships"]) if cached else snapshot.corpus_stats.total_relationships
 
     result: dict[str, Any] = {
         "snapshot_id": snapshot.snapshot_id,
         "generated_at": snapshot.generated_at.isoformat(),
         "timestamp": snapshot.generated_at.isoformat(),
         "corpus_stats": snapshot.corpus_stats.model_dump(),
-        "entity_count": len(entities),
-        "relationship_count": len(relationships),
+        "total_entities": total_entities,
+        "total_relationships": total_relationships,
+        "entity_count": total_entities,
+        "relationship_count": total_relationships,
         "cluster_count": len(clusters),
-        "entities": entities,
-        "relationships": relationships,
     }
 
     # Flatten cluster/trajectory/anomaly data for frontend consumption
@@ -541,6 +476,191 @@ async def get_snapshot(
     ]
 
     return result
+
+
+# ── Paginated Entity Endpoint ───────────────────────────────────────────
+
+
+@router.get("/entities")
+async def get_entities(
+    page: int = Query(1, ge=1),
+    limit: int = Query(200, ge=1, le=1000),
+    cluster_id: str | None = Query(None),
+    entity_type: str | None = Query(None),
+    search: str | None = Query(None),
+    sort_by: str = Query("source_count"),
+    include_rendering: bool = Query(False),
+):
+    """Return paginated entities from the enrichment cache.
+
+    Filters by cluster_id, entity_type, and text search on name/aliases.
+    Supports sort_by: source_count (default), confidence, name.
+    """
+    snapshot = None
+    if _analytical_engine is not None:
+        snapshot = _analytical_engine.snapshot
+    if snapshot is None and _crystallizer_worker is not None:
+        snapshot = _crystallizer_worker.current_snapshot
+
+    if snapshot is None:
+        return {"total": 0, "page": page, "limit": limit, "entities": []}
+
+    # Ensure cache is populated
+    if snapshot.snapshot_id not in _enrichment_cache:
+        # Build cache from all clusters
+        all_member_doc_ids: list[str] = []
+        cluster_doc_map: dict[str, list[str]] = {}
+        seen_doc_ids: set[str] = set()
+        for c in snapshot.clusters:
+            cluster_doc_map[c.cluster_id] = c.member_document_ids
+            for did in c.member_document_ids:
+                if did not in seen_doc_ids:
+                    seen_doc_ids.add(did)
+                    all_member_doc_ids.append(did)
+
+        if all_member_doc_ids:
+            await _load_enrichment_entities(
+                member_doc_ids=all_member_doc_ids,
+                cluster_doc_map=cluster_doc_map,
+                snapshot_id=snapshot.snapshot_id,
+                generated_at_iso=snapshot.generated_at.isoformat(),
+                include_rendering=include_rendering,
+            )
+
+    cached = _enrichment_cache.get(snapshot.snapshot_id)
+    if not cached:
+        return {"total": 0, "page": page, "limit": limit, "entities": []}
+
+    entities = cached["entities"]
+
+    # Apply filters
+    if cluster_id is not None:
+        entities = [e for e in entities if cluster_id in e.get("cluster_ids", [])]
+
+    if entity_type is not None:
+        entity_type_lower = entity_type.lower()
+        entities = [e for e in entities if e.get("entity_type", "").lower() == entity_type_lower]
+
+    if search is not None:
+        search_lower = search.lower()
+        filtered = []
+        for e in entities:
+            if search_lower in e.get("name", "").lower():
+                filtered.append(e)
+                continue
+            if any(search_lower in alias.lower() for alias in e.get("aliases", [])):
+                filtered.append(e)
+        entities = filtered
+
+    # Apply sorting
+    if sort_by == "confidence":
+        entities = sorted(entities, key=lambda e: e.get("confidence", 0), reverse=True)
+    elif sort_by == "name":
+        entities = sorted(entities, key=lambda e: e.get("name", "").lower())
+    else:  # default: source_count
+        entities = sorted(entities, key=lambda e: e.get("source_count", 0), reverse=True)
+
+    total = len(entities)
+    offset = (page - 1) * limit
+    page_entities = entities[offset: offset + limit]
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "entities": page_entities,
+    }
+
+
+# ── Paginated Relationship Endpoint ─────────────────────────────────────
+
+
+@router.get("/relationships")
+async def get_relationships(
+    page: int = Query(1, ge=1),
+    limit: int = Query(200, ge=1, le=1000),
+    entity_id: str | None = Query(None),
+    cluster_id: str | None = Query(None),
+    min_confidence: float | None = Query(None, ge=0.0, le=1.0),
+    sort_by: str = Query("confidence"),
+    include_rendering: bool = Query(False),
+):
+    """Return paginated relationships from the enrichment cache.
+
+    Filters by entity_id (subject or object), cluster_id, and min_confidence.
+    Supports sort_by: confidence (default).
+    """
+    snapshot = None
+    if _analytical_engine is not None:
+        snapshot = _analytical_engine.snapshot
+    if snapshot is None and _crystallizer_worker is not None:
+        snapshot = _crystallizer_worker.current_snapshot
+
+    if snapshot is None:
+        return {"total": 0, "page": page, "limit": limit, "relationships": []}
+
+    # Ensure cache is populated
+    if snapshot.snapshot_id not in _enrichment_cache:
+        all_member_doc_ids: list[str] = []
+        cluster_doc_map: dict[str, list[str]] = {}
+        seen_doc_ids: set[str] = set()
+        for c in snapshot.clusters:
+            cluster_doc_map[c.cluster_id] = c.member_document_ids
+            for did in c.member_document_ids:
+                if did not in seen_doc_ids:
+                    seen_doc_ids.add(did)
+                    all_member_doc_ids.append(did)
+
+        if all_member_doc_ids:
+            await _load_enrichment_entities(
+                member_doc_ids=all_member_doc_ids,
+                cluster_doc_map=cluster_doc_map,
+                snapshot_id=snapshot.snapshot_id,
+                generated_at_iso=snapshot.generated_at.isoformat(),
+                include_rendering=include_rendering,
+            )
+
+    cached = _enrichment_cache.get(snapshot.snapshot_id)
+    if not cached:
+        return {"total": 0, "page": page, "limit": limit, "relationships": []}
+
+    relationships = cached["relationships"]
+
+    # Apply filters
+    if entity_id is not None:
+        relationships = [
+            r for r in relationships
+            if r.get("subject_id") == entity_id or r.get("object_id") == entity_id
+        ]
+
+    if cluster_id is not None:
+        # Build set of entity canonical_ids in this cluster from cache
+        cluster_entity_ids: set[str] = set()
+        for e in cached["entities"]:
+            if cluster_id in e.get("cluster_ids", []):
+                cluster_entity_ids.add(e["canonical_id"])
+        relationships = [
+            r for r in relationships
+            if r.get("subject_id") in cluster_entity_ids or r.get("object_id") in cluster_entity_ids
+        ]
+
+    if min_confidence is not None:
+        relationships = [r for r in relationships if r.get("confidence", 0) >= min_confidence]
+
+    # Apply sorting
+    if sort_by == "confidence":
+        relationships = sorted(relationships, key=lambda r: r.get("confidence", 0), reverse=True)
+
+    total = len(relationships)
+    offset = (page - 1) * limit
+    page_rels = relationships[offset: offset + limit]
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "relationships": page_rels,
+    }
 
 
 # ── Entity Detail Endpoint ───────────────────────────────────────────────

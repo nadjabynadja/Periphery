@@ -145,17 +145,33 @@ export interface RenderingMetadata {
 }
 
 export interface OntologySnapshot {
-  entities: EntityNode[]
-  relationships: Relationship[]
+  entities?: EntityNode[]
+  relationships?: Relationship[]
   clusters: DetectedCluster[]
   trajectories: Trajectory[]
   anomalies: Anomaly[]
   gradients: RelationalGradient[]
   emerging_structures: EmergingStructure[]
   timestamp: string
+  total_entities?: number
+  total_relationships?: number
   entity_count: number
   relationship_count: number
   cluster_count: number
+}
+
+export interface PaginatedEntities {
+  total: number
+  page: number
+  limit: number
+  entities: EntityNode[]
+}
+
+export interface PaginatedRelationships {
+  total: number
+  page: number
+  limit: number
+  relationships: Relationship[]
 }
 
 // --- Query Types ---

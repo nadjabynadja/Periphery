@@ -41,6 +41,7 @@ type ButtonState = 'idle' | 'starting' | 'running'
 export function SystemStatusBar() {
   const connectionStatus = useStore((s) => s.connectionStatus)
   const snapshot = useStore((s) => s.snapshot)
+  const entities = useStore((s) => s.entities)
   const pipelineStats = useStore((s) => s.pipelineStats)
   const health = useStore((s) => s.health)
   const criticMonitoring = useStore((s) => s.criticMonitoring)
@@ -93,8 +94,8 @@ export function SystemStatusBar() {
     }
   }, [getButtonState])
 
-  const entityCount = snapshot?.entity_count ?? 0
-  const relationshipCount = snapshot?.relationship_count ?? 0
+  const entityCount = snapshot?.total_entities ?? snapshot?.entity_count ?? 0
+  const relationshipCount = snapshot?.total_relationships ?? snapshot?.relationship_count ?? 0
   const clusterCount = snapshot?.cluster_count ?? 0
   const lagSeconds = pipelineStats?.pipeline_lag_seconds ?? 0
 
@@ -105,8 +106,8 @@ export function SystemStatusBar() {
 
   const tickerText = useMemo(() => {
     const parts: string[] = []
-    if (snapshot?.entities?.length) {
-      const latest = snapshot.entities
+    if (entities?.length) {
+      const latest = entities
         .slice()
         .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime())
         .slice(0, 5)
@@ -116,7 +117,7 @@ export function SystemStatusBar() {
       snapshot.anomalies.slice(0, 3).forEach((a) => parts.push(`ANOMALY: ${a.description}`))
     }
     return parts.length > 0 ? parts.join('  ///  ') : 'Awaiting data...'
-  }, [snapshot])
+  }, [entities, snapshot])
 
   return (
     <div

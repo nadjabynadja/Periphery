@@ -31,6 +31,9 @@ const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
 export default function App() {
   const setSnapshot = useStore(s => s.setSnapshot)
+  const setEntities = useStore(s => s.setEntities)
+  const setRelationships = useStore(s => s.setRelationships)
+  const setLoadingEntities = useStore(s => s.setLoadingEntities)
   const setHealth = useStore(s => s.setHealth)
   const setPipelineStats = useStore(s => s.setPipelineStats)
   const setCriticMonitoring = useStore(s => s.setCriticMonitoring)
@@ -64,6 +67,14 @@ export default function App() {
     queryFn: async () => {
       const data = await peripheryApi.getSnapshot({ include_rendering: true })
       setSnapshot(data)
+      // After snapshot loads, kick off entity fetch
+      setLoadingEntities(true)
+      peripheryApi.getEntities({ limit: 500 }).then(result => {
+        setEntities(result.entities)
+        setLoadingEntities(false)
+      }).catch(() => {
+        setLoadingEntities(false)
+      })
       return data
     },
     refetchInterval: 30000,
@@ -103,7 +114,13 @@ export default function App() {
     try { wsManager.connect('/ws/snapshot') } catch { /* fallback to polling */ }
 
     const unsubDelta = wsManager.subscribe('snapshot_delta', () => {
-      peripheryApi.getSnapshot({ include_rendering: true }).then(setSnapshot).catch(() => {})
+      peripheryApi.getSnapshot({ include_rendering: true }).then(snap => {
+        setSnapshot(snap)
+        // Refresh entities when snapshot updates
+        peripheryApi.getEntities({ limit: 500 }).then(result => {
+          setEntities(result.entities)
+        }).catch(() => {})
+      }).catch(() => {})
     })
 
     return () => {
@@ -200,7 +217,7 @@ export default function App() {
             </div>
             <span className="data-readout">
               {snapshot
-                ? `${snapshot.entity_count} entities · ${snapshot.relationship_count} rels · ${snapshot.cluster_count} clusters`
+                ? `${(snapshot.total_entities ?? snapshot.entity_count).toLocaleString()} entities · ${(snapshot.total_relationships ?? snapshot.relationship_count).toLocaleString()} rels · ${snapshot.cluster_count} clusters`
                 : 'Awaiting data...'}
             </span>
           </div>

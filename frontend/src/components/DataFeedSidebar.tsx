@@ -74,13 +74,13 @@ function statusDotClass(status: PipelineStage['status']): string {
 function deriveFeedEntries(
   ingestStats: { total_documents: number; total_vectors: number; embedding_dim: number } | undefined,
   crystalStats: Record<string, unknown> | undefined,
-  snapshot: ReturnType<typeof useStore.getState>['snapshot'],
+  entities: ReturnType<typeof useStore.getState>['entities'],
 ): FeedEntry[] {
   const entries: FeedEntry[] = []
 
-  // Derive feed entries from snapshot entities as recent document proxies
-  if (snapshot?.entities) {
-    for (const entity of snapshot.entities) {
+  // Derive feed entries from store entities as recent document proxies
+  if (entities?.length) {
+    for (const entity of entities) {
       const category = inferCategory(entity.entity_type)
       entries.push({
         id: entity.canonical_id,
@@ -150,6 +150,7 @@ function deriveSourceStatus(
 
 export function DataFeedSidebar() {
   const snapshot = useStore(s => s.snapshot)
+  const entities = useStore(s => s.entities)
   const pipelineStats = useStore(s => s.pipelineStats)
   const [sourceExpanded, setSourceExpanded] = useState(false)
 
@@ -166,10 +167,10 @@ export function DataFeedSidebar() {
     refetchInterval: 10000,
   })
 
-  // Derive feed entries
+  // Derive feed entries from store entities
   const feedEntries = useMemo(
-    () => deriveFeedEntries(ingestStats, crystalStats, snapshot),
-    [ingestStats, crystalStats, snapshot],
+    () => deriveFeedEntries(ingestStats, crystalStats, entities),
+    [ingestStats, crystalStats, entities],
   )
 
   // Derive source status

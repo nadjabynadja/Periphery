@@ -282,6 +282,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GZip compression — added after CORS so gzip wraps the full response
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Mount routers
 from periphery.ingest.router import router as ingest_router
 from periphery.crystallizer.router import router as crystallizer_router

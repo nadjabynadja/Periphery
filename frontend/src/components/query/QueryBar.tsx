@@ -5,7 +5,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useStore } from '../../store'
 import { peripheryApi } from '../../api'
-import type { EntityNode } from '../../api'
 
 // --------------- Autocomplete suggestion type ---------------
 
@@ -29,8 +28,9 @@ export function QueryBar() {
     addQueryToHistory,
     setQueryPanelExpanded,
     setHighlightedEntityIds,
-    snapshot,
   } = useStore()
+
+  const entities = useStore(s => s.entities)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -56,9 +56,9 @@ export function QueryBar() {
     autoGrow()
   }, [currentQuery, autoGrow])
 
-  // ---- Autocomplete from snapshot entities ----
+  // ---- Autocomplete from store entities ----
   useEffect(() => {
-    if (!currentQuery.trim() || !snapshot) {
+    if (!currentQuery.trim() || !entities.length) {
       setSuggestions([])
       setShowSuggestions(false)
       return
@@ -74,7 +74,7 @@ export function QueryBar() {
     }
 
     const matches: Suggestion[] = []
-    for (const entity of snapshot.entities) {
+    for (const entity of entities) {
       if (matches.length >= 8) break
       const nameL = entity.name.toLowerCase()
       // prefix or fuzzy substring match
@@ -91,7 +91,7 @@ export function QueryBar() {
     setSuggestions(matches)
     setShowSuggestions(matches.length > 0)
     setSelectedSuggestion(-1)
-  }, [currentQuery, snapshot])
+  }, [currentQuery, entities])
 
   // ---- Submit handler ----
   const handleSubmit = useCallback(async () => {
