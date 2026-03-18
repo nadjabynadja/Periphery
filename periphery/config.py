@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     cctv_poll_interval: int = 300
     cctv_dot_endpoints: str = ""  # comma-separated DOT 511 API URLs
 
+    # ICIJ Offshore Leaks
+    icij_enabled: bool = False
+    icij_poll_interval: int = 604800  # 7 days
+    icij_node_types: str = "entities,officers,intermediaries"
+    icij_data_dir: str = "/app/data"
+
+    # OFAC Sanctions Lists
+    ofac_enabled: bool = False
+    ofac_poll_interval: int = 86400  # daily
+    ofac_include_consolidated: bool = True
+
     # Admin API key — required to access command and admin endpoints.
     # If unset, all admin/command endpoints return 403.
     # Set via ADMIN_API_KEY env var or in .env.

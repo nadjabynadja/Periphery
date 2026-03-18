@@ -8,7 +8,9 @@ from .adsb_exchange import ADSBExchangeSource
 from .base import DataSource
 from .cctv import CCTVSource
 from .celestrak import CelesTrakSource
+from .icij_offshore import ICIJOffshoreSource
 from .maritime import MaritimeSource
+from .ofac_sanctions import OFACSanctionsSource
 from .opensky import OpenSkySource
 from .openstreetmap import OpenStreetMapSource
 
@@ -100,6 +102,25 @@ def build_sources(settings: Settings) -> list[DataSource]:
             dot_endpoints=_parse_csv(settings.cctv_dot_endpoints) or None,
             poll_interval=settings.cctv_poll_interval,
             enabled=settings.cctv_enabled,
+        )
+    )
+
+    # ICIJ Offshore Leaks
+    sources.append(
+        ICIJOffshoreSource(
+            poll_interval=settings.icij_poll_interval,
+            enabled=settings.icij_enabled,
+            node_types=_parse_csv(settings.icij_node_types) or None,
+            data_dir=settings.icij_data_dir,
+        )
+    )
+
+    # OFAC Sanctions Lists
+    sources.append(
+        OFACSanctionsSource(
+            poll_interval=settings.ofac_poll_interval,
+            enabled=settings.ofac_enabled,
+            include_consolidated=settings.ofac_include_consolidated,
         )
     )
 
