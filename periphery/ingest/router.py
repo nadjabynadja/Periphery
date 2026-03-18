@@ -13,6 +13,12 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 # These get set by main.py on startup
 _store: FAISSStore | None = None
+
+# LEGACY: This in-memory dict stores documents ingested via the legacy /ingest/ endpoint.
+# It is NOT persisted — all documents are lost on server restart.
+# Used only by the legacy query engine and crystallizer store; the RSS pipeline uses the
+# SQLite-backed DocumentStore instead.
+# TODO: Replace with a database-backed store to prevent silent data loss on restart.
 _documents: dict[str, Document] = {}
 
 

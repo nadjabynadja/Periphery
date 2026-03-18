@@ -52,8 +52,38 @@ class ConnectionManager:
     def disconnect_query(self, websocket: WebSocket, query_id: str) -> None:
         if query_id in self._query_subscribers:
             self._query_subscribers[query_id].discard(websocket)
+            # Remove empty query subscriber sets to prevent unbounded key accumulation
             if not self._query_subscribers[query_id]:
                 del self._query_subscribers[query_id]
+
+    def cleanup_dead_connections(self) -> None:
+        """Remove dead WebSocket connections and empty subscriber entries.
+
+        Dead connections (state != CONNECTED) can accumulate when clients
+        drop without sending a close frame. Call periodically to reclaim memory.
+        """
+        from starlette.websockets import WebSocketState
+
+        # Clean dead snapshot subscribers
+        dead_snapshot = {
+            ws for ws in self._snapshot_subscribers
+            if ws.client_state != WebSocketState.CONNECTED
+        }
+        self._snapshot_subscribers -= dead_snapshot
+        if dead_snapshot:
+            logger.info("ws_cleanup removed %d dead snapshot subscribers", len(dead_snapshot))
+
+        # Clean dead query subscribers and empty sets
+        empty_keys = []
+        for query_id, subs in self._query_subscribers.items():
+            dead = {ws for ws in subs if ws.client_state != WebSocketState.CONNECTED}
+            subs -= dead
+            if not subs:
+                empty_keys.append(query_id)
+        for key in empty_keys:
+            del self._query_subscribers[key]
+        if empty_keys:
+            logger.info("ws_cleanup removed %d empty query subscriber entries", len(empty_keys))
 
     async def broadcast_snapshot_update(self, snapshot_data: dict[str, Any]) -> None:
         """Broadcast a snapshot update to all snapshot subscribers."""

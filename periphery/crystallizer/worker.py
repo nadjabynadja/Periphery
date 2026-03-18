@@ -477,8 +477,6 @@ class CrystallizerWorker:
             cluster_map.setdefault(label_int, []).append(doc_ids[i])
 
         coherence_scores = {}
-        if self.on_crystallize:
-            coherence_scores = await self.on_crystallize(vectors, labels)
 
         self.clusters = [
             Cluster(
@@ -534,6 +532,13 @@ class CrystallizerWorker:
             processing_time_ms=elapsed_ms,
         )
         self._current_snapshot = snapshot
+
+        # Notify the critic callback with the snapshot (matches multi-space path signature)
+        if self.on_crystallize:
+            try:
+                await self.on_crystallize(snapshot)
+            except Exception:
+                logger.exception("legacy_on_crystallize_callback_failed")
 
         if self._store_db:
             try:

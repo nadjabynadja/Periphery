@@ -131,6 +131,11 @@ class Settings(BaseSettings):
     cctv_poll_interval: int = 300
     cctv_dot_endpoints: str = ""  # comma-separated DOT 511 API URLs
 
+    # Admin API key — required to access command and admin endpoints.
+    # If unset, all admin/command endpoints return 403.
+    # Set via ADMIN_API_KEY env var or in .env.
+    admin_api_key: str = ""
+
     # Auth settings
     auth_enabled: bool = False
     auth_session_ttl_hours: int = 720  # 30 days

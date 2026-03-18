@@ -97,6 +97,30 @@ async def search_documents(
             min_rank = min(ranks)
             max_rank = max(ranks)
 
+        # Batch-fetch all enrichment counts in a single query (avoids N+1)
+        import json as _json
+        enrichment_map: dict[str, tuple[int, int]] = {}
+        if rows:
+            doc_ids_batch = [row[0] for row in rows]
+            placeholders = ",".join("?" for _ in doc_ids_batch)
+            ecursor = await db.execute(
+                f"SELECT document_id, entities, relationships FROM document_enrichments WHERE document_id IN ({placeholders})",
+                doc_ids_batch,
+            )
+            for erow in await ecursor.fetchall():
+                entity_count = 0
+                relationship_count = 0
+                try:
+                    if erow[1]:
+                        ents = _json.loads(erow[1]) if isinstance(erow[1], str) else erow[1]
+                        entity_count = len(ents) if isinstance(ents, list) else 0
+                    if erow[2]:
+                        rels = _json.loads(erow[2]) if isinstance(erow[2], str) else erow[2]
+                        relationship_count = len(rels) if isinstance(rels, list) else 0
+                except Exception:
+                    pass
+                enrichment_map[erow[0]] = (entity_count, relationship_count)
+
         results = []
         for row in rows:
             doc_id = row[0]
@@ -111,25 +135,7 @@ async def search_documents(
             else:
                 relevance = 1.0
 
-            # Get enrichment counts
-            ecursor = await db.execute(
-                "SELECT entities, relationships FROM document_enrichments WHERE document_id = ?",
-                (doc_id,),
-            )
-            erow = await ecursor.fetchone()
-            entity_count = 0
-            relationship_count = 0
-            if erow:
-                try:
-                    import json
-                    if erow[0]:
-                        ents = json.loads(erow[0]) if isinstance(erow[0], str) else erow[0]
-                        entity_count = len(ents) if isinstance(ents, list) else 0
-                    if erow[1]:
-                        rels = json.loads(erow[1]) if isinstance(erow[1], str) else erow[1]
-                        relationship_count = len(rels) if isinstance(rels, list) else 0
-                except Exception:
-                    pass
+            entity_count, relationship_count = enrichment_map.get(doc_id, (0, 0))
 
             results.append({
                 "id": doc_id,

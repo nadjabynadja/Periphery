@@ -14,10 +14,11 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-from periphery.config import Settings
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from periphery.config import get_settings
 
-settings = Settings()
+settings = get_settings()
 from periphery.db import get_connection
 from periphery.query.models import (
     AnalyticalQueryRequest,
@@ -37,6 +38,31 @@ _entity_index = None
 
 # Module-level cache for enrichment data, keyed by snapshot_id
 _enrichment_cache: dict[str, dict[str, Any]] = {}
+
+
+def _check_admin_key(x_admin_key: str | None) -> None:
+    """Raise HTTP 403 if admin key is missing or incorrect."""
+    _settings = get_settings()
+    if not _settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Admin endpoints are disabled (admin_api_key not configured)")
+    if x_admin_key != _settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key header")
+
+
+class FeedbackRequest(BaseModel):
+    """Schema for analyst feedback on a query result."""
+    rating: int | None = None  # e.g. 1 (thumbs up) or -1 (thumbs down)
+    notes: str | None = None
+    tags: list[str] | None = None
+
+
+class AnnotationRequest(BaseModel):
+    """Schema for analyst annotations (entity merge, relationship confirm/deny, etc.)."""
+    annotation_type: str  # entity_merge | relationship_confirm | relationship_deny
+    target_type: str      # entity | relationship | cluster
+    target_id: str
+    data: dict[str, Any] = {}
+    session_id: str = ""
 
 
 async def _load_enrichment_entities(
@@ -805,11 +831,11 @@ async def get_query_history(
 
 
 @router.post("/feedback/{query_id}")
-async def submit_feedback(query_id: str, feedback: dict[str, Any]):
+async def submit_feedback(query_id: str, feedback: FeedbackRequest):
     """Submit analyst feedback on a query result (thumbs up/down, notes)."""
     engine = _get_engine()
     if engine.query_store:
-        await engine.query_store.save_feedback(query_id, feedback)
+        await engine.query_store.save_feedback(query_id, feedback.model_dump(exclude_none=True))
     return {"status": "ok", "query_id": query_id}
 
 
@@ -843,26 +869,16 @@ async def get_bookmarks(session_id: str):
 
 
 @router.post("/annotate")
-async def submit_annotation(body: dict[str, Any]):
-    """Submit an analyst annotation (entity merge, relationship confirmation, etc.).
-
-    Body format:
-    {
-        "annotation_type": "entity_merge" | "relationship_confirm" | "relationship_deny",
-        "target_type": "entity" | "relationship" | "cluster",
-        "target_id": str,
-        "data": dict,
-        "session_id": str
-    }
-    """
+async def submit_annotation(body: AnnotationRequest):
+    """Submit an analyst annotation (entity merge, relationship confirmation, etc.)."""
     engine = _get_engine()
     if engine.query_store:
         await engine.query_store.save_annotation(
-            annotation_type=body.get("annotation_type", ""),
-            target_type=body.get("target_type", ""),
-            target_id=body.get("target_id", ""),
-            annotation_data=body.get("data", {}),
-            session_id=body.get("session_id", ""),
+            annotation_type=body.annotation_type,
+            target_type=body.target_type,
+            target_id=body.target_id,
+            annotation_data=body.data,
+            session_id=body.session_id,
         )
     return {"status": "ok"}
 
@@ -1028,8 +1044,9 @@ async def backfill_entity_index(entity_index, db_path: str = "") -> int:
 
 
 @router.post("/admin/backfill-entities")
-async def admin_backfill_entities():
-    """Trigger entity backfill from existing document_enrichments data."""
+async def admin_backfill_entities(x_admin_key: str | None = Header(None)):
+    """Trigger entity backfill from existing document_enrichments data. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     entity_index = _entity_index
     if entity_index is None:
         return {"error": "Entity index not available"}

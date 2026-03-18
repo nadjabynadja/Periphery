@@ -4,12 +4,7 @@ export {
   getCachedSnapshot,
   setCachedSnapshot,
   computeRendering,
-  snapshotPWS,
-  onSnapshotUpdate,
-  onNewDocument,
   subscribeToQuery,
-  getConnectionStatus,
-  onConnectionStatusChange,
 } from './client'
 export type { CommandResponse, CommandStatusEntry, CommandStatusMap } from './client'
 export { PeripheryWebSocket } from './websocket'

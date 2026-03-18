@@ -738,24 +738,10 @@ export { computeRendering }
 
 const WS_BASE = BASE_URL ? BASE_URL.replace(/^http/, 'ws') : ''
 
-// PeripheryWebSocket instance for snapshot updates (channel-based alternative)
-const snapshotPWS = new PeripheryWebSocket(
-  `${WS_BASE || `${typeof window !== 'undefined' ? (window.location.protocol === 'https:' ? 'wss:' : 'ws:') : 'ws:'}//` + (typeof window !== 'undefined' ? window.location.host : 'localhost:8000')}/ws/snapshot`,
-)
-
-export { snapshotPWS }
-
-export function onSnapshotUpdate(handler: (data: any) => void): () => void {
-  return snapshotPWS.on('snapshot_update', (msg: WSMessage) => {
-    if (msg.data) handler(msg.data)
-  })
-}
-
-export function onNewDocument(handler: (data: any) => void): () => void {
-  return snapshotPWS.on('snapshot_update', (msg: WSMessage) => {
-    if (msg.data?.type === 'new_document') handler(msg.data)
-  })
-}
+// wsManager (WebSocketManager) is the active WebSocket implementation used by App.tsx.
+// The unused PeripheryWebSocket-based helpers (snapshotPWS, onSnapshotUpdate,
+// onNewDocument, getConnectionStatus, onConnectionStatusChange) have been removed
+// to avoid opening a duplicate /ws/snapshot connection on startup. (M14)
 
 export function subscribeToQuery(queryId: string, handler: (data: any) => void): () => void {
   const wsBase = WS_BASE || `${typeof window !== 'undefined' ? (window.location.protocol === 'https:' ? 'wss:' : 'ws:') : 'ws:'}//` + (typeof window !== 'undefined' ? window.location.host : 'localhost:8000')
@@ -769,12 +755,4 @@ export function subscribeToQuery(queryId: string, handler: (data: any) => void):
     unsub()
     queryWS.disconnect()
   }
-}
-
-export function getConnectionStatus(): string {
-  return snapshotPWS.status
-}
-
-export function onConnectionStatusChange(handler: (status: string) => void): () => void {
-  return snapshotPWS.onStatusChange(handler)
 }

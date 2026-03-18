@@ -15,3 +15,7 @@ frontend/dist/
 .vite/
 venv/
 .venv/
+nohup.out
+sqlforthis.txt
+*.db
+package-lock.json

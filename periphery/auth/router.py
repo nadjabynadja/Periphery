@@ -34,6 +34,15 @@ from periphery.auth.persistence import (
 )
 from periphery.config import get_settings
 
+
+def _check_admin_key(x_admin_key: str | None) -> None:
+    """Raise HTTP 403 if admin key is missing or incorrect."""
+    settings = get_settings()
+    if not settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Admin endpoints are disabled (admin_api_key not configured)")
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key header")
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -168,8 +177,9 @@ async def get_me(user: AuthenticatedUser = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 
 @router.post("/orgs")
-async def create_org(body: CreateOrgRequest):
-    """Create a new organization. Bootstrap endpoint."""
+async def create_org(body: CreateOrgRequest, x_admin_key: str | None = Header(None)):
+    """Create a new organization. Bootstrap endpoint. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     org = await create_organization(body.name)
     return {"org_id": org.org_id, "name": org.name}
 

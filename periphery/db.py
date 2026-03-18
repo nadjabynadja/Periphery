@@ -726,6 +726,15 @@ class DatabasePool:
 # ---------------------------------------------------------------------------
 
 _pool: DatabasePool | None = None
+_pool_init_lock: asyncio.Lock | None = None
+
+
+def _get_init_lock() -> asyncio.Lock:
+    """Get or create the pool initialization lock (lazy, event-loop-safe)."""
+    global _pool_init_lock
+    if _pool_init_lock is None:
+        _pool_init_lock = asyncio.Lock()
+    return _pool_init_lock
 
 
 async def init_pool(
@@ -735,18 +744,28 @@ async def init_pool(
     busy_timeout_ms: int = 30_000,
     retention: dict[str, int] | None = None,
 ) -> DatabasePool:
-    """Initialize the global database pool. Safe to call multiple times."""
+    """Initialize the global database pool. Safe to call multiple times.
+
+    Protected by an asyncio.Lock to prevent concurrent initialization races
+    during startup when multiple coroutines may call init_pool simultaneously.
+    """
     global _pool
+    # Fast path — pool already initialized, no lock needed
     if _pool is not None and _pool._initialized and not _pool._closed:
         return _pool
-    _pool = DatabasePool(
-        db_path,
-        pool_size=pool_size,
-        busy_timeout_ms=busy_timeout_ms,
-        retention=retention,
-    )
-    await _pool.initialize()
-    return _pool
+
+    async with _get_init_lock():
+        # Re-check under lock to handle concurrent callers
+        if _pool is not None and _pool._initialized and not _pool._closed:
+            return _pool
+        _pool = DatabasePool(
+            db_path,
+            pool_size=pool_size,
+            busy_timeout_ms=busy_timeout_ms,
+            retention=retention,
+        )
+        await _pool.initialize()
+        return _pool
 
 
 def get_pool() -> DatabasePool:

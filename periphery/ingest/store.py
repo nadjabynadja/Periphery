@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import json
 import os
-import pickle
 from pathlib import Path
 from typing import Any
 
@@ -96,14 +96,22 @@ class FAISSStore:
         """Persist index and ID mapping to disk."""
         Path(self.index_path).parent.mkdir(parents=True, exist_ok=True)
         faiss.write_index(self.index, self.index_path)
-        with open(self.id_map_path, "wb") as f:
-            pickle.dump((self.id_to_pos, self.pos_to_id), f)
+        # Use JSON (not pickle) to avoid arbitrary code execution on load
+        id_map_data = {
+            "id_to_pos": self.id_to_pos,
+            "pos_to_id": {str(k): v for k, v in self.pos_to_id.items()},
+        }
+        with open(self.id_map_path, "w", encoding="utf-8") as f:
+            json.dump(id_map_data, f)
 
     def load(self) -> None:
         """Load index and ID mapping from disk."""
         self.index = faiss.read_index(self.index_path)
-        with open(self.id_map_path, "rb") as f:
-            self.id_to_pos, self.pos_to_id = pickle.load(f)
+        # Use JSON (not pickle) to avoid arbitrary code execution on load
+        with open(self.id_map_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
+        self.pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
 
 
 class MultiSpaceIndexManager:
@@ -159,8 +167,11 @@ class MultiSpaceIndexManager:
             if os.path.exists(idx_path) and os.path.exists(map_path):
                 try:
                     self._indices[space] = faiss.read_index(idx_path)
-                    with open(map_path, "rb") as f:
-                        id_to_pos, pos_to_id = pickle.load(f)
+                    # Use JSON (not pickle) to avoid arbitrary code execution on load
+                    with open(map_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
+                    pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
                     self._id_maps[space] = {
                         "id_to_pos": id_to_pos,
                         "pos_to_id": pos_to_id,
@@ -276,11 +287,13 @@ class MultiSpaceIndexManager:
             idx_path = self._index_path(space)
             map_path = self._id_map_path(space)
             faiss.write_index(self._indices[space], idx_path)
-            with open(map_path, "wb") as f:
-                pickle.dump(
-                    (self._id_maps[space]["id_to_pos"], self._id_maps[space]["pos_to_id"]),
-                    f,
-                )
+            # Use JSON (not pickle) to avoid arbitrary code execution on load
+            id_map_data = {
+                "id_to_pos": self._id_maps[space]["id_to_pos"],
+                "pos_to_id": {str(k): v for k, v in self._id_maps[space]["pos_to_id"].items()},
+            }
+            with open(map_path, "w", encoding="utf-8") as f:
+                json.dump(id_map_data, f)
         logger.info("all_indices_saved", spaces=list(self._indices.keys()))
 
     def save_space(self, space: str) -> None:
@@ -291,11 +304,13 @@ class MultiSpaceIndexManager:
         map_path = self._id_map_path(space)
         self._index_dir.mkdir(parents=True, exist_ok=True)
         faiss.write_index(self._indices[space], idx_path)
-        with open(map_path, "wb") as f:
-            pickle.dump(
-                (self._id_maps[space]["id_to_pos"], self._id_maps[space]["pos_to_id"]),
-                f,
-            )
+        # Use JSON (not pickle) to avoid arbitrary code execution on load
+        id_map_data = {
+            "id_to_pos": self._id_maps[space]["id_to_pos"],
+            "pos_to_id": {str(k): v for k, v in self._id_maps[space]["pos_to_id"].items()},
+        }
+        with open(map_path, "w", encoding="utf-8") as f:
+            json.dump(id_map_data, f)
 
     def track_batch(self, batch_size: int) -> bool:
         """Track documents added since last rebuild. Returns True if rebuild needed."""

@@ -2,16 +2,22 @@
 
 Allows operators to trigger ingestion and collection processes
 from the UI instead of SSH-ing into the box.
+
+All endpoints require the X-Admin-Key header to match the configured
+admin_api_key setting. If admin_api_key is unset, all endpoints return 403.
 """
 
 from __future__ import annotations
 
 import asyncio
 import signal
+import sys
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
+
+from periphery.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -23,23 +29,34 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # Track running subprocesses keyed by command name
 _running_processes: dict[str, asyncio.subprocess.Process] = {}
 
-# Map of command names to their arguments
+# Map of command names to their arguments.
+# Uses sys.executable so the correct Python interpreter is always used,
+# regardless of venv location (Docker, system install, etc.).
 _COMMANDS: dict[str, list[str]] = {
     "pipeline": [
-        str(_PROJECT_ROOT / ".venv" / "bin" / "python"),
+        sys.executable,
         "-m", "periphery.pipeline",
     ],
     "rss": [
-        str(_PROJECT_ROOT / ".venv" / "bin" / "python"),
+        sys.executable,
         "-m", "periphery.rss_ingest",
         "--no-server", "--duration", "30",
     ],
     "rss-continuous": [
-        str(_PROJECT_ROOT / ".venv" / "bin" / "python"),
+        sys.executable,
         "-m", "periphery.rss_ingest",
         "--no-server",
     ],
 }
+
+
+def _check_admin_key(x_admin_key: str | None) -> None:
+    """Raise HTTP 403 if admin key is missing or incorrect."""
+    settings = get_settings()
+    if not settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Admin endpoints are disabled (admin_api_key not configured)")
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key header")
 
 
 def _is_running(proc: asyncio.subprocess.Process) -> bool:
@@ -48,26 +65,30 @@ def _is_running(proc: asyncio.subprocess.Process) -> bool:
 
 
 @router.post("/force-ingest")
-async def force_ingest():
-    """Run the full ingestion pipeline (.venv/bin/python -m periphery.pipeline)."""
+async def force_ingest(x_admin_key: str | None = Header(None)):
+    """Run the full ingestion pipeline. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     return await _start_command("pipeline")
 
 
 @router.post("/run-collect")
-async def run_collect():
-    """Run RSS collection for 30 seconds (.venv/bin/python -m periphery.rss_ingest --no-server --duration 30)."""
+async def run_collect(x_admin_key: str | None = Header(None)):
+    """Run RSS collection for 30 seconds. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     return await _start_command("rss")
 
 
 @router.post("/continuous-collect")
-async def continuous_collect():
-    """Run continuous RSS collection (.venv/bin/python -m periphery.rss_ingest --no-server)."""
+async def continuous_collect(x_admin_key: str | None = Header(None)):
+    """Run continuous RSS collection. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     return await _start_command("rss-continuous")
 
 
 @router.get("/status")
-async def command_status():
-    """Return the running/stopped state and PID of each command."""
+async def command_status(x_admin_key: str | None = Header(None)):
+    """Return the running/stopped state and PID of each command. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     statuses = {}
     for name in _COMMANDS:
         proc = _running_processes.get(name)
@@ -79,8 +100,9 @@ async def command_status():
 
 
 @router.post("/stop/{command_name}")
-async def stop_command(command_name: str):
-    """Send SIGTERM to a running command."""
+async def stop_command(command_name: str, x_admin_key: str | None = Header(None)):
+    """Send SIGTERM to a running command. Requires X-Admin-Key header."""
+    _check_admin_key(x_admin_key)
     proc = _running_processes.get(command_name)
     if proc is None or not _is_running(proc):
         return {"status": "not_running", "command": command_name}
