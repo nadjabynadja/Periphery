@@ -163,6 +163,8 @@ export function GeographicOverlay() {
   const prevClusterHash = useRef('')
 
   const snapshot = useStore(s => s.snapshot)
+  const entities = useStore(s => s.entities)
+  const relationships = useStore(s => s.relationships)
   const setSelectedElement = useStore(s => s.setSelectedElement)
   const highlightedEntityIds = useStore(s => s.highlightedEntityIds)
 
@@ -171,29 +173,28 @@ export function GeographicOverlay() {
   // Build entity position lookup
   const entityPositions = useMemo(() => {
     const map = new Map<string, [number, number]>()
-    if (!snapshot) return map
-    for (const entity of (snapshot.entities ?? [])) {
+    for (const entity of entities) {
       if (entity.location) {
         map.set(entity.canonical_id, [entity.location.lon, entity.location.lat])
       }
     }
     return map
-  }, [snapshot])
+  }, [entities])
 
   // Build GeoJSON data
   const entityGeoJSON = useMemo(
-    () => (snapshot ? buildEntityGeoJSON(snapshot.entities ?? [], highlightedEntityIds) : EMPTY_FC),
-    [snapshot, highlightedEntityIds],
+    () => buildEntityGeoJSON(entities, highlightedEntityIds),
+    [entities, highlightedEntityIds],
   )
 
   const relationshipGeoJSON = useMemo(
-    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships ?? [], entityPositions, 0.4, Infinity) : EMPTY_FC),
-    [snapshot, entityPositions],
+    () => buildRelationshipGeoJSON(relationships, entityPositions, 0.4, Infinity),
+    [relationships, entityPositions],
   )
 
   const relationshipDashedGeoJSON = useMemo(
-    () => (snapshot ? buildRelationshipGeoJSON(snapshot.relationships ?? [], entityPositions, 0, 0.4) : EMPTY_FC),
-    [snapshot, entityPositions],
+    () => buildRelationshipGeoJSON(relationships, entityPositions, 0, 0.4),
+    [relationships, entityPositions],
   )
 
   const clusterGeoJSON = useMemo(
@@ -665,7 +666,7 @@ export function GeographicOverlay() {
     }
   }, [heatmapMode])
 
-  const entityCount = snapshot?.entities?.filter(e => e.location).length || 0
+  const entityCount = entities.filter(e => e.location).length
 
   return (
     <div className="relative w-full h-full">

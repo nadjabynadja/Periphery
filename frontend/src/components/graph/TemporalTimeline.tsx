@@ -29,6 +29,8 @@ export function TemporalTimeline() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const snapshot = useStore(s => s.snapshot)
+  const storeEntities = useStore(s => s.entities)
+  const storeRelationships = useStore(s => s.relationships)
   const setSelectedElement = useStore(s => s.setSelectedElement)
   const highlightedEntityIds = useStore(s => s.highlightedEntityIds)
 
@@ -40,9 +42,9 @@ export function TemporalTimeline() {
 
   // Parse entities into timeline format
   const timelineData = useMemo(() => {
-    if (!snapshot) return { entities: [], relationships: [], minTime: 0, maxTime: 0 }
+    if (!snapshot && storeEntities.length === 0) return { entities: [], relationships: [], minTime: 0, maxTime: 0 }
 
-    const entities: TimelineEntity[] = (snapshot.entities ?? []).map(e => ({
+    const entities: TimelineEntity[] = storeEntities.map(e => ({
       id: e.canonical_id,
       name: e.name,
       type: e.entity_type,
@@ -52,7 +54,7 @@ export function TemporalTimeline() {
       clusterIds: e.cluster_ids,
     }))
 
-    const relationships: TimelineRelationship[] = (snapshot.relationships ?? []).map(r => ({
+    const relationships: TimelineRelationship[] = storeRelationships.map(r => ({
       id: r.id,
       subjectId: r.subject_id,
       objectId: r.object_id,
@@ -74,7 +76,7 @@ export function TemporalTimeline() {
     entities.sort((a, b) => a.firstSeen - b.firstSeen || b.confidence - a.confidence)
 
     return { entities, relationships, minTime, maxTime }
-  }, [snapshot])
+  }, [storeEntities, storeRelationships, snapshot])
 
   // Initialize view range
   useEffect(() => {
@@ -317,7 +319,7 @@ export function TemporalTimeline() {
     setScrollY(0)
   }, [timelineData.minTime, timelineData.maxTime])
 
-  if (!snapshot || (snapshot.entities?.length ?? 0) === 0) {
+  if (storeEntities.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
