@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     enrichment_llm_model_path: str = "models/llama-3.2-3b-instruct-q4_k_m.gguf"
     enrichment_llm_disambiguator_enabled: bool = True
 
+    # LLM verification stage settings
+    verification_enabled: bool = True
+    verification_model: str = "claude-haiku-3-5-20241022"
+    verification_exa_enabled: bool = True
+    verification_exa_min_source_count: int = 3
+    verification_batch_size: int = 50
+
     # Multi-space embedding settings
     embedding_index_dir: str = "./data/indices"
     embedding_chunk_size: int = 256  # tokens per chunk

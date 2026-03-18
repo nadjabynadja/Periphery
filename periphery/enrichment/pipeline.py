@@ -284,18 +284,20 @@ class EnrichmentPipeline:
 def build_enrichment_pipeline(settings: Settings, entity_index=None) -> EnrichmentPipeline:
     """Build a fully configured EnrichmentPipeline from application settings.
 
-    Assembles all six stages in the correct order:
+    Assembles all seven stages in the correct order:
       1. Entity Extraction (SpaCy NER + OSINT regex patterns)
       2. Source Credibility Tagging (must run before relationship extraction)
       3. Relationship Extraction (co-occurrence, dependency, LLM tiers)
       4. Temporal Tagging
       5. Geospatial Resolution
       6. Entity Resolution (must run after extraction stages)
+      7. LLM Verification (Claude Haiku + Exa — filters, corrects, enriches)
     """
     from .budget import BudgetTracker
     from .stages.entity_extraction import EntityExtractionStage
     from .stages.entity_resolution import EntityResolutionStage
     from .stages.geospatial_resolution import GeospatialResolutionStage
+    from .stages.llm_verification import LLMVerificationStage
     from .stages.relationship_extraction import RelationshipExtractionStage
     from .stages.source_credibility import SourceCredibilityStage
     from .stages.temporal_tagging import TemporalTaggingStage
@@ -337,6 +339,16 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
             entity_index=entity_index,
             fuzzy_threshold=settings.enrichment_fuzzy_match_threshold,
         ),
+        LLMVerificationStage(
+            anthropic_client=anthropic_client,
+            budget_tracker=budget_tracker,
+            exa_api_key=settings.exa_api_key,
+            model=settings.verification_model,
+            enabled=settings.verification_enabled,
+            exa_enabled=settings.verification_exa_enabled,
+            exa_min_source_count=settings.verification_exa_min_source_count,
+            batch_size=settings.verification_batch_size,
+        ),
     ]
 
     pipeline = EnrichmentPipeline(
@@ -349,6 +361,7 @@ def build_enrichment_pipeline(settings: Settings, entity_index=None) -> Enrichme
         stages=[s.name for s in stages],
         concurrency=settings.enrichment_concurrency,
         llm_enabled=anthropic_client is not None,
+        verification_enabled=settings.verification_enabled,
     )
 
     return pipeline
