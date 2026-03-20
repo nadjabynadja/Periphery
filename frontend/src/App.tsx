@@ -20,6 +20,7 @@ import { QueryResults } from './components/query/QueryResults'
 import { DetailPanel } from './components/detail/DetailPanel'
 import { AuthProvider } from './components/auth/AuthProvider'
 import { LoginPage } from './components/auth/LoginPage'
+import { MobileConfirm } from './components/auth/MobileConfirm'
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: 'graph', label: 'GRAPH' },
@@ -171,6 +172,13 @@ export default function App() {
 
   const detailPanelWidth = selectedElement ? 360 : 0
   const isAuthenticated = useStore(s => s.isAuthenticated)
+
+  // Mobile auth flow: /app/?challenge=<id> renders the phone confirm page
+  const urlParams = new URLSearchParams(window.location.search)
+  const mobileChallenge = urlParams.get('challenge')
+  if (mobileChallenge) {
+    return <MobileConfirm challengeId={mobileChallenge} />
+  }
 
   return (
     <AuthProvider>

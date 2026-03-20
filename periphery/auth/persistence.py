@@ -244,11 +244,8 @@ async def create_challenge(server_url: str, ttl_minutes: int = 5) -> AuthChallen
     now = _now()
     challenge_id = generate_challenge_id()
     challenge_code = generate_challenge_code()
-    qr_payload = json.dumps({
-        "challenge_id": challenge_id,
-        "server_url": server_url,
-        "ts": int(now.timestamp()),
-    })
+    # QR encodes a URL that opens the mobile auth page directly
+    qr_payload = f"{server_url}/app/?challenge={challenge_id}"
     challenge = AuthChallenge(
         challenge_id=challenge_id,
         challenge_code=challenge_code,
