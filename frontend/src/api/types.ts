@@ -145,6 +145,8 @@ export interface RenderingMetadata {
 }
 
 export interface OntologySnapshot {
+  snapshot_id: string | null
+  generated_at: string | null
   entities?: EntityNode[]
   relationships?: Relationship[]
   clusters: DetectedCluster[]

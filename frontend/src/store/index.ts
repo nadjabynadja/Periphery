@@ -136,12 +136,52 @@ const defaultGraphSettings: GraphSettings = {
 
 export const useStore = create<PeripheryState>((set) => ({
   snapshot: null,
-  setSnapshot: (s) => set({ snapshot: s }),
+  setSnapshot: (s) => set((state) => {
+    // Skip update if snapshot hasn't actually changed (prevents 30s refresh churn)
+    const prev = state.snapshot
+    if (prev && prev.snapshot_id === s.snapshot_id && prev.generated_at === s.generated_at) {
+      return state
+    }
+    return { snapshot: s }
+  }),
 
   entities: [],
-  setEntities: (entities) => set({ entities }),
+  setEntities: (entities) => set((state) => {
+    // Skip update if entity list is structurally unchanged (prevents map/graph rerender)
+    const prev = state.entities
+    if (prev.length === entities.length && prev.length > 0) {
+      // Quick fingerprint: compare length + first/last entity ids + a confidence sample
+      const prevFirst = prev[0]
+      const nextFirst = entities[0]
+      const prevLast = prev[prev.length - 1]
+      const nextLast = entities[entities.length - 1]
+      if (
+        prevFirst.canonical_id === nextFirst.canonical_id &&
+        prevLast.canonical_id === nextLast.canonical_id &&
+        prevFirst.confidence === nextFirst.confidence &&
+        prevLast.confidence === nextLast.confidence
+      ) {
+        return state
+      }
+    }
+    return { entities }
+  }),
   relationships: [],
-  setRelationships: (relationships) => set({ relationships }),
+  setRelationships: (relationships) => set((state) => {
+    const prev = state.relationships
+    if (prev.length === relationships.length && prev.length > 0) {
+      const prevFirst = prev[0]
+      const nextFirst = relationships[0]
+      if (
+        prevFirst.subject_id === nextFirst.subject_id &&
+        prevFirst.object_id === nextFirst.object_id &&
+        prevFirst.confidence === nextFirst.confidence
+      ) {
+        return state
+      }
+    }
+    return { relationships }
+  }),
   loadingEntities: false,
   setLoadingEntities: (loading) => set({ loadingEntities: loading }),
 

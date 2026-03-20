@@ -64,19 +64,25 @@ export default function App() {
     refetchInterval: 5000,
   })
 
+  const lastSnapshotIdRef = useRef<string | null>(null)
+
   useQuery({
     queryKey: ['snapshot'],
     queryFn: async () => {
       const data = await peripheryApi.getSnapshot({ include_rendering: true })
       setSnapshot(data)
-      // After snapshot loads, kick off entity fetch
-      setLoadingEntities(true)
-      peripheryApi.getEntities({ limit: 500 }).then(result => {
-        setEntities(result.entities)
-        setLoadingEntities(false)
-      }).catch(() => {
-        setLoadingEntities(false)
-      })
+      // Only re-fetch entities when the snapshot actually changed
+      const snapshotKey = `${data.snapshot_id}|${data.generated_at}`
+      if (snapshotKey !== lastSnapshotIdRef.current) {
+        lastSnapshotIdRef.current = snapshotKey
+        setLoadingEntities(true)
+        peripheryApi.getEntities({ limit: 500 }).then(result => {
+          setEntities(result.entities)
+          setLoadingEntities(false)
+        }).catch(() => {
+          setLoadingEntities(false)
+        })
+      }
       return data
     },
     refetchInterval: 30000,
@@ -118,10 +124,14 @@ export default function App() {
     const unsubDelta = wsManager.subscribe('snapshot_delta', () => {
       peripheryApi.getSnapshot({ include_rendering: true }).then(snap => {
         setSnapshot(snap)
-        // Refresh entities when snapshot updates
-        peripheryApi.getEntities({ limit: 500 }).then(result => {
-          setEntities(result.entities)
-        }).catch(() => {})
+        // Only refresh entities when snapshot actually changed
+        const snapshotKey = `${snap.snapshot_id}|${snap.generated_at}`
+        if (snapshotKey !== lastSnapshotIdRef.current) {
+          lastSnapshotIdRef.current = snapshotKey
+          peripheryApi.getEntities({ limit: 500 }).then(result => {
+            setEntities(result.entities)
+          }).catch(() => {})
+        }
       }).catch(() => {})
     })
 

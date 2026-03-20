@@ -713,6 +713,8 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
 
 function convertLegacySnapshot(legacy: LegacyOntologySnapshot): OntologySnapshot {
   return {
+    snapshot_id: null,
+    generated_at: null,
     entities: legacy.nodes.map(n => ({
       canonical_id: n.id,
       name: n.label,
