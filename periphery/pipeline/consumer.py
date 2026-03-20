@@ -159,34 +159,46 @@ class StageConsumer(abc.ABC):
             pass
 
     async def _run_cycle(self) -> int:
-        """Run one polling + processing cycle. Returns count of docs processed."""
+        """Run one polling + processing cycle. Returns count of docs processed.
+
+        Split into three short DB transactions (claim → process → advance)
+        to avoid holding a write lock during the long processing phase
+        (LLM calls, embedding, etc.), which would block the API server.
+        """
+        # Phase 1: Claim batch (short DB transaction)
         async with get_connection(self._db_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             db.row_factory = aiosqlite.Row
-
-            # Claim a batch
             claimed = await self._claim_batch(db)
             if not claimed:
                 return 0
 
-            # Process
-            start = time.monotonic()
-            try:
+        # Phase 2: Process (no DB connection held — frees write lock for API)
+        start = time.monotonic()
+        try:
+            async with get_connection(self._db_path) as db:
+                await db.execute("PRAGMA journal_mode=WAL")
+                db.row_factory = aiosqlite.Row
                 success_ids = await self.process(db, claimed)
-            except Exception as exc:
-                # Whole-batch failure — mark all as retry/failed
+        except Exception as exc:
+            # Whole-batch failure — mark all as retry/failed
+            async with get_connection(self._db_path) as db:
+                await db.execute("PRAGMA journal_mode=WAL")
+                db.row_factory = aiosqlite.Row
                 for doc in claimed:
                     await self._handle_failure(db, doc["id"], doc.get("retry_count", 0), str(exc))
-                return 0
+            return 0
 
-            elapsed = time.monotonic() - start
+        elapsed = time.monotonic() - start
 
-            # Normalize success_ids to a set of strings for robust matching
-            if success_ids is None:
-                success_ids = []
-            success_set = set(str(sid) for sid in success_ids)
+        # Phase 3: Advance/fail (short DB transaction)
+        if success_ids is None:
+            success_ids = []
+        success_set = set(str(sid) for sid in success_ids)
 
-            # Advance successful documents
+        async with get_connection(self._db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            db.row_factory = aiosqlite.Row
             for doc in claimed:
                 doc_id = str(doc["id"])
                 if doc_id in success_set:
