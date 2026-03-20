@@ -18,18 +18,33 @@ from periphery.auth.models import (
     ScanRequest,
     SessionResponse,
 )
+from pydantic import BaseModel
+
+class EmailScanRequest(BaseModel):
+    email: str
+
+class ApprovedEmailRequest(BaseModel):
+    email: str
+    display_name: str
+    org_id: str
+    role: str = "analyst"
 from periphery.auth.persistence import (
+    add_approved_email,
     complete_challenge,
     create_challenge,
     create_organization,
     create_session,
     create_user,
     delete_session,
+    get_approved_email,
     get_challenge,
+    get_or_create_user_for_email,
     get_organization,
     get_user,
+    list_approved_emails,
     list_organizations,
     list_users,
+    remove_approved_email,
     scan_challenge,
 )
 from periphery.config import get_settings
@@ -99,6 +114,28 @@ async def scan_qr_challenge(challenge_id: str, body: ScanRequest):
         raise HTTPException(status_code=400, detail="Challenge not available or expired")
 
     return {"challenge_code": challenge.challenge_code}
+
+
+@router.post("/challenge/{challenge_id}/scan-by-email")
+async def scan_qr_challenge_by_email(challenge_id: str, body: EmailScanRequest):
+    """Phone scans QR and authenticates by email address.
+
+    The email must be in the approved_emails allowlist.
+    If the user doesn't exist yet, they are auto-provisioned.
+    Returns the 6-digit code to display on the phone.
+    """
+    user = await get_or_create_user_for_email(body.email)
+    if not user:
+        raise HTTPException(status_code=403, detail="Email not approved for access")
+
+    challenge = await scan_challenge(challenge_id, user.user_id, user.org_id)
+    if not challenge:
+        raise HTTPException(status_code=400, detail="Challenge not available or expired")
+
+    return {
+        "challenge_code": challenge.challenge_code,
+        "display_name": user.display_name,
+    }
 
 
 @router.post("/challenge/{challenge_id}/confirm", response_model=SessionResponse)
@@ -235,3 +272,49 @@ async def list_org_users(
         }
         for u in users
     ]
+
+
+# ---------------------------------------------------------------------------
+# Approved Emails — admin allowlist management
+# ---------------------------------------------------------------------------
+
+@router.get("/approved-emails")
+async def list_approved(
+    org_id: str | None = None,
+    x_admin_key: str | None = Header(None),
+):
+    """List approved emails. Requires X-Admin-Key."""
+    _check_admin_key(x_admin_key)
+    return await list_approved_emails(org_id)
+
+
+@router.post("/approved-emails")
+async def add_approved(
+    body: ApprovedEmailRequest,
+    x_admin_key: str | None = Header(None),
+):
+    """Add or update an approved email. Requires X-Admin-Key."""
+    _check_admin_key(x_admin_key)
+    org = await get_organization(body.org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    result = await add_approved_email(
+        email=body.email,
+        display_name=body.display_name,
+        org_id=body.org_id,
+        role=body.role,
+    )
+    return result
+
+
+@router.delete("/approved-emails/{email}")
+async def remove_approved(
+    email: str,
+    x_admin_key: str | None = Header(None),
+):
+    """Remove an approved email. Requires X-Admin-Key."""
+    _check_admin_key(x_admin_key)
+    removed = await remove_approved_email(email)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Email not found")
+    return {"ok": True}

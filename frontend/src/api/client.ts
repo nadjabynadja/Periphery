@@ -563,6 +563,16 @@ export const peripheryApi = {
     })
   },
 
+  scanChallengeByEmail(
+    challengeId: string,
+    email: string,
+  ): Promise<{ challenge_code: string; display_name: string }> {
+    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/scan-by-email`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+
   confirmChallenge(challengeId: string, code: string): Promise<{
     session_token: string; user_id: string; org_id: string;
     display_name: string; role: string; expires_at: string;

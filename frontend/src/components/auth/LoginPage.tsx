@@ -4,6 +4,7 @@
 // then shows passcode input for confirmation.
 // ============================================
 
+import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { peripheryApi } from '../../api'
 import { useStore } from '../../store'
@@ -26,6 +27,7 @@ export function LoginPage() {
   const startChallenge = useCallback(async () => {
     try {
       setError('')
+      setPasscode('')
       const res = await peripheryApi.startChallenge()
       setChallengeId(res.challenge_id)
       setQrData(res.qr_data)
@@ -37,7 +39,6 @@ export function LoginPage() {
     }
   }, [])
 
-  // Start challenge on mount
   useEffect(() => {
     startChallenge()
   }, [startChallenge])
@@ -85,10 +86,22 @@ export function LoginPage() {
   }
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+    <div
+      className="h-screen w-screen flex items-center justify-center"
+      style={{ background: 'var(--bg-primary)' }}
+    >
       <div className="scanline-overlay" />
-      <div className="w-full max-w-md p-8" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-        <h1 className="text-xl font-display font-bold tracking-wider text-center mb-1" style={{ color: 'var(--accent-cyan)' }}>
+      <div
+        className="w-full max-w-md p-8"
+        style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+        }}
+      >
+        <h1
+          className="text-xl font-display font-bold tracking-wider text-center mb-1"
+          style={{ color: 'var(--accent-cyan)' }}
+        >
           PERIPHERY
         </h1>
         <p className="text-xs text-center mb-6" style={{ color: 'var(--text-dim)' }}>
@@ -98,20 +111,26 @@ export function LoginPage() {
         {stage === 'qr' && (
           <div className="text-center">
             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Scan this QR code with your device to authenticate
+              Scan this QR code with your phone to authenticate
             </p>
             <div className="inline-block p-4 bg-white rounded mb-4">
-              {/* Render QR data as a text-based placeholder until qrcode.react is installed */}
-              <div className="w-48 h-48 flex items-center justify-center text-xs text-gray-500 font-mono break-all p-2 border border-gray-200">
-                <QRDisplay data={qrData} />
-              </div>
+              {qrData ? (
+                <QRCodeSVG value={qrData} size={192} />
+              ) : (
+                <div
+                  className="w-48 h-48 flex items-center justify-center text-xs"
+                  style={{ color: '#999' }}
+                >
+                  Generating…
+                </div>
+              )}
             </div>
-            <p className="text-xxs" style={{ color: 'var(--text-dim)' }}>
-              Waiting for scan...
+            <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+              Waiting for scan…
             </p>
             {expiresAt && (
-              <p className="text-xxs mt-1" style={{ color: 'var(--text-dim)' }}>
-                Expires: {new Date(expiresAt).toLocaleTimeString()}
+              <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
+                Expires {new Date(expiresAt).toLocaleTimeString()}
               </p>
             )}
           </div>
@@ -119,18 +138,24 @@ export function LoginPage() {
 
         {stage === 'passcode' && (
           <div className="text-center">
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Scanned by: <span style={{ color: 'var(--accent-cyan)' }}>{userName}</span>
-            </p>
+            {userName && (
+              <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+                Scanned by:{' '}
+                <span style={{ color: 'var(--accent-cyan)' }}>{userName}</span>
+              </p>
+            )}
             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
               Enter the 6-digit passcode shown on your device
             </p>
             <input
               type="text"
+              inputMode="numeric"
               maxLength={6}
               value={passcode}
               onChange={e => setPasscode(e.target.value.replace(/\D/g, ''))}
-              onKeyDown={e => { if (e.key === 'Enter' && passcode.length === 6) handleConfirm() }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && passcode.length === 6) handleConfirm()
+              }}
               className="w-48 text-center text-2xl font-mono tracking-[0.5em] p-3 mb-4 border rounded"
               style={{
                 background: 'var(--bg-primary)',
@@ -138,7 +163,7 @@ export function LoginPage() {
                 color: 'var(--text-primary)',
               }}
               autoFocus
-              placeholder="------"
+              placeholder="——————"
             />
             <br />
             <button
@@ -146,8 +171,10 @@ export function LoginPage() {
               disabled={passcode.length !== 6}
               className="px-6 py-2 text-sm font-display tracking-wider uppercase"
               style={{
-                background: passcode.length === 6 ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-                color: passcode.length === 6 ? 'var(--bg-primary)' : 'var(--text-dim)',
+                background:
+                  passcode.length === 6 ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
+                color:
+                  passcode.length === 6 ? 'var(--bg-primary)' : 'var(--text-dim)',
                 border: 'none',
                 cursor: passcode.length === 6 ? 'pointer' : 'not-allowed',
               }}
@@ -159,11 +186,18 @@ export function LoginPage() {
 
         {stage === 'error' && (
           <div className="text-center">
-            <p className="text-sm mb-4" style={{ color: '#ff5555' }}>{error}</p>
+            <p className="text-sm mb-4" style={{ color: '#ff5555' }}>
+              {error}
+            </p>
             <button
               onClick={startChallenge}
               className="px-6 py-2 text-sm font-display tracking-wider uppercase"
-              style={{ background: 'var(--accent-cyan)', color: 'var(--bg-primary)', border: 'none', cursor: 'pointer' }}
+              style={{
+                background: 'var(--accent-cyan)',
+                color: 'var(--bg-primary)',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               Try Again
             </button>
@@ -171,29 +205,11 @@ export function LoginPage() {
         )}
 
         {error && stage !== 'error' && (
-          <p className="text-xs text-center mt-4" style={{ color: '#ff5555' }}>{error}</p>
+          <p className="text-xs text-center mt-4" style={{ color: '#ff5555' }}>
+            {error}
+          </p>
         )}
       </div>
     </div>
   )
-}
-
-
-function QRDisplay({ data }: { data: string }) {
-  // Simple text-based QR data display. Replace with qrcode.react when installed.
-  if (!data) return <span>Loading...</span>
-
-  try {
-    const parsed = JSON.parse(data)
-    return (
-      <div className="text-left">
-        <div className="text-[10px] leading-tight">
-          <div>ID: {parsed.challenge_id?.slice(0, 12)}...</div>
-          <div>URL: {parsed.server_url}</div>
-        </div>
-      </div>
-    )
-  } catch {
-    return <span>{data.slice(0, 100)}</span>
-  }
 }

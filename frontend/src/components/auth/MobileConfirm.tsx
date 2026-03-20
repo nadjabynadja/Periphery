@@ -1,10 +1,11 @@
 // ============================================
 // PERIPHERY — Mobile Confirmation Page
-// Phone-side of QR auth flow: user selects
-// identity and sees the passcode to enter on desktop.
+// Phone-side of QR auth flow: user enters their
+// approved email address, sees a 6-digit passcode
+// to type on the desktop.
 // ============================================
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { peripheryApi } from '../../api'
 
 interface MobileConfirmProps {
@@ -12,58 +13,69 @@ interface MobileConfirmProps {
 }
 
 export function MobileConfirm({ challengeId }: MobileConfirmProps) {
-  const [users, setUsers] = useState<{ user_id: string; display_name: string; role: string }[]>([])
-  const [orgs, setOrgs] = useState<{ org_id: string; name: string }[]>([])
-  const [selectedUserId, setSelectedUserId] = useState('')
+  const [email, setEmail] = useState('')
   const [challengeCode, setChallengeCode] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadOrgs() {
-      try {
-        const orgList = await peripheryApi.listOrgs()
-        setOrgs(orgList)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load organizations')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadOrgs()
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const handleScan = async () => {
-    if (!selectedUserId) return
+    if (!email.trim()) return
+    setLoading(true)
+    setError('')
     try {
-      setError('')
-      const res = await peripheryApi.scanChallenge(challengeId, selectedUserId)
+      const res = await peripheryApi.scanChallengeByEmail(challengeId, email.trim())
       setChallengeCode(res.challenge_code)
+      setDisplayName(res.display_name)
     } catch (err: any) {
-      setError(err.message || 'Failed to scan challenge')
+      const msg: string = err.message || 'Authentication failed'
+      if (msg.includes('403') || msg.toLowerCase().includes('not approved')) {
+        setError('This email address is not approved for access.')
+      } else if (msg.includes('400') || msg.toLowerCase().includes('expired')) {
+        setError('This QR code has expired. Please reload and try again.')
+      } else {
+        setError(msg)
+      }
+    } finally {
+      setLoading(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <p style={{ color: 'var(--text-dim)' }}>Loading...</p>
-      </div>
-    )
   }
 
   if (challengeCode) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="w-full max-w-sm p-8 text-center" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-          <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg-primary)' }}
+      >
+        <div
+          className="w-full max-w-sm p-8 text-center"
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <h2
+            className="text-lg font-display font-bold tracking-wider mb-2"
+            style={{ color: 'var(--accent-cyan)' }}
+          >
+            PERIPHERY
+          </h2>
+          {displayName && (
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              Welcome, <span style={{ color: 'var(--accent-cyan)' }}>{displayName}</span>
+            </p>
+          )}
+          <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
             Enter this code on the desktop
           </p>
-          <div className="text-4xl font-mono tracking-[0.5em] py-4" style={{ color: 'var(--accent-cyan)' }}>
+          <div
+            className="text-4xl font-mono tracking-[0.5em] py-6"
+            style={{ color: 'var(--accent-cyan)' }}
+          >
             {challengeCode}
           </div>
-          <p className="text-xxs" style={{ color: 'var(--text-dim)' }}>
-            This code will expire shortly
+          <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            This code expires shortly
           </p>
         </div>
       </div>
@@ -71,76 +83,74 @@ export function MobileConfirm({ challengeId }: MobileConfirmProps) {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-      <div className="w-full max-w-sm p-8" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-        <h2 className="text-lg font-display font-bold tracking-wider text-center mb-4" style={{ color: 'var(--accent-cyan)' }}>
-          Confirm Identity
+    <div
+      className="h-screen flex items-center justify-center"
+      style={{ background: 'var(--bg-primary)' }}
+    >
+      <div
+        className="w-full max-w-sm p-8"
+        style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+        }}
+      >
+        <h2
+          className="text-lg font-display font-bold tracking-wider text-center mb-1"
+          style={{ color: 'var(--accent-cyan)' }}
+        >
+          PERIPHERY
         </h2>
-
-        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-          Select your account to authenticate the desktop session
+        <p className="text-xs text-center mb-6" style={{ color: 'var(--text-dim)' }}>
+          Authenticate with your email
         </p>
 
-        {orgs.map(org => (
-          <div key={org.org_id} className="mb-2">
-            <div className="text-xs font-display tracking-wider mb-1" style={{ color: 'var(--text-dim)' }}>
-              {org.name}
-            </div>
-            <OrgUsers orgId={org.org_id} selectedUserId={selectedUserId} onSelect={setSelectedUserId} />
-          </div>
-        ))}
+        <label
+          className="block text-xs font-display tracking-wider mb-1"
+          style={{ color: 'var(--text-dim)' }}
+        >
+          Email address
+        </label>
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleScan()
+          }}
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="w-full px-3 py-2 text-sm border rounded mb-4"
+          style={{
+            background: 'var(--bg-primary)',
+            borderColor: email ? 'var(--accent-cyan)' : 'var(--border-color)',
+            color: 'var(--text-primary)',
+          }}
+        />
 
-        {error && <p className="text-xs mt-2" style={{ color: '#ff5555' }}>{error}</p>}
+        {error && (
+          <p className="text-xs mb-3" style={{ color: '#ff5555' }}>
+            {error}
+          </p>
+        )}
 
         <button
           onClick={handleScan}
-          disabled={!selectedUserId}
-          className="w-full mt-4 px-4 py-2 text-sm font-display tracking-wider uppercase"
+          disabled={!email.trim() || loading}
+          className="w-full px-4 py-2 text-sm font-display tracking-wider uppercase"
           style={{
-            background: selectedUserId ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-            color: selectedUserId ? 'var(--bg-primary)' : 'var(--text-dim)',
+            background:
+              email.trim() && !loading ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
+            color:
+              email.trim() && !loading ? 'var(--bg-primary)' : 'var(--text-dim)',
             border: 'none',
-            cursor: selectedUserId ? 'pointer' : 'not-allowed',
+            cursor: email.trim() && !loading ? 'pointer' : 'not-allowed',
           }}
         >
-          Authenticate
+          {loading ? 'Checking…' : 'Authenticate'}
         </button>
       </div>
-    </div>
-  )
-}
-
-
-function OrgUsers({
-  orgId,
-  selectedUserId,
-  onSelect,
-}: {
-  orgId: string
-  selectedUserId: string
-  onSelect: (id: string) => void
-}) {
-  const [users, setUsers] = useState<{ user_id: string; display_name: string; role: string }[]>([])
-
-  useEffect(() => {
-    // This endpoint requires auth, so for bootstrap the mobile confirm
-    // page uses a special unprotected list. For now, we skip loading
-    // and let the user enter their user_id manually if needed.
-  }, [orgId])
-
-  return (
-    <div>
-      <input
-        type="text"
-        placeholder="Enter your User ID"
-        className="w-full px-3 py-2 text-sm border rounded"
-        style={{
-          background: 'var(--bg-primary)',
-          borderColor: selectedUserId ? 'var(--accent-cyan)' : 'var(--border-color)',
-          color: 'var(--text-primary)',
-        }}
-        onChange={e => onSelect(e.target.value)}
-      />
     </div>
   )
 }

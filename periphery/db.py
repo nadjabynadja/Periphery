@@ -349,6 +349,17 @@ CREATE TABLE IF NOT EXISTS auth_challenges (
 );
 CREATE INDEX IF NOT EXISTS idx_challenge_status ON auth_challenges(status, expires_at);
 
+-- ===== Approved Emails (simple allowlist for QR login) =====
+CREATE TABLE IF NOT EXISTS approved_emails (
+    email TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    org_id TEXT NOT NULL REFERENCES organizations(org_id),
+    role TEXT NOT NULL DEFAULT 'analyst',
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    added_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_approved_email_org ON approved_emails(org_id);
+
 -- ===== Personal Ontology =====
 CREATE TABLE IF NOT EXISTS user_entity_annotations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

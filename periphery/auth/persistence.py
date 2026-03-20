@@ -362,3 +362,92 @@ async def complete_challenge(
         completed_at=row["completed_at"],
         session_token=row["session_token"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Approved Emails (simple allowlist for QR login)
+# ---------------------------------------------------------------------------
+
+async def add_approved_email(
+    email: str,
+    display_name: str,
+    org_id: str,
+    role: str = "analyst",
+    added_by: str | None = None,
+) -> dict:
+    """Add or update an approved email in the allowlist."""
+    email = email.lower().strip()
+    pool = get_pool()
+    async with pool.acquire() as db:
+        await db.execute(
+            """INSERT INTO approved_emails (email, display_name, org_id, role, added_at, added_by)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(email) DO UPDATE
+               SET display_name = excluded.display_name,
+                   org_id = excluded.org_id,
+                   role = excluded.role,
+                   added_by = excluded.added_by""",
+            (email, display_name, org_id, role, _now().isoformat(), added_by),
+        )
+        await db.commit()
+    logger.info("approved_email_added email=%s org_id=%s role=%s", email, org_id, role)
+    return {"email": email, "display_name": display_name, "org_id": org_id, "role": role}
+
+
+async def remove_approved_email(email: str) -> bool:
+    email = email.lower().strip()
+    pool = get_pool()
+    async with pool.acquire() as db:
+        cursor = await db.execute("DELETE FROM approved_emails WHERE email = ?", (email,))
+        await db.commit()
+    return cursor.rowcount > 0
+
+
+async def list_approved_emails(org_id: str | None = None) -> list[dict]:
+    pool = get_pool()
+    async with pool.acquire() as db:
+        if org_id:
+            cursor = await db.execute(
+                "SELECT email, display_name, org_id, role, added_at, added_by FROM approved_emails WHERE org_id = ? ORDER BY added_at",
+                (org_id,),
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT email, display_name, org_id, role, added_at, added_by FROM approved_emails ORDER BY added_at"
+            )
+        rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_approved_email(email: str) -> dict | None:
+    email = email.lower().strip()
+    pool = get_pool()
+    async with pool.acquire() as db:
+        cursor = await db.execute(
+            "SELECT email, display_name, org_id, role, added_at, added_by FROM approved_emails WHERE email = ?",
+            (email,),
+        )
+        row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def get_or_create_user_for_email(email: str) -> User | None:
+    """Look up approved email, find/create corresponding user, return it."""
+    entry = await get_approved_email(email)
+    if not entry:
+        return None
+
+    # Find existing user by display_name + org_id (simple matching)
+    pool = get_pool()
+    async with pool.acquire() as db:
+        cursor = await db.execute(
+            "SELECT user_id FROM users WHERE org_id = ? AND display_name = ? LIMIT 1",
+            (entry["org_id"], entry["display_name"]),
+        )
+        row = await cursor.fetchone()
+
+    if row:
+        return await get_user(row["user_id"])
+
+    # Auto-provision the user
+    return await create_user(entry["org_id"], entry["display_name"], entry["role"])
