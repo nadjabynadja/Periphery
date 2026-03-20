@@ -71,7 +71,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def start_challenge(request: Request):
     """Create a new QR auth challenge. Desktop calls this to start login."""
     settings = get_settings()
-    server_url = str(request.base_url).rstrip("/")
+    # Respect X-Forwarded-Proto from reverse proxy (Caddy, nginx, etc.)
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc)
+    server_url = f"{proto}://{host}"
     challenge = await create_challenge(
         server_url=server_url,
         ttl_minutes=settings.auth_challenge_ttl_minutes,
