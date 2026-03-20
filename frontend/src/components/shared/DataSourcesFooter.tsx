@@ -20,7 +20,7 @@ export function DataSourcesFooter() {
         >
           ICIJ Offshore Leaks Database
         </a>
-        , licensed under{' '}
+        {' '}(
         <a
           href="https://opendatacommons.org/licenses/odbl/1-0/"
           target="_blank"
@@ -28,8 +28,8 @@ export function DataSourcesFooter() {
           style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}
         >
           ODbL v1.0
-        </a>{' '}
-        (database structure) and{' '}
+        </a>
+        {' / '}
         <a
           href="https://creativecommons.org/licenses/by-sa/3.0/"
           target="_blank"
@@ -37,8 +37,17 @@ export function DataSourcesFooter() {
           style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}
         >
           CC BY-SA 3.0
-        </a>{' '}
-        (contents). © International Consortium of Investigative Journalists.
+        </a>
+        ) and the{' '}
+        <a
+          href="https://ofac.treasury.gov/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}
+        >
+          U.S. Treasury OFAC
+        </a>
+        {' '}sanctions lists (public domain).
       </span>
     </footer>
   )

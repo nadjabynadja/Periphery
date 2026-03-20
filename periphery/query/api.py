@@ -773,6 +773,11 @@ async def get_entity(canonical_id: str):
                         entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
                         entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
                         entry["source_url"] = "https://offshoreleaks.icij.org/"
+                    # Public domain — attach attribution for OFAC data
+                    elif (row[2] or "").startswith("OFAC"):
+                        entry["attribution"] = "U.S. Department of the Treasury, Office of Foreign Assets Control (OFAC)"
+                        entry["license"] = "Public Domain (17 U.S.C. §105)"
+                        entry["source_url"] = "https://ofac.treasury.gov/"
                     source_docs.append(entry)
         except Exception:
             logger.debug("entity_source_docs_fetch_failed", exc_info=True)

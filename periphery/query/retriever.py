@@ -224,6 +224,11 @@ class MultiSpaceRetriever:
                                 entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
                                 entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
                                 entry["source_url"] = "https://offshoreleaks.icij.org/"
+                            # Public domain — attach attribution for OFAC data
+                            elif (row[3] or "").startswith("OFAC"):
+                                entry["attribution"] = "U.S. Department of the Treasury, Office of Foreign Assets Control (OFAC)"
+                                entry["license"] = "Public Domain (17 U.S.C. §105)"
+                                entry["source_url"] = "https://ofac.treasury.gov/"
                             doc_contents[doc_id] = entry
                 except Exception:
                     logger.debug("entity_doc_content_fetch_failed", exc_info=True)
@@ -325,6 +330,11 @@ class MultiSpaceRetriever:
                                 entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
                                 entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
                                 entry["source_url"] = "https://offshoreleaks.icij.org/"
+                            # Public domain — attach attribution for OFAC data
+                            elif (row[3] or "").startswith("OFAC"):
+                                entry["attribution"] = "U.S. Department of the Treasury, Office of Foreign Assets Control (OFAC)"
+                                entry["license"] = "Public Domain (17 U.S.C. §105)"
+                                entry["source_url"] = "https://ofac.treasury.gov/"
                             doc_contents[doc_id] = entry
             except Exception:
                 logger.debug("document_content_fetch_failed", exc_info=True)

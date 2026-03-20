@@ -294,32 +294,38 @@ class CrystallizerWorker:
         if not space_vectors:
             return {"status": "skipped", "reason": "no_vectors"}
 
-        # Phase 2: Cluster detection
+        # Phase 2: Cluster detection (CPU-bound — run in thread to avoid blocking event loop)
         if full_recluster:
-            cluster_stats = self._cluster_engine.cluster_all_spaces(
-                space_vectors, space_doc_ids
+            cluster_stats = await asyncio.to_thread(
+                self._cluster_engine.cluster_all_spaces,
+                space_vectors, space_doc_ids,
             )
             self._last_full_recluster = datetime.now(timezone.utc)
             self._docs_since_last_full = 0
         else:
             # Incremental: predict new points against existing clusters
-            incremental_results = self._cluster_engine.predict_incremental(space_vectors)
+            incremental_results = await asyncio.to_thread(
+                self._cluster_engine.predict_incremental, space_vectors,
+            )
             for space, (labels, strengths) in incremental_results.items():
                 clusterer = self._cluster_engine.clusterers.get(space)
                 if clusterer is not None:
                     clusterer._labels = labels
             cluster_stats = {"mode": "incremental"}
-        # Phase 3: Cross-space correlation
-        correlations = self._cluster_engine.correlate_clusters(space_doc_ids)
+        # Phase 3: Cross-space correlation (CPU-bound)
+        correlations = await asyncio.to_thread(
+            self._cluster_engine.correlate_clusters, space_doc_ids,
+        )
 
         # Phase 4: Build enrichment context for gradient analysis
         doc_entities, doc_relationships, doc_metadata = await self._load_enrichment_context(
             space_doc_ids
         )
 
-        # Phase 5: Build detected clusters
+        # Phase 5: Build detected clusters (CPU-bound)
         try:
-            detected_clusters = self._build_detected_clusters(
+            detected_clusters = await asyncio.to_thread(
+                self._build_detected_clusters,
                 correlations, space_vectors, space_doc_ids,
                 doc_entities, doc_relationships,
             )
@@ -369,15 +375,17 @@ class CrystallizerWorker:
                 for c in detected_clusters
             }
 
-            gradients = self._gradient_analyzer.compute_gradients(
+            gradients = await asyncio.to_thread(
+                self._gradient_analyzer.compute_gradients,
                 cluster_member_map, doc_entities, doc_relationships,
                 cluster_temporal, cluster_geo,
             )
 
-        # Phase 9: Anomaly detection
+        # Phase 9: Anomaly detection (CPU-bound)
         noise_doc_ids = self._cluster_engine.get_all_noise_doc_ids(space_doc_ids)
         all_centroids = self._cluster_engine.get_all_centroids(space_vectors)
-        anomalies = self._anomaly_detector.detect(
+        anomalies = await asyncio.to_thread(
+            self._anomaly_detector.detect,
             noise_doc_ids, space_vectors, space_doc_ids,
             all_centroids, doc_metadata,
         )
@@ -385,8 +393,9 @@ class CrystallizerWorker:
         # Check if any previous anomalies have been resolved
         self._anomaly_detector.check_resolutions(noise_doc_ids)
 
-        # Phase 10: Detect emerging structures
-        emerging = self._detect_emerging_structures(
+        # Phase 10: Detect emerging structures (CPU-bound)
+        emerging = await asyncio.to_thread(
+            self._detect_emerging_structures,
             noise_doc_ids, space_vectors, space_doc_ids, all_centroids,
         )
 
@@ -465,7 +474,9 @@ class CrystallizerWorker:
         doc_ids = self.store.get_all_ids()
 
         min_size = max(2, min(5, vectors.shape[0] // 10))
-        labels, stats = run_clustering(vectors, min_cluster_size=min_size, min_samples=max(1, min_size - 1))
+        labels, stats = await asyncio.to_thread(
+            run_clustering, vectors, min_cluster_size=min_size, min_samples=max(1, min_size - 1),
+        )
         self.labels = labels
         self.stats = stats
 

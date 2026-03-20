@@ -6,6 +6,22 @@ objects for each sanctioned entity.
 
 The SDN list CSV is pipe-delimited (not comma-separated), while the
 consolidated list may use a different format — this module handles both.
+
+LICENSE / ATTRIBUTION
+---------------------
+OFAC sanctions data is published by the U.S. Department of the Treasury,
+Office of Foreign Assets Control. This data is a work of the United States
+Government and is in the public domain (17 U.S.C. §105).
+
+No license restrictions apply, but attribution is good practice:
+
+    "Includes sanctions data from the U.S. Department of the Treasury,
+     Office of Foreign Assets Control (OFAC).
+     https://ofac.treasury.gov/"
+
+The SDN list and Consolidated list are updated frequently. Source data:
+    https://www.treasury.gov/ofac/downloads/sdn.csv
+    https://www.treasury.gov/ofac/downloads/consolidated/cons_prim.csv
 """
 
 from __future__ import annotations
@@ -389,6 +405,10 @@ class OFACSanctionsSource(DataSource):
             "sanctioned": True,
             "sanction_programs": sanction_programs,
             "content_hash": content_hash,
+            # Public domain data — attribution for good practice
+            "attribution": "U.S. Department of the Treasury, Office of Foreign Assets Control (OFAC)",
+            "license": "Public Domain (17 U.S.C. §105)",
+            "source_url": "https://ofac.treasury.gov/",
         }
 
         if addresses:

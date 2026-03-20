@@ -45,6 +45,35 @@ All interfaces (UI and API) that surface ICIJ data must display or return:
 
 ---
 
+## U.S. Treasury OFAC Sanctions Lists
+
+**Provider:** U.S. Department of the Treasury, Office of Foreign Assets Control (OFAC)
+**Datasets:** Specially Designated Nationals (SDN) List, Consolidated Non-SDN List
+**Portal:** https://ofac.treasury.gov/
+**Download:**
+  - SDN: https://www.treasury.gov/ofac/downloads/sdn.csv
+  - Consolidated: https://www.treasury.gov/ofac/downloads/consolidated/cons_prim.csv
+
+### License
+
+OFAC sanctions data is a work of the United States Government and is in the
+**public domain** under 17 U.S.C. §105. No copyright restrictions apply.
+
+### Attribution (good practice)
+
+> Includes sanctions data from the U.S. Department of the Treasury,
+> Office of Foreign Assets Control (OFAC).
+> https://ofac.treasury.gov/
+
+### Implementation Notes
+
+- **Source module:** `periphery/ingest/sources/ofac_sanctions.py` — license noted in module docstring.
+- **API responses:** `attribution`, `license`, and `source_url` fields are included in all
+  API responses that return OFAC-sourced documents or entities.
+- **Frontend:** Listed in `DataSourcesFooter` component.
+
+---
+
 ## OpenStreetMap
 
 **Provider:** OpenStreetMap contributors
