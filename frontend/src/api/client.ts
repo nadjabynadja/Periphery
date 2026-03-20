@@ -549,17 +549,18 @@ export const peripheryApi = {
 
   // --- Auth ---
   startChallenge(): Promise<{ challenge_id: string; qr_data: string; expires_at: string }> {
-    return request('/auth/challenge', { method: 'POST' })
+    return requestWithRetry('/auth/challenge', { method: 'POST', timeout: 30_000 })
   },
 
   pollChallengeStatus(challengeId: string): Promise<{ status: string; user_display_name?: string }> {
-    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/status`)
+    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/status`, { timeout: 15_000 })
   },
 
   scanChallenge(challengeId: string, userId: string): Promise<{ challenge_code: string }> {
-    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/scan`, {
+    return requestWithRetry(`/auth/challenge/${encodeURIComponent(challengeId)}/scan`, {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
+      timeout: 30_000,
     })
   },
 
@@ -567,9 +568,10 @@ export const peripheryApi = {
     challengeId: string,
     email: string,
   ): Promise<{ challenge_code: string; display_name: string }> {
-    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/scan-by-email`, {
+    return requestWithRetry(`/auth/challenge/${encodeURIComponent(challengeId)}/scan-by-email`, {
       method: 'POST',
       body: JSON.stringify({ email }),
+      timeout: 30_000,
     })
   },
 
@@ -577,9 +579,10 @@ export const peripheryApi = {
     session_token: string; user_id: string; org_id: string;
     display_name: string; role: string; expires_at: string;
   }> {
-    return request(`/auth/challenge/${encodeURIComponent(challengeId)}/confirm`, {
+    return requestWithRetry(`/auth/challenge/${encodeURIComponent(challengeId)}/confirm`, {
       method: 'POST',
       body: JSON.stringify({ code }),
+      timeout: 30_000,
     })
   },
 
