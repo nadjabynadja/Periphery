@@ -212,13 +212,19 @@ class MultiSpaceRetriever:
                         for row in await cursor.fetchall():
                             doc_id = row[0]
                             content = (row[2] or "")[:1500]
-                            doc_contents[doc_id] = {
+                            entry: dict = {
                                 "title": row[1] or "",
                                 "content": content,
                                 "source_feed": row[3] or "",
                                 "published": row[4] or "",
                                 "summary": row[5] or "",
                             }
+                            # ODbL v1.0 / CC BY-SA 3.0 — attach attribution for ICIJ data
+                            if (row[3] or "").startswith("ICIJ"):
+                                entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
+                                entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
+                                entry["source_url"] = "https://offshoreleaks.icij.org/"
+                            doc_contents[doc_id] = entry
                 except Exception:
                     logger.debug("entity_doc_content_fetch_failed", exc_info=True)
 
@@ -307,13 +313,19 @@ class MultiSpaceRetriever:
                         for row in await cursor.fetchall():
                             doc_id = row[0]
                             content = (row[2] or "")[:1500]
-                            doc_contents[doc_id] = {
+                            entry: dict = {
                                 "title": row[1] or "",
                                 "content": content,
                                 "source_feed": row[3] or "",
                                 "published": row[4] or "",
                                 "summary": row[5] or "",
                             }
+                            # ODbL v1.0 / CC BY-SA 3.0 — attach attribution for ICIJ data
+                            if (row[3] or "").startswith("ICIJ"):
+                                entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
+                                entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
+                                entry["source_url"] = "https://offshoreleaks.icij.org/"
+                            doc_contents[doc_id] = entry
             except Exception:
                 logger.debug("document_content_fetch_failed", exc_info=True)
 

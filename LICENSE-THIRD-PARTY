@@ -1,0 +1,84 @@
+# Periphery — Third-Party Data Source Licenses
+
+This file documents all third-party data sources incorporated into Periphery,
+along with their respective licenses and attribution requirements.
+
+---
+
+## ICIJ Offshore Leaks Database
+
+**Provider:** International Consortium of Investigative Journalists (ICIJ)
+**Datasets:** Panama Papers, Paradise Papers, Pandora Papers, and others
+**Portal:** https://offshoreleaks.icij.org/
+**Download:** https://offshoreleaks-data.icij.org/offshoreleaks/csv/full-oldb.LATEST.zip
+
+### License
+
+The ICIJ Offshore Leaks Database is dual-licensed:
+
+| Component          | License                                      | URL                                                        |
+|--------------------|----------------------------------------------|------------------------------------------------------------|
+| Database structure | Open Database License (ODbL) v1.0            | https://opendatacommons.org/licenses/odbl/1-0/             |
+| Database contents  | Creative Commons Attribution-ShareAlike 3.0  | https://creativecommons.org/licenses/by-sa/3.0/            |
+
+Both licences **allow commercial use** and both **require attribution**.
+
+### Required Attribution
+
+All interfaces (UI and API) that surface ICIJ data must display or return:
+
+> Includes data from the ICIJ Offshore Leaks Database, licensed under
+> ODbL v1.0 (database structure) and CC BY-SA 3.0 (contents).
+> © International Consortium of Investigative Journalists.
+> https://offshoreleaks.icij.org/
+
+### Implementation Notes
+
+- **Frontend:** `DataSourcesFooter` component in `frontend/src/components/shared/DataSourcesFooter.tsx`
+- **API responses:** `attribution`, `license`, and `source_url` fields are included in all
+  API responses that return ICIJ-sourced documents or entities.
+- **Source module:** `periphery/ingest/sources/icij_offshore.py` — license obligations
+  documented in the module docstring.
+- **ODbL carve-out:** Serving query results through a web interface does **not** constitute
+  "conveying" the database under ODbL §4.6. Our SaaS delivery model is compliant so long
+  as attribution is displayed and included in API responses.
+
+---
+
+## OpenStreetMap
+
+**Provider:** OpenStreetMap contributors
+**Portal:** https://www.openstreetmap.org/
+**Source module:** `periphery/ingest/sources/openstreetmap.py`
+
+### License
+
+OpenStreetMap data is licensed under the **Open Database License (ODbL) v1.0**.
+https://opendatacommons.org/licenses/odbl/1-0/
+
+### Required Attribution
+
+> © OpenStreetMap contributors. Data available under ODbL.
+> https://www.openstreetmap.org/copyright
+
+---
+
+## OpenSky Network
+
+**Provider:** The OpenSky Network (opensky-network.org)
+**Portal:** https://opensky-network.org/
+**Source module:** `periphery/ingest/sources/opensky.py`
+
+### License
+
+OpenSky Network data is made available for non-commercial and research use.
+Commercial use requires a separate agreement with OpenSky Network.
+See: https://opensky-network.org/about/terms-of-use
+
+### Required Attribution
+
+> ADS-B data provided by The OpenSky Network, https://www.opensky-network.org
+
+---
+
+_Last updated: 2026-03-20_

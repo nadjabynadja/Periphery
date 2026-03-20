@@ -21,6 +21,7 @@ import { DetailPanel } from './components/detail/DetailPanel'
 import { AuthProvider } from './components/auth/AuthProvider'
 import { LoginPage } from './components/auth/LoginPage'
 import { MobileConfirm } from './components/auth/MobileConfirm'
+import { DataSourcesFooter } from './components/shared/DataSourcesFooter'
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: 'graph', label: 'GRAPH' },
@@ -191,6 +192,7 @@ export default function App() {
       {/* System Status Bar — top, persistent */}
       <SystemStatusBar />
 
+
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden dashboard-layout" style={{ minHeight: 0 }}>
         {/* Left: Data Feed Sidebar / Search Panel */}
@@ -256,6 +258,9 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Data source attribution — required by ODbL v1.0 / CC BY-SA 3.0 */}
+      <DataSourcesFooter />
     </div>
     )}
     </AuthProvider>

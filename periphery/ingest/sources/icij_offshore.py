@@ -5,6 +5,28 @@ Paradise Papers, Pandora Papers, etc.) from the ICIJ data portal.
 
 The ZIP archive contains CSV files for offshore entities, officers,
 intermediaries, addresses, and their relationships.
+
+LICENSE / ATTRIBUTION
+---------------------
+The ICIJ Offshore Leaks Database is dual-licensed:
+
+  * Database structure: Open Database License (ODbL) v1.0
+    https://opendatacommons.org/licenses/odbl/1-0/
+  * Database contents:  Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA)
+    https://creativecommons.org/licenses/by-sa/3.0/
+
+Both licences allow commercial use. Both require attribution.
+
+Required attribution text:
+    "Includes data from the ICIJ Offshore Leaks Database, licensed under
+     ODbL v1.0 (database structure) and CC BY-SA 3.0 (contents).
+     © International Consortium of Investigative Journalists."
+    https://offshoreleaks.icij.org/
+
+ODbL carve-out: serving query results through a web interface does NOT
+constitute "conveying" the database under ODbL §4.6, so our SaaS delivery
+model is compliant as long as we display the attribution above in the UI
+and include attribution metadata in API responses that surface ICIJ data.
 """
 
 from __future__ import annotations
@@ -266,6 +288,10 @@ class ICIJOffshoreSource(DataSource):
                 metadata["source_type"] = "icij_offshore"
                 metadata["node_type"] = node_type
                 metadata["content_hash"] = content_hash
+                # ODbL v1.0 / CC BY-SA 3.0 attribution (required by licence)
+                metadata["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
+                metadata["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
+                metadata["source_url"] = "https://offshoreleaks.icij.org/"
 
                 # Attach relationships
                 node_rels = relationships.get(node_id, [])

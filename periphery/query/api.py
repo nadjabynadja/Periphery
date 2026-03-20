@@ -761,13 +761,19 @@ async def get_entity(canonical_id: str):
                     doc_ids,
                 )
                 for row in await cursor.fetchall():
-                    source_docs.append({
+                    entry: dict = {
                         "document_id": row[0],
                         "title": row[1] or "Untitled",
                         "source": row[2] or "",
                         "date": str(row[3] or ""),
                         "content_quality": row[4] or "full",
-                    })
+                    }
+                    # ODbL v1.0 / CC BY-SA 3.0 — attach attribution for ICIJ data
+                    if (row[2] or "").startswith("ICIJ"):
+                        entry["attribution"] = "International Consortium of Investigative Journalists (ICIJ)"
+                        entry["license"] = "ODbL-1.0 / CC-BY-SA-3.0"
+                        entry["source_url"] = "https://offshoreleaks.icij.org/"
+                    source_docs.append(entry)
         except Exception:
             logger.debug("entity_source_docs_fetch_failed", exc_info=True)
 
