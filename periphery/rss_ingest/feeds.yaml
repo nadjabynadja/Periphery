@@ -1,8 +1,8 @@
 ###############################################################################
 # OSINT INTELLIGENCE PLATFORM — RSS/ATOM FEED CONFIGURATION
 # Updated: 2026-03-23
-# Total Active Feeds: 1335
-# Expansion: 228 -> 1335 for full PDB-style DIC coverage
+# Total Active Feeds: 2039
+# Round 2 expansion: 1335 -> 2039
 ###############################################################################
 
 rate_limits:
@@ -8058,4 +8058,4369 @@ feeds:
   category: analysis
   priority: 1
   poll_interval: 900
+  enabled: true
+- url: https://feeds.washingtonpost.com/rss/business
+  name: WaPo Business
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.reuters.com/tools/rss
+  name: Reuters Top
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.cbsnews.com/latest/rss/politics
+  name: CBS News Politics
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.nbcnews.com/id/3032552/device/rss/rss.xml
+  name: NBC News
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.usatoday.com/rss/news/nation/
+  name: USA Today Nation
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://feeds.foxnews.com/foxnews/politics
+  name: Fox News Politics
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://feeds.foxnews.com/foxnews/national
+  name: Fox News US
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://time.com/feed/
+  name: TIME
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.bloomberg.com/politics/feed
+  name: Bloomberg Politics
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://theweek.com/feed
+  name: The Week
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thedailybeast.com/rss
+  name: Daily Beast
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.slate.com/feeds/all.rss
+  name: Slate
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://nymag.com/feed/full.rss
+  name: New York Magazine
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.weeklystandard.com/rss/
+  name: Weekly Standard
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.newyorker.com/feed/news
+  name: New Yorker News
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://thedispatch.com/feed/
+  name: The Dispatch
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.reason.com/feed/
+  name: Reason
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.jacobin.com/feed
+  name: Jacobin
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.heritage.org/rss/all
+  name: Heritage Foundation
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.cato.org/rss/recent-opeds
+  name: Cato Op-Eds
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.brookings.edu/topic/us-politics-and-government/feed/
+  name: Brookings US Politics
+  category: domestic_policy
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegieendowment.org/rss/solr.xml
+  name: Carnegie Endowment
+  category: domestic_policy
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cbpp.org/feed
+  name: CBPP
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.hoover.org/rss/publications
+  name: Hoover Institution
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.claremontreviewofbooks.com/feed/
+  name: Claremont Review
+  category: domestic_policy
+  priority: 3
+  poll_interval: 3600
+  enabled: true
+- url: https://fortune.com/feed/
+  name: Fortune
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://fredblog.stlouisfed.org/feed/
+  name: FRED Blog
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://libertystreeteconomics.newyorkfed.org/feed/
+  name: NY Fed Liberty Street
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.politico.com/rss/pulse.xml
+  name: Politico Pulse
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.cms.gov/newsroom/rss-feeds/press-releases
+  name: CMS Press
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://techcrunch.com/feed/
+  name: TechCrunch
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.theverge.com/rss/index.xml
+  name: The Verge
+  category: domestic_policy
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.protocol.com/feeds/feed.rss
+  name: Protocol
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.energy.gov/rss/articles.xml
+  name: DOE News
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://trac.syr.edu/whatsnew/newsite.rss
+  name: TRAC Immigration
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cbp.gov/rss/newsroom/media-releases
+  name: CBP Media
+  category: domestic_policy
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ice.gov/rss/newsroom-rss
+  name: ICE News
+  category: domestic_policy
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.insidehighered.com/rss/news
+  name: Inside Higher Ed
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.edweek.org/rss/feeds/
+  name: Education Week
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://hechingerreport.org/feed/
+  name: Hechinger Report
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.texastribune.org/feeds/articles/
+  name: Texas Tribune
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.wnyc.org/feeds/wnyc-news.xml
+  name: WNYC
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.chicagotribune.com/arcio/rss/
+  name: Chicago Tribune
+  category: domestic_policy
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.sfchronicle.com/rss/feed/News-702.php
+  name: SF Chronicle
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.miamiherald.com/news/politics-government/?rss=y
+  name: Miami Herald Politics
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.ajc.com/politics/?rss=y
+  name: AJC Politics
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.azcentral.com/arcio/rss/category/politics/
+  name: AZ Central Politics
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.detroitnews.com/arcio/rss/category/politics/
+  name: Detroit News Politics
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.startribune.com/local/rss/
+  name: Star Tribune
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.oregonlive.com/arc/outboundfeeds/rss/?outputType=xml
+  name: Oregonian
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.postandcourier.com/search/?f=rss&t=article
+  name: Post and Courier SC
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.dallasnews.com/arcio/rss/category/news/politics/
+  name: Dallas Morning News Politics
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://labornotes.org/feed
+  name: Labor Notes
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://onlabor.org/feed/
+  name: OnLabor
+  category: domestic_policy
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://theappeal.org/feed/
+  name: The Appeal
+  category: domestic_policy
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.govexec.com/rss/
+  name: GovExec
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.military.com/daily-news/feed
+  name: Military.com
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://taskandpurpose.com/feed/
+  name: Task & Purpose
+  category: domestic_policy
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.epw.senate.gov/public/index.cfm/rss/feed
+  name: Senate Environment
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.sbc.senate.gov/public/index.cfm/rss/feed
+  name: Senate Small Business
+  category: legislative
+  priority: 3
+  poll_interval: 3600
+  enabled: true
+- url: https://cha.house.gov/rss.xml
+  name: House Administration
+  category: legislative
+  priority: 3
+  poll_interval: 3600
+  enabled: true
+- url: https://selectcommitteeontheccp.house.gov/rss.xml
+  name: House Select Committee on CCP
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.c-span.org/api/congress/rss/
+  name: C-SPAN Congress
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.govtrack.us/events/feed
+  name: GovTrack Events
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://congressionalresearch.com/feed/
+  name: Congressional Research
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/defense.xml
+  name: Politico Defense
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/budget.xml
+  name: Politico Budget
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/trade.xml
+  name: Politico Trade
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/healthcare.xml
+  name: Politico Healthcare
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/technology.xml
+  name: Politico Tech
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://subscriber.politicopro.com/rss/energy.xml
+  name: Politico Energy
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.federalregister.gov/api/v1/documents.rss
+  name: Federal Register
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.state.gov/press-releases/feed/
+  name: State Dept Press
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://home.treasury.gov/news/press-releases/rss.xml
+  name: Treasury Press
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.fbi.gov/feeds/fbi-news-feed/rss.xml
+  name: FBI News
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.dhs.gov/news-releases/rss.xml
+  name: DHS News
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cia.gov/stories/rss.xml
+  name: CIA Stories
+  category: legislative
+  priority: 2
+  poll_interval: 3600
+  enabled: true
+- url: https://www.dni.gov/index.php/newsroom/rss
+  name: ODNI Newsroom
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.usaid.gov/news-information/rss/press-releases
+  name: USAID Press
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=&dateb=&owner=include&count=40&search_text=&action=getcompany&company=&CIK=&type=&dateb=&owner=include&count=40&search_text=&action=getcompany&output=atom
+  name: SEC EDGAR
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ftc.gov/news-events/press-releases/feed
+  name: FTC Press
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.epa.gov/newsreleases/feed
+  name: EPA Press
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.commerce.gov/news/rss.xml
+  name: Commerce Dept
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://ustr.gov/about-us/press-office/press-releases/feed
+  name: USTR Press
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.speaker.gov/feed/
+  name: House Speaker
+  category: legislative
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.democraticleader.gov/feed/
+  name: House Democratic Leader
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.republicanwhip.gov/feed/
+  name: House Republican Whip
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://progressives.house.gov/rss.xml
+  name: Congressional Progressive Caucus
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://rsc-hern.house.gov/rss.xml
+  name: Republican Study Committee
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://cbc.house.gov/rss.xml
+  name: Congressional Black Caucus
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://chc.house.gov/rss.xml
+  name: Congressional Hispanic Caucus
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://newdemocratcoalition.house.gov/rss.xml
+  name: New Democrat Coalition
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://freedomcaucus.com/feed/
+  name: Freedom Caucus
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://problemsolverscaucus.house.gov/rss.xml
+  name: Problem Solvers Caucus
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.pogo.org/feed/
+  name: POGO
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://responsiblegov.org/feed/
+  name: CRFB
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.taxpayer.net/feed/
+  name: TCS
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.citizensforethics.org/feed/
+  name: CREW
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://protectdemocracy.org/feed/
+  name: Protect Democracy
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ncsl.org/rss.xml
+  name: NCSL
+  category: legislative
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.governing.com/feed/
+  name: Governing
+  category: legislative
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.law.cornell.edu/supct/cert/rss.xml
+  name: Cornell SCOTUS Cert
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.courthousenews.com/feed/
+  name: Courthouse News
+  category: legislative
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://originalismblog.typepad.com/the-originalism-blog/atom.xml
+  name: Originalism Blog
+  category: legislative
+  priority: 3
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ca9.uscourts.gov/feed/
+  name: 9th Circuit
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.sabato.org/feed/
+  name: Sabatos Crystal Ball
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.fec.gov/updates/rss/
+  name: FEC Updates
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://electionlawblog.org/feed/
+  name: Election Law Blog
+  category: legislative
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.scmp.com/rss/4/feed
+  name: SCMP Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.sixthtone.com/rss/feed
+  name: Sixth Tone
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://thediplomat.com/tag/china/feed/
+  name: Diplomat China
+  category: indo_pacific
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.chinabriefing.com/news/feed/
+  name: China Briefing
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.prcleader.org/feed
+  name: PRC Leader
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.chinafile.com/feed
+  name: ChinaFile
+  category: indo_pacific
+  priority: 1
+  poll_interval: 900
+  enabled: true
+- url: https://thechinastory.org/feed/
+  name: China Story ANU
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://chinachannel.org/feed/
+  name: China Channel
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.csis.org/programs/china-power-project/feed
+  name: CSIS China Power
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://mainichi.jp/english/rss
+  name: Mainichi English
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.asahi.com/ajw/rss/index.rdf
+  name: Asahi English
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://jen.jiji.com/jc/rss/en
+  name: Jiji Press English
+  category: indo_pacific
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://asia.nikkei.com/rss
+  name: Nikkei Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.nippon.com/en/feed/
+  name: Nippon.com
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://koreajoongangdaily.joins.com/rss/joins
+  name: JoongAng Daily
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.koreaherald.com/rss.xml
+  name: Korea Herald
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.thehindu.com/news/international/feeder/default.rss
+  name: The Hindu International
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://scroll.in/feed
+  name: Scroll.in
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.deccanherald.com/rss/national.rss
+  name: Deccan Herald
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.firstpost.com/rss/india.xml
+  name: Firstpost India
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://carnegieendowment.org/regions/south-asia/feed
+  name: Carnegie South Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.idsa.in/rss
+  name: Manohar Parrikar IDSA
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://theprint.in/feed/
+  name: The Print India
+  category: indo_pacific
+  priority: 2
+  poll_interval: 300
+  enabled: true
+- url: https://www.geo.tv/rss/1/53
+  name: GeoTV Pakistan
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.newsfirst.lk/feed/
+  name: News First Sri Lanka
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.dailymirror.lk/rss/
+  name: Daily Mirror Sri Lanka
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.dhakatribune.com/rss.xml
+  name: Dhaka Tribune
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.recordnepal.com/feed/
+  name: Record Nepal
+  category: indo_pacific
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://thediplomat.com/tag/south-asia/feed/
+  name: Diplomat South Asia
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.nationthailand.com/rss
+  name: Nation Thailand
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://en.tempo.co/rss
+  name: Tempo Indonesia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://tuoitrenews.vn/rss/news.rss
+  name: Tuoi Tre Vietnam
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.vientianetimes.org.la/feed/
+  name: Vientiane Times Laos
+  category: indo_pacific
+  priority: 3
+  poll_interval: 1800
+  enabled: true
+- url: https://www.phnompenhpost.com/rss
+  name: Phnom Penh Post
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.mmtimes.com/feed
+  name: Myanmar Times
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.bnionline.net/en/feed
+  name: BNI Myanmar
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://fulcrum.sg/feed/
+  name: Fulcrum ISEAS
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iseas.edu.sg/feed/
+  name: ISEAS Yusof Ishak
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://thediplomat.com/tag/asean/feed/
+  name: Diplomat ASEAN
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.newmandala.org/feed/
+  name: New Mandala
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://coconuts.co/feed/
+  name: Coconuts
+  category: indo_pacific
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.taipeitimes.com/xml/rss.xml
+  name: Taipei Times
+  category: indo_pacific
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.csis.org/programs/csis-interpretation-china/feed
+  name: CSIS China/Taiwan
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.smh.com.au/rss/world.xml
+  name: SMH World
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.lowyinstitute.org/feed
+  name: Lowy Institute
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.rnz.co.nz/rss/news.xml
+  name: RNZ New Zealand
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.nzherald.co.nz/arc/outboundfeeds/rss/curated/78/
+  name: NZ Herald
+  category: indo_pacific
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://devpolicy.org/feed/
+  name: DevPolicy Blog
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://pacificislandtimes.com/feed/
+  name: Pacific Island Times
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://pacificnewscenter.com/feed/
+  name: Pacific News Center
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://asiapacificreport.nz/feed/
+  name: Asia Pacific Report
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.csis.org/programs/asia-program/feed
+  name: CSIS Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.brookings.edu/topic/east-asia/feed/
+  name: Brookings East Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.atlanticcouncil.org/programs/global-china-hub/feed/
+  name: Atlantic Council Global China
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegieendowment.org/regions/asia-pacific/feed
+  name: Carnegie Asia Pacific
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.rand.org/topics/asia-pacific.xml
+  name: RAND Asia Pacific
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.eastwestcenter.org/feed
+  name: East-West Center
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.chathamhouse.org/topics/asia-pacific/feed
+  name: Chatham House Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.usip.org/regions/asia/feed
+  name: USIP Asia
+  category: indo_pacific
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.pacom.mil/RSS/rss.xml
+  name: US INDOPACOM
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.state.gov/rss-feed/east-asian-and-pacific-affairs/feed/
+  name: State Dept East Asia
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://amti.csis.org/feed/
+  name: AMTI CSIS South China Sea
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://beyondparallel.csis.org/feed/
+  name: Beyond Parallel CSIS
+  category: indo_pacific
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.maritimeexecutive.com/rss.xml
+  name: Maritime Executive
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://gcaptain.com/feed/
+  name: gCaptain
+  category: indo_pacific
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.jpost.com/rss/rssfeedsmiddleeast
+  name: Jerusalem Post Middle East
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.jpost.com/rss/rssfeeds-defense
+  name: Jerusalem Post Defense
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ynetnews.com/Integration/StoryRss2.xml
+  name: Ynet News
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://en.globes.co.il/en/rss/
+  name: Globes Israel
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.calcalistech.com/home/feed
+  name: Calcalist Tech
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.jns.org/feed/
+  name: JNS
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.jewishpress.com/feed/
+  name: Jewish Press
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://honestreporting.com/feed/
+  name: Honest Reporting
+  category: middle_east
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.maannews.net/rss/
+  name: Maan News
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://english.wafa.ps/rss
+  name: WAFA
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.arabianbusiness.com/rss
+  name: Arabian Business
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.zawya.com/en/rss
+  name: Zawya
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thepeninsulaqatar.com/rss
+  name: Peninsula Qatar
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.gulf-times.com/rss
+  name: Gulf Times Qatar
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.gdnonline.com/Feed/rss
+  name: GDN Online Bahrain
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://timesofoman.com/rss
+  name: Times of Oman
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://menews247.com/feed/
+  name: ME News 247
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://leaders-mena.com/feed/
+  name: Leaders MENA
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.argaam.com/en/rss/articles
+  name: Argaam Finance
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.spa.gov.sa/rss/rss_en.php
+  name: SPA Saudi Press Agency
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.arabnews.com/taxonomy/term/468/feed
+  name: Arab News Saudi Arabia
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.presstv.ir/rssfeed
+  name: PressTV Iran
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.iranintl.com/en/feed
+  name: Iran International
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://iranwire.com/en/feed/
+  name: IranWire
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.al-monitor.com/rss/iran
+  name: Al-Monitor Iran
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://english.iswnews.com/feed/
+  name: ISWNews English
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://financialtribune.com/rss
+  name: Financial Tribune Iran
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.turkishminute.com/feed/
+  name: Turkish Minute
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://medyanews.net/feed/
+  name: Medya News
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://stockholmcf.org/feed/
+  name: Stockholm CF Turkey
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://nordicmonitor.com/feed/
+  name: Nordic Monitor Turkey
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.nrttv.com/en/rss
+  name: NRT Iraq
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.iraqoilreport.com/feed/
+  name: Iraq Oil Report
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.al-monitor.com/rss/iraq
+  name: Al-Monitor Iraq
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.al-monitor.com/rss/syria
+  name: Al-Monitor Syria
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://syrianobserver.com/feed/
+  name: Syrian Observer
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.dailystar.com.lb/rss.aspx
+  name: Daily Star Lebanon
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.al-monitor.com/rss/lebanon
+  name: Al-Monitor Lebanon
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://961.co/feed/
+  name: 961 Lebanon
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://en.royanews.tv/feed
+  name: Roya News Jordan
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.sabanew.net/en/rss
+  name: Saba News Yemen
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.al-monitor.com/rss/yemen
+  name: Al-Monitor Yemen
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://debriefer.net/en/feed/
+  name: Debriefer Yemen
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://sanaacenter.org/feed/
+  name: Sanaa Center
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.egypttoday.com/rss
+  name: Egypt Today
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://egyptindependent.com/feed/
+  name: Egypt Independent
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.al-monitor.com/rss/egypt
+  name: Al-Monitor Egypt
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://enterprise.press/feed/
+  name: Enterprise Egypt
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.egyptianstreets.com/feed/
+  name: Egyptian Streets
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://allarab.news/feed/
+  name: All Arab News
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://thearabdailynews.com/feed/
+  name: Arab Daily News
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://english.alarabiya.net/rss.xml
+  name: Al Arabiya English
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://english.alaraby.co.uk/rss.xml
+  name: New Arab
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.al-monitor.com/rss/middle-east
+  name: Al-Monitor Middle East
+  category: middle_east
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.al-monitor.com/rss/gulf
+  name: Al-Monitor Gulf
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://amwaj.media/feed
+  name: Amwaj Media
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.washingtoninstitute.org/rss.xml
+  name: Washington Institute
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegieendowment.org/topic/middle-east/feed
+  name: Carnegie Middle East
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.mei.edu/feed
+  name: Middle East Institute
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.csis.org/programs/middle-east-program/feed
+  name: CSIS Middle East
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.brookings.edu/topic/middle-east-and-north-africa/feed/
+  name: Brookings MENA
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.atlanticcouncil.org/programs/middle-east-programs/feed/
+  name: Atlantic Council Middle East
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegie-mec.org/feed
+  name: Carnegie MEC Beirut
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.chathamhouse.org/topics/middle-east-and-north-africa/feed
+  name: Chatham House MENA
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iiss.org/regions/middle-east-north-africa/rss
+  name: IISS MENA
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.bakerinstitute.org/center-for-the-middle-east/feed
+  name: Baker Institute Middle East
+  category: middle_east
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://dawnmena.org/feed/
+  name: DAWN MENA
+  category: middle_east
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.juancole.com/feed
+  name: Informed Comment Juan Cole
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://lobelog.com/feed/
+  name: Lobelog
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://responsiblestatecraft.org/feed/
+  name: Responsible Statecraft
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.centcom.mil/MEDIA/RSS-Feed/
+  name: US CENTCOM
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.state.gov/rss-feed/near-eastern-affairs/feed/
+  name: State Dept Near East
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.understandingwar.org/feed
+  name: ISW
+  category: middle_east
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.terrorism-info.org.il/en/rss/
+  name: Meir Amit ITIC
+  category: middle_east
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.mees.com/rss
+  name: MEES Energy
+  category: middle_east
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.oilprice.com/rss/main
+  name: OilPrice
+  category: middle_east
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.spglobal.com/commodityinsights/en/rss-feed/middle-east
+  name: S&P Global Commodities ME
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.rigzone.com/news/rss/rigzone_latest.aspx
+  name: RigZone
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.hrw.org/middle-east/north-africa/feed
+  name: HRW MENA
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.amnesty.org/en/latest/news/middle-east-and-north-africa/feed/
+  name: Amnesty MENA
+  category: middle_east
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://reliefweb.int/updates/rss.xml?primary_country=8667
+  name: ReliefWeb Yemen
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://reliefweb.int/updates/rss.xml?primary_country=8660
+  name: ReliefWeb Syria
+  category: middle_east
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.thecable.ng/feed
+  name: TheCable Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.legit.ng/rss/all.rss
+  name: Legit.ng
+  category: africa
+  priority: 2
+  poll_interval: 300
+  enabled: true
+- url: https://www.dailytrust.com/feed/
+  name: Daily Trust Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.channelstv.com/feed/
+  name: Channels TV Nigeria
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://saharareporters.com/rss.xml
+  name: Sahara Reporters
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://nairametrics.com/feed/
+  name: Nairametrics
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://humanglemedia.com/feed/
+  name: HumAngle
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.aborigen.ng/feed/
+  name: Aborigen Nigeria
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.sunnewsonline.com/feed/
+  name: Sun News Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://tribuneonlineng.com/feed/
+  name: Tribune Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.newtelephoneng.com/feed/
+  name: New Telegraph Nigeria
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://citinewsroom.com/feed/
+  name: Citi Newsroom Ghana
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.graphic.com.gh/feed
+  name: Daily Graphic Ghana
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://3news.com/feed/
+  name: 3News Ghana
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.peacefmonline.com/rss/rss.xml
+  name: Peace FM Ghana
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://thefourthestategh.com/feed/
+  name: Fourth Estate Ghana
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.seneweb.com/news/rss
+  name: Seneweb Senegal
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.dakaractu.com/feed/
+  name: Dakaractu Senegal
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.lesoleil.sn/feed/
+  name: Le Soleil Senegal
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.abidjan.net/rss/
+  name: Abidjan.net
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.fratmat.info/feed/
+  name: Fraternite Matin Cote d'Ivoire
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.connectionivoirienne.net/feed/
+  name: Connection Ivoirienne
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://www.guineenews.org/feed/
+  name: Guinee News
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.maliweb.net/feed/
+  name: Maliweb
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.journaldumali.com/feed/
+  name: Journal du Mali
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://lefaso.net/spip.php?page=backend
+  name: LeFaso Burkina Faso
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://news.abamako.com/rss/
+  name: Abamako Mali
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://www.togofirst.com/en/rss
+  name: Togo First
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://niameyetles2jours.com/feed
+  name: Niamey et les 2 Jours Niger
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://frontpageafricaonline.com/feed/
+  name: FrontPage Africa Liberia
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.sierraleonetimes.com/feed/
+  name: Sierra Leone Times
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://thepoint.gm/feed
+  name: The Point Gambia
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://thecableng.com/feed/
+  name: Cable NG Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://kewoulo.info/feed/
+  name: Kewoulo Senegal
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.the-star.co.ke/rss
+  name: The Star Kenya
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.nation.co.ke/rss
+  name: Daily Nation Kenya
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.citizen.digital/feed/
+  name: Citizen Digital Kenya
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.theeastafrican.co.ke/rss
+  name: East African Kenya
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://kenyanwallstreet.com/feed/
+  name: Kenyan Wall Street
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://ethiopianmonitor.com/feed/
+  name: Ethiopian Monitor
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.ethiopiaobserver.com/feed/
+  name: Ethiopia Observer
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.capitalethiopia.com/feed/
+  name: Capital Ethiopia
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.ezega.com/News/rss
+  name: Ezega Ethiopia
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://observer.ug/feed
+  name: Observer Uganda
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.independent.co.ug/feed/
+  name: Independent Uganda
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://dailynews.co.tz/feed/
+  name: Daily News Tanzania
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.ktpress.rw/feed/
+  name: KT Press Rwanda
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://igihe.com/rss.xml
+  name: Igihe Rwanda
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.theeastafrican.co.ke/rss/tea/news
+  name: East African News
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.garoweonline.com/en/feed
+  name: Garowe Online Somalia
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.hiiraan.com/rss2/
+  name: Hiiraan Online Somalia
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://hornobserver.com/feed/
+  name: Horn Observer
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.dabangasudan.org/en/feed
+  name: Dabanga Sudan
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://eritreahub.org/feed
+  name: Eritrea Hub
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.radiotamazuj.org/en/feed
+  name: Radio Tamazuj South Sudan
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://eyeradio.org/feed/
+  name: Eye Radio South Sudan
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.groundup.org.za/feeds/articles/
+  name: GroundUp South Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.fin24.com/rss
+  name: Fin24 South Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.biznews.com/feed
+  name: BizNews South Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.newzimbabwe.com/feed/
+  name: NewZimbabwe
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.theindependent.co.zw/feed/
+  name: The Independent Zimbabwe
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.zimeye.net/feed/
+  name: ZimEye
+  category: africa
+  priority: 3
+  poll_interval: 600
+  enabled: true
+- url: https://zambiareports.com/feed/
+  name: Zambia Reports
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://mwnation.com/feed/
+  name: Malawi Nation
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.malawivoice.com/feed/
+  name: Malawi Voice
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.miningweekly.com/page/rss
+  name: Mining Weekly South Africa
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.namibian.com.na/feed/
+  name: The Namibian
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.mmegi.bw/feed/
+  name: Mmegi Botswana
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.sundaystandard.info/feed/
+  name: Sunday Standard Botswana
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://observer.org.sz/feed/
+  name: Eswatini Observer
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://lestimes.com/feed/
+  name: Lesotho Times
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.7sur7.cd/rss.xml
+  name: 7sur7 DRC
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.cameroon-tribune.cm/feed/
+  name: Cameroon Tribune
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.journalducameroun.com/feed/
+  name: Journal du Cameroun
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.agenceecofin.com/feed
+  name: Agence Ecofin
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.iwacu-burundi.org/feed/
+  name: Iwacu Burundi
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://www.chadtribune.com/feed/
+  name: Chad Tribune
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.gabonreview.com/feed/
+  name: Gabon Review
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://www.echoroukonline.com/feed/
+  name: Echorouk Algeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: ar
+- url: https://www.medias24.com/rss
+  name: Medias24 Morocco
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.le360.ma/rss
+  name: Le360 Morocco
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.tap.info.tn/en/feed/
+  name: TAP Tunisia
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.webdo.tn/feed/
+  name: Webdo Tunisia
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://libyaobserver.ly/feed
+  name: Libya Observer
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.yabiladi.com/rss/
+  name: Yabiladi Morocco
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.huffpostmaghreb.com/feeds/index.xml
+  name: HuffPost Maghreb
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.trt.net.tr/francais/afrique/rss
+  name: TRT Afrique
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.newsmada.com/feed/
+  name: News Madagascar
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://www.madagascar-tribune.com/spip.php?page=backend
+  name: Madagascar Tribune
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: fr
+- url: https://lexpress.mu/feed
+  name: L'Express Mauritius
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://africa.businessinsider.com/feed
+  name: Business Insider Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.dw.com/en/africa/rss
+  name: DW Africa
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.voaafrica.com/api/feed
+  name: VOA Africa
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://topafricanews.com/feed/
+  name: Top Africa News
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.africanexponent.com/rss
+  name: African Exponent
+  category: africa
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.cnbcafrica.com/feed/
+  name: CNBC Africa
+  category: africa
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.chathamhouse.org/topics/africa/feed
+  name: Chatham House Africa
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.csis.org/programs/africa-program/feed
+  name: CSIS Africa
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegieendowment.org/topic/africa/feed
+  name: Carnegie Africa
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.usip.org/regions/africa/feed
+  name: USIP Africa
+  category: africa
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iiss.org/regions/africa/rss
+  name: IISS Africa
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://theconversation.com/africa/articles.atom
+  name: Conversation Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.opendemocracy.net/en/opensecurity/rss/
+  name: OpenDemocracy Security
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.afro.who.int/rss.xml
+  name: WHO Africa
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://reliefweb.int/updates/rss.xml?primary_country=8657
+  name: ReliefWeb DRC
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://reliefweb.int/updates/rss.xml?primary_country=8652
+  name: ReliefWeb Sudan
+  category: africa
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/nigeria/headlines.rdf
+  name: AllAfrica Nigeria
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/kenya/headlines.rdf
+  name: AllAfrica Kenya
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/southafrica/headlines.rdf
+  name: AllAfrica South Africa
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/ethiopia/headlines.rdf
+  name: AllAfrica Ethiopia
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/ghana/headlines.rdf
+  name: AllAfrica Ghana
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/tanzania/headlines.rdf
+  name: AllAfrica Tanzania
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/uganda/headlines.rdf
+  name: AllAfrica Uganda
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/westafrica/headlines.rdf
+  name: AllAfrica West Africa
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/eastafrica/headlines.rdf
+  name: AllAfrica East Africa
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/southernafrica/headlines.rdf
+  name: AllAfrica Southern Africa
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/centralafrica/headlines.rdf
+  name: AllAfrica Central Africa
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/northafrica/headlines.rdf
+  name: AllAfrica North Africa
+  category: africa
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/conflict/headlines.rdf
+  name: AllAfrica Conflict
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/governance/headlines.rdf
+  name: AllAfrica Governance
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://allafrica.com/tools/headlines/rdf/humanrights/headlines.rdf
+  name: AllAfrica Human Rights
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.devdiscourse.com/rss-feeds
+  name: DevDiscourse
+  category: africa
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thirdworldnetwork.net/feed/
+  name: Third World Network
+  category: africa
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://southernvoice.org/feed/
+  name: Southern Voice
+  category: africa
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.odi.org/feed/
+  name: ODI
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cgdev.org/rss.xml
+  name: Center for Global Development
+  category: africa
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.clarin.com/rss/ultimo-momento/
+  name: Clarin Ultimo Momento
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.infobae.com/feeds/rss/
+  name: Infobae
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.lanacion.com.ar/arcio/rss/
+  name: La Nacion Argentina
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.perfil.com/feed
+  name: Perfil Argentina
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.ambito.com/rss/noticias.xml
+  name: Ambito Financiero
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.cronista.com/feed/
+  name: El Cronista
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.telam.com.ar/rss2/ultimasnoticias.xml
+  name: Telam Argentina
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://chequeado.com/feed/
+  name: Chequeado
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.cels.org.ar/web/feed/
+  name: CELS Argentina
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: es
+- url: https://www.eldiarioar.com/rss/
+  name: elDiarioAR
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.losandes.com.ar/arcio/rss/
+  name: Los Andes Mendoza
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.lavoz.com.ar/feed/
+  name: La Voz Cordoba
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://feeds.folha.uol.com.br/poder/rss091.xml
+  name: Folha Poder
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://feeds.folha.uol.com.br/mundo/rss091.xml
+  name: Folha Mundo
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://g1.globo.com/rss/g1/
+  name: G1 Globo
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://g1.globo.com/rss/g1/politica/
+  name: G1 Politica
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://g1.globo.com/rss/g1/mundo/
+  name: G1 Mundo
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://rss.uol.com.br/feed/noticias.xml
+  name: UOL Noticias
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://www.estadao.com.br/rss/politica.xml
+  name: Estadao Politica
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://www.estadao.com.br/rss/internacional.xml
+  name: Estadao Internacional
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: pt
+- url: https://www.correiobraziliense.com.br/rss/noticia/politica/feed.xml
+  name: Correio Braziliense Politica
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.poder360.com.br/feed/
+  name: Poder360
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://theintercept.com/brasil/feed/
+  name: Intercept Brasil
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.nexojornal.com.br/rss.xml
+  name: Nexo Jornal
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: pt
+- url: https://www.cartacapital.com.br/feed/
+  name: Carta Capital
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.conjur.com.br/rss.xml
+  name: Consultor Juridico
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: pt
+- url: https://www.gazetadopovo.com.br/feed/
+  name: Gazeta do Povo
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.dw.com/pt-br/rss
+  name: DW Brasil
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.metropoles.com/feed
+  name: Metropoles
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: pt
+- url: https://www.excelsior.com.mx/rss.xml
+  name: Excelsior
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.eleconomista.com.mx/rss/
+  name: El Economista Mexico
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.elfinanciero.com.mx/arc/outboundfeeds/rss/
+  name: El Financiero
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://expansion.mx/rss
+  name: Expansion Mexico
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.jornada.com.mx/rss/politica.xml
+  name: La Jornada Politica
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.jornada.com.mx/rss/economia.xml
+  name: La Jornada Economia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://piedepagina.mx/feed/
+  name: Pie de Pagina
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.elsoldemorelia.com.mx/rss.xml
+  name: El Sol de Morelia
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.elimparcial.com/rss.xml
+  name: El Imparcial
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://aristeguinoticias.com/feed/
+  name: Aristegui Noticias
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.reporteindigo.com/feed/
+  name: Reporte Indigo
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.debate.com.mx/rss/portada.xml
+  name: El Debate Mexico
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://imco.org.mx/feed/
+  name: IMCO Mexico
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: es
+- url: https://mexicoevalua.org/feed/
+  name: Mexico Evalua
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: es
+- url: https://www.etcetera.com.mx/feed/
+  name: Etcetera Mexico
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.semana.com/rss.xml
+  name: Semana
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.elespectador.com/rss.xml
+  name: El Espectador
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.bluradio.com/feed
+  name: Blu Radio Colombia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.lasillavacia.com/feed/
+  name: La Silla Vacia
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.elcolombiano.com/rss/Antioquia.xml
+  name: El Colombiano Antioquia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.portafolio.co/rss.xml
+  name: Portafolio Colombia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.rcnradio.com/feed
+  name: RCN Radio
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://cerosetenta.uniandes.edu.co/feed/
+  name: 070 Uniandes
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: es
+- url: https://www.cinep.org.co/feed/
+  name: CINEP Colombia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: es
+- url: https://verdadabierta.com/feed/
+  name: Verdad Abierta
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://pacifista.tv/feed/
+  name: Pacifista
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.biobiochile.cl/feed
+  name: BioBioChile
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.cooperativa.cl/noticias/site/tax/port/rss____1.xml
+  name: Cooperativa Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.ciperchile.cl/feed/
+  name: CIPER Chile
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.df.cl/rss/lo-ultimo
+  name: Diario Financiero Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.ex-ante.cl/feed/
+  name: Ex-Ante Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.theclinic.cl/feed/
+  name: The Clinic Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://interferencia.cl/feed
+  name: Interferencia Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.pauta.cl/rss
+  name: Pauta Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://larepublica.pe/rss
+  name: La Republica Peru
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://gestion.pe/rss
+  name: Gestion Peru
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://ojo-publico.com/feed
+  name: Ojo Publico
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.idl-reporteros.pe/feed/
+  name: IDL Reporteros
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://convoca.pe/feed
+  name: Convoca Peru
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.servindi.org/feed
+  name: Servindi
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://wayka.pe/feed/
+  name: Wayka Peru
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.el-carabobeno.com/feed/
+  name: El Carabobeno
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://runrun.es/feed/
+  name: RunRunes Venezuela
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://cronica.uno/feed/
+  name: Cronica Uno
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.lapatilla.com/feed/
+  name: La Patilla
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://armando.info/feed/
+  name: Armando.info
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.elnuevoherald.com/noticias/mundo/america-latina/venezuela-es/?rss=y
+  name: Nuevo Herald Venezuela
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.prensagrafica.com/feed/
+  name: La Prensa Grafica El Salvador
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.nacion.com/feed/
+  name: La Nacion Costa Rica
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.crhoy.com/feed/
+  name: CRHoy Costa Rica
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.laprensa.hn/rss/portada.xml
+  name: La Prensa Honduras
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.prensa.com/feed/
+  name: La Prensa Panama
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.estrategiaynegocios.net/feed/
+  name: Estrategia y Negocios
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://elfaro.net/feed/
+  name: El Faro
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.revistafactum.com/feed/
+  name: Revista Factum
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.no-ficcion.com/feed
+  name: No Ficcion Guatemala
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.swissinfo.ch/spa/rss/america-central/feed
+  name: SWI Central America
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://100noticias.com.ni/feed/
+  name: 100% Noticias Nicaragua
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.ticotimes.net/feed
+  name: Tico Times Costa Rica
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://jamaica-gleaner.com/feed
+  name: Jamaica Gleaner
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.trinidadexpress.com/search/?f=rss&t=article
+  name: Trinidad Express
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.kaieteurnewsonline.com/feed/
+  name: Kaieteur News Guyana
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://cubadebate.cu/feed/
+  name: Cubadebate
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://diariodecuba.com/rss.xml
+  name: Diario de Cuba
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://oncubanews.com/feed/
+  name: OnCuba News
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://nationnews.com/feed/
+  name: Barbados Nation News
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.bahamas.gov.bs/wps/portal/public/rss
+  name: Bahamas Govt
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 3600
+  enabled: true
+- url: https://antiguaobserver.com/feed/
+  name: Antigua Observer
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.loopjamaica.com/rss.xml
+  name: Loop Jamaica
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 600
+  enabled: true
+- url: https://www.looptt.com/rss.xml
+  name: Loop Trinidad
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 600
+  enabled: true
+- url: https://caribbeannewsglobal.com/feed/
+  name: Caribbean News Global
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.caribbeanlifenews.com/feed/
+  name: Caribbean Life News
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.cbc.ca/webfeed/rss/rss-politics
+  name: CBC Politics
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.cbc.ca/webfeed/rss/rss-canada
+  name: CBC Canada
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/world/
+  name: Globe and Mail World
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://nationalpost.com/feed
+  name: National Post
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.thestar.com/search/?f=rss&t=article&c=news/politics
+  name: Toronto Star Politics
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://policyoptions.irpp.org/feed/
+  name: Policy Options IRPP
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://thetyee.ca/rss2.xml
+  name: The Tyee
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thenarwhal.ca/feed/
+  name: The Narwhal
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://theconversation.com/ca/articles.atom
+  name: Conversation Canada
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://ipolitics.ca/feed/
+  name: iPolitics Canada
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.hilltimes.com/feed/
+  name: Hill Times Canada
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://rabble.ca/feed/
+  name: Rabble Canada
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.opencanada.org/feed/
+  name: OpenCanada
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.lostiempos.com/rss.xml
+  name: Los Tiempos Bolivia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.opinion.com.bo/feed/
+  name: Opinion Bolivia
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.primicias.ec/feed/
+  name: Primicias Ecuador
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.planv.com.ec/feed
+  name: Plan V Ecuador
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://gk.city/feed/
+  name: GK Ecuador
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+  language: es
+- url: https://www.ultimahora.com/rss
+  name: Ultima Hora Paraguay
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.elobservador.com.uy/feed/
+  name: El Observador Uruguay
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://ladiaria.com.uy/feed/
+  name: La Diaria Uruguay
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://en.mercopress.com/rss/mercosur
+  name: MercoPress Mercosur
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://en.mercopress.com/rss/falkland-islands
+  name: MercoPress Falklands
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 1800
+  enabled: true
+- url: https://en.mercopress.com/rss/chile
+  name: MercoPress Chile
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://en.mercopress.com/rss/unasur
+  name: MercoPress Unasur
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.wilsoncenter.org/program/latin-american-program/feed
+  name: Wilson Center LAP
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://cepr.net/feed/
+  name: CEPR
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://nacla.org/feed
+  name: NACLA
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.insightcrime.org/feed/
+  name: InSight Crime
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://globalinitiative.net/feed/
+  name: Global Initiative Against Transnational OC
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.foreignaffairslatinamerica.org/feed/
+  name: Foreign Affairs Latin America
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://latinobarometro.org/feed/
+  name: Latinobarometro
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 3600
+  enabled: true
+  language: es
+- url: https://newsamericasnow.com/feed
+  name: News Americas Now
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://globalvoices.org/-/world/americas/feed/
+  name: Global Voices Americas
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.bnamericas.com/en/rss
+  name: BNAmericas
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.csis.org/programs/americas-program/feed
+  name: CSIS Americas Program
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.brookings.edu/topic/latin-america-and-caribbean/feed/
+  name: Brookings Latin America
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.oas.org/en/media_center/rss/press_releases.xml
+  name: OAS Press Releases
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cepal.org/en/rss.xml
+  name: CEPAL/ECLAC
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iadb.org/en/news/feed
+  name: Inter-American Development Bank
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.corteidh.or.cr/feed/
+  name: Inter-American Court of HR
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 3600
+  enabled: true
+  language: es
+- url: https://caricom.org/feed/
+  name: CARICOM
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.southcom.mil/Portals/7/rss.xml
+  name: US SOUTHCOM
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.state.gov/rss-feed/western-hemisphere/feed/
+  name: State Dept Western Hemisphere
+  category: western_hemisphere
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://smallwarsjournal.com/feed
+  name: Small Wars Journal
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.borderlandbeat.com/feeds/posts/default
+  name: Borderland Beat
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://dialogoamericas.com/feed/
+  name: Dialogo Americas
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.elpais.com.uy/rss/economia.xml
+  name: El Pais Uruguay Economia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.americaeconomia.com/rss.xml
+  name: America Economia
+  category: western_hemisphere
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.bnamiller.com/feed/
+  name: BNA Miller
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 1800
+  enabled: true
+- url: https://oilnow.gy/feed/
+  name: OilNow Guyana
+  category: western_hemisphere
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.bbc.co.uk/news/uk/rss.xml
+  name: BBC UK News
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.bbc.co.uk/news/uk-politics/rss.xml
+  name: BBC UK Politics
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.theguardian.com/politics/rss
+  name: Guardian Politics
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ft.com/world/uk?format=rss
+  name: FT UK
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.independent.co.uk/news/uk/rss
+  name: Independent UK
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.politicshome.com/rss
+  name: Politics Home
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.conservativehome.com/feed
+  name: ConservativeHome
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://ukdefencejournal.org.uk/feed/
+  name: UK Defence Journal
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.cityam.com/feed/
+  name: City AM
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.opendemocracy.net/en/rss/
+  name: OpenDemocracy
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.instituteforgovernment.org.uk/rss.xml
+  name: IfG UK
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.newstatesman.com/feed
+  name: New Statesman
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.spectator.co.uk/feed
+  name: Spectator
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.prospect-magazine.co.uk/feed
+  name: Prospect Magazine
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.iiss.org/rss
+  name: IISS
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.lemonde.fr/international/rss_full.xml
+  name: Le Monde International
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: fr
+- url: https://www.liberation.fr/arc/outboundfeeds/rss/
+  name: Liberation
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.mediapart.fr/rss
+  name: Mediapart
+  category: europe
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: fr
+- url: https://www.ifri.org/en/rss.xml
+  name: IFRI
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iris-france.org/feed/
+  name: IRIS France
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+  language: fr
+- url: https://www.connexionfrance.com/rss/
+  name: Connexion France
+  category: europe
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://www.dw.com/en/top-stories/rss
+  name: DW Top Stories
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.dw.com/en/europe/rss
+  name: DW Europe
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.handelsblatt.com/contentexport/feed/top
+  name: Handelsblatt
+  category: europe
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: de
+- url: https://www.swp-berlin.org/en/rss.xml
+  name: SWP Berlin
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://dgap.org/en/rss.xml
+  name: DGAP
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.tagesschau.de/xml/rss2_en/
+  name: Tagesschau English
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ansa.it/sito/ansait_rss.xml
+  name: ANSA Italy
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: it
+- url: https://www.ilsole24ore.com/rss/mondo.xml
+  name: Il Sole 24 Ore
+  category: europe
+  priority: 1
+  poll_interval: 600
+  enabled: true
+  language: it
+- url: https://www.iai.it/en/rss.xml
+  name: IAI Rome
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ispionline.it/en/rss.xml
+  name: ISPI Milan
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://elpais.com/rss/elpais/portada.xml
+  name: El Pais
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://elpais.com/rss/elpais/internacional.xml
+  name: El Pais Internacional
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.abc.es/rss/feeds/abc_portada.xml
+  name: ABC Spain
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+  language: es
+- url: https://www.larazon.es/rss/portada.xml
+  name: La Razon
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.eldiario.es/rss/
+  name: elDiario.es
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+  language: es
+- url: https://www.realinstitutoelcano.org/en/feed/
+  name: Real Instituto Elcano
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.thelocal.se/feed
+  name: The Local Sweden
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thelocal.no/feed
+  name: The Local Norway
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thelocal.dk/feed
+  name: The Local Denmark
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.highnorthnews.com/en/rss
+  name: High North News
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.nupi.no/en/feed
+  name: NUPI Norway
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.diis.dk/en/rss.xml
+  name: DIIS Denmark
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ui.se/eng/feed/
+  name: UI Sweden
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.unian.info/rss/all.xml
+  name: Unian Ukraine
+  category: europe
+  priority: 2
+  poll_interval: 300
+  enabled: true
+- url: https://www.rferl.org/api/rss
+  name: RFE/RL
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.intellinews.com/rss/
+  name: Intellinews
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thenewfederalist.eu/spip.php?page=backend
+  name: New Federalist
+  category: europe
+  priority: 3
+  poll_interval: 1800
+  enabled: true
+- url: https://hungarianfreepress.com/feed/
+  name: Hungarian Free Press
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.romanijournal.ro/feed/
+  name: Romania Journal
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://bne.eu/rss/
+  name: bne IntelliNews
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.belta.by/en/rss
+  name: Belta Belarus
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.delfi.lt/en/rss/
+  name: Delfi Lithuania
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.cepa.org/feed/
+  name: CEPA
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.osw.waw.pl/en/rss.xml
+  name: OSW Poland
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://visegradinsight.eu/feed/
+  name: Visegrad Insight
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ponarseurasia.org/feed/
+  name: PONARS Eurasia
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.euractiv.com/sections/enlargement/feed/
+  name: EurActiv Enlargement
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://europeanwesternbalkans.com/feed/
+  name: European Western Balkans
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.n1info.com/english/feed/
+  name: N1 Info
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.total-croatia-news.com/feed
+  name: Total Croatia News
+  category: europe
+  priority: 3
+  poll_interval: 900
+  enabled: true
+- url: https://exit.al/en/feed/
+  name: Exit News Albania
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://jam-news.net/feed/
+  name: JAM News Caucasus
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://oc-media.org/feed/
+  name: OC Media Caucasus
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.cacianalyst.org/feed/
+  name: CACI Analyst
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://thediplomat.com/tag/central-asia/feed/
+  name: Diplomat Central Asia
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://astanatimes.com/feed/
+  name: Astana Times
+  category: europe
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.azernews.az/rss/
+  name: AzerNews
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.swissinfo.ch/eng/rss/all/feed
+  name: SWI English
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thelocal.ch/feed
+  name: The Local Switzerland
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.thelocal.at/feed
+  name: The Local Austria
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.brusselstimes.com/feed
+  name: Brussels Times
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.clingendael.org/feed/
+  name: Clingendael Netherlands
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.egmontinstitute.be/feed/
+  name: Egmont Institute Belgium
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.portugal.gov.pt/en/rss
+  name: Portugal Govt
+  category: europe
+  priority: 3
+  poll_interval: 3600
+  enabled: true
+- url: https://www.ecfr.eu/rss
+  name: ECFR
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.europenowjournal.org/feed/
+  name: Europe Now
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.epc.eu/en/rss.xml
+  name: EPC Brussels
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.friends-of-europe.org/feed/
+  name: Friends of Europe
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.jacques-delors.eu/en/feed/
+  name: Jacques Delors Centre
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://carnegieeurope.eu/rss/solr.xml
+  name: Carnegie Europe
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.euronews.com/rss
+  name: Euronews
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ekathimerini.com/rss/
+  name: Ekathimerini Greece
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://greekreporter.com/feed/
+  name: Greek Reporter
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://cyprus-mail.com/feed/
+  name: Cyprus Mail
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.eliamep.gr/en/feed/
+  name: ELIAMEP Greece
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.irishtimes.com/cmlink/news-1.1319192
+  name: Irish Times
+  category: europe
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.rte.ie/news/rss/news-headlines.xml
+  name: RTE News
+  category: europe
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.thejournal.ie/feed/
+  name: TheJournal.ie
+  category: europe
+  priority: 2
+  poll_interval: 600
+  enabled: true
+- url: https://www.defensenews.com/arc/outboundfeeds/rss/
+  name: Defense News
+  category: europe
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.nato.int/cps/en/natohq/opinions.xml
+  name: NATO Opinions
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.eucom.mil/rss/headlines
+  name: US EUCOM
+  category: europe
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.europeandefencereview.com/feed/
+  name: European Defence Review
+  category: europe
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.who.int/feeds/entity/mediacentre/news/en/rss.xml
+  name: WHO News
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.who.int/feeds/entity/csr/don/en/rss.xml
+  name: WHO Disease Outbreak News
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.unicef.org/press-releases/rss
+  name: UNICEF Press
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.fao.org/news/rss-feed/en/
+  name: FAO News
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://news.un.org/en/news/un-bodies/general-assembly/feed/rss.xml
+  name: UN General Assembly
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://news.un.org/en/news/un-bodies/security-council/feed/rss.xml
+  name: UN Security Council
+  category: multilateral
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ohchr.org/en/rss-feeds/news
+  name: OHCHR News
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.ohchr.org/en/rss-feeds/press-releases
+  name: OHCHR Press Releases
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.ilo.org/global/about-the-ilo/newsroom/news/rss.xml
+  name: ILO News
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.unrwa.org/newsroom/rss.xml
+  name: UNRWA News
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.iaea.org/feeds/topnews.xml
+  name: IAEA Top News
+  category: multilateral
+  priority: 1
+  poll_interval: 900
+  enabled: true
+- url: https://www.iaea.org/feeds/pressreleases.xml
+  name: IAEA Press Releases
+  category: multilateral
+  priority: 1
+  poll_interval: 900
+  enabled: true
+- url: https://www.opcw.org/rss/news
+  name: OPCW News
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.wmo.int/rss.xml
+  name: WMO News
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.unwomen.org/en/news/rss
+  name: UN Women
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://dppa.un.org/en/rss.xml
+  name: UN DPPA
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://peacekeeping.un.org/en/rss.xml
+  name: UN Peacekeeping
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ungeneva.org/en/rss.xml
+  name: UN Geneva
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.imf.org/en/News/rss
+  name: IMF News
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.adb.org/news/rss
+  name: ADB News
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.bis.org/rss/cbspeeches.rss
+  name: BIS Speeches
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.bis.org/rss/press.rss
+  name: BIS Press
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.oecd.org/newsroom/news.xml
+  name: OECD Newsroom
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.europarl.europa.eu/rss/en/news.xml
+  name: EU Parliament News
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.g20.org/en/rss
+  name: G20
+  category: multilateral
+  priority: 1
+  poll_interval: 3600
+  enabled: true
+- url: https://www.g7germany.de/rss.xml
+  name: G7
+  category: multilateral
+  priority: 1
+  poll_interval: 3600
+  enabled: true
+- url: https://reliefweb.int/headlines/rss.xml
+  name: ReliefWeb Headlines
+  category: multilateral
+  priority: 1
+  poll_interval: 300
+  enabled: true
+- url: https://www.ifrc.org/rss.xml
+  name: IFRC
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.internal-displacement.org/feed
+  name: IDMC
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.rescue.org/feed
+  name: IRC
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.nrc.no/rss/
+  name: Norwegian Refugee Council
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.oxfam.org/en/rss/press_release
+  name: Oxfam Press
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.savethechildren.net/news/rss.xml
+  name: Save the Children
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.care-international.org/feed/
+  name: CARE International
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.hrw.org/feed
+  name: Human Rights Watch
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.amnesty.org/en/latest/news/feed/
+  name: Amnesty International
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.fidh.org/en/rss/
+  name: FIDH
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.freedomhouse.org/rss.xml
+  name: Freedom House
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://rsf.org/en/rss.xml
+  name: RSF Press Freedom
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://cpj.org/feed/
+  name: CPJ
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.transparency.org/en/rss.xml
+  name: Transparency International
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.globalwitness.org/en/rss/
+  name: Global Witness
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.civicus.org/index.php/media-center/news/feed
+  name: CIVICUS
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.article19.org/feed/
+  name: Article 19
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.icj-cij.org/public/rss/pressreleases
+  name: ICJ Press
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.icc-cpi.int/rss/otp
+  name: ICC OTP
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.armscontrol.org/rss
+  name: Arms Control Association
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://nonproliferation.org/feed/
+  name: NTI
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.wto.org/english/news_e/rss_e/rss_e.xml
+  name: WTO News
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://voxeu.org/rss.xml
+  name: VoxEU
+  category: multilateral
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.tradewindsnews.com/rss
+  name: TradeWinds
+  category: multilateral
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.ictsd.org/bridges-news/bridges/rss.xml
+  name: ICTSD Bridges
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.climatechangenews.com/feed/
+  name: Climate Change News
+  category: multilateral
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.climatediplomacy.org/rss.xml
+  name: Climate Diplomacy
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://sdg.iisd.org/feed/
+  name: IISD SDG Knowledge
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://enb.iisd.org/rss/rss.xml
+  name: IISD ENB
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.chathamhouse.org/rss.xml
+  name: Chatham House
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.crisisgroup.org/rss.xml
+  name: International Crisis Group
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.swp-berlin.org/en/rss-feeds/
+  name: SWP Berlin
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.wilsoncenter.org/feed
+  name: Wilson Center
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.lawfaremedia.org/rss-feed.xml
+  name: Lawfare
+  category: multilateral
+  priority: 1
+  poll_interval: 600
+  enabled: true
+- url: https://www.iss.europa.eu/feed
+  name: EUISS
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.bruegel.org/rss.xml
+  name: Bruegel
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://globalriskinsights.com/feed/
+  name: Global Risk Insights
+  category: multilateral
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.globalpolicyjournal.com/feed
+  name: Global Policy Journal
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://ofac.treasury.gov/recent-actions/rss.xml
+  name: OFAC Recent Actions
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.sanctionsnews.com/feed/
+  name: Sanctions News
+  category: multilateral
+  priority: 2
+  poll_interval: 900
+  enabled: true
+- url: https://www.accessnow.org/feed/
+  name: Access Now
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://dig.watch/feed/
+  name: DiploFoundation GIP
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://mixedmigration.org/feed/
+  name: Mixed Migration Centre
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://aceproject.org/feed/
+  name: ACE Electoral Knowledge
+  category: multilateral
+  priority: 2
+  poll_interval: 3600
+  enabled: true
+- url: https://www.idea.int/rss.xml
+  name: International IDEA
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.ned.org/rss.xml
+  name: NED
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.v-dem.net/feed/
+  name: V-Dem
+  category: multilateral
+  priority: 2
+  poll_interval: 3600
+  enabled: true
+- url: https://www.ifes.org/news/rss.xml
+  name: IFES
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.cartercenter.org/rss/news.xml
+  name: Carter Center
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
+  enabled: true
+- url: https://www.fews.net/rss.xml
+  name: FEWS NET
+  category: multilateral
+  priority: 1
+  poll_interval: 1800
+  enabled: true
+- url: https://www.foodsecurityportal.org/rss.xml
+  name: IFPRI Food Security
+  category: multilateral
+  priority: 2
+  poll_interval: 1800
   enabled: true
