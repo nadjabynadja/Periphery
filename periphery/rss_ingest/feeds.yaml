@@ -1,22 +1,8 @@
 ###############################################################################
 # OSINT INTELLIGENCE PLATFORM — RSS/ATOM FEED CONFIGURATION
-# Generated: 2026-03-11
-# Total Active Feeds: 150
-# Known RSS Gaps: Reuters, AP, OFAC, FATF, BIS, ACLED, Janes, Liveuamap,
-#                 SSRN, Lloyd's List, Flexport (workarounds documented)
-#
-# PRIORITY KEY:
-#   1 = Critical / Breaking (immediate analyst alert)
-#   2 = Important / Daily (morning brief inclusion)
-#   3 = Standard (routine monitoring)
-#   4 = Background (weekly review)
-#   5 = Supplementary (research reference)
-#
-# POLL INTERVAL KEY:
-#   300s  = 5 min  (breaking news, CVE alerts)
-#   600s  = 10 min (daily news sources)
-#   1800s = 30 min (analysis, think tanks)
-#   3600s = 1 hr   (academic, regulatory, slow-publishing)
+# Updated: 2026-03-23
+# Total Active Feeds: 228
+# Merged: 150 original + 78 new feeds for PDB-style DIC coverage
 ###############################################################################
 
 rate_limits:
@@ -24,1343 +10,1343 @@ rate_limits:
     requests_per_second: 0.1
     burst_size: 3
     max_concurrent_per_domain: 2
-
   overrides:
-    # --- US Government / Military (be very polite) ---
-    "defense.gov":
+    defense.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "war.gov":                       # defense.gov rebranded under current admin
+    war.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "centcom.mil":
+    centcom.mil:
       requests_per_second: 0.05
       burst_size: 1
-    "pacom.mil":
+    pacom.mil:
       requests_per_second: 0.05
       burst_size: 1
-    "eucom.mil":
+    eucom.mil:
       requests_per_second: 0.05
       burst_size: 1
-    "cisa.gov":
+    cisa.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "nvd.nist.gov":
+    nvd.nist.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "treasury.gov":
+    treasury.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "state.gov":
+    state.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "whitehouse.gov":
+    whitehouse.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "federalregister.gov":
+    federalregister.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "sec.gov":
+    sec.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "gao.gov":
+    gao.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "justice.gov":
+    justice.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "congress.gov":
+    congress.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "dni.gov":
+    dni.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "dhs.gov":
+    dhs.gov:
       requests_per_second: 0.05
       burst_size: 1
-    "nato.int":
+    nato.int:
       requests_per_second: 0.05
       burst_size: 1
-    "who.int":
+    who.int:
       requests_per_second: 0.05
       burst_size: 1
-    "cdc.gov":
+    cdc.gov:
       requests_per_second: 0.05
       burst_size: 1
-
-    # --- Wire Services / Major News (moderate) ---
-    "feeds.bbci.co.uk":
+    feeds.bbci.co.uk:
       requests_per_second: 0.2
       burst_size: 3
-    "aljazeera.com":
+    aljazeera.com:
       requests_per_second: 0.2
       burst_size: 3
-    "france24.com":
+    france24.com:
       requests_per_second: 0.2
       burst_size: 3
-    "rss.dw.com":
+    rss.dw.com:
       requests_per_second: 0.2
       burst_size: 3
-    "theguardian.com":
+    theguardian.com:
       requests_per_second: 0.2
       burst_size: 3
-    "channelnewsasia.com":
+    channelnewsasia.com:
       requests_per_second: 0.2
       burst_size: 3
-
-    # --- Defense / National Security News (moderate) ---
-    "defenseone.com":
+    defenseone.com:
       requests_per_second: 0.15
       burst_size: 2
-    "breakingdefense.com":
+    breakingdefense.com:
       requests_per_second: 0.15
       burst_size: 2
-    "defensenews.com":
+    defensenews.com:
       requests_per_second: 0.15
       burst_size: 2
-    "militarytimes.com":
+    militarytimes.com:
       requests_per_second: 0.15
       burst_size: 2
-    "twz.com":
+    twz.com:
       requests_per_second: 0.15
       burst_size: 2
-
-    # --- Cybersecurity Sources ---
-    "krebsonsecurity.com":
+    krebsonsecurity.com:
       requests_per_second: 0.1
       burst_size: 2
-    "bleepingcomputer.com":
+    bleepingcomputer.com:
       requests_per_second: 0.15
       burst_size: 2
-    "darkreading.com":
+    darkreading.com:
       requests_per_second: 0.15
       burst_size: 2
-    "api.msrc.microsoft.com":
+    api.msrc.microsoft.com:
       requests_per_second: 0.05
       burst_size: 1
-
-    # --- Think Tanks / Academic (conservative) ---
-    "csis.org":
+    csis.org:
       requests_per_second: 0.05
       burst_size: 1
-    "brookings.edu":
+    brookings.edu:
       requests_per_second: 0.05
       burst_size: 1
-    "rand.org":
+    rand.org:
       requests_per_second: 0.05
       burst_size: 1
-    "carnegieendowment.org":
+    carnegieendowment.org:
       requests_per_second: 0.05
       burst_size: 1
-    "rss.arxiv.org":
+    rss.arxiv.org:
       requests_per_second: 0.03
       burst_size: 1
-    "reliefweb.int":
+    reliefweb.int:
       requests_per_second: 0.1
       burst_size: 2
-
-    # --- Iranian State Media (may require proxy / special routing) ---
-    "en.irna.ir":
+    en.irna.ir:
       requests_per_second: 0.05
       burst_size: 1
-    "presstv.ir":
+    presstv.ir:
       requests_per_second: 0.05
       burst_size: 1
-    "tehrantimes.com":
+    tehrantimes.com:
       requests_per_second: 0.05
       burst_size: 1
-
-    # --- Russian / Adversary State Media ---
-    "tass.com":
+    tass.com:
       requests_per_second: 0.05
       burst_size: 1
-    "english.news.cn":
+    english.news.cn:
       requests_per_second: 0.05
       burst_size: 1
-
+    rss.politico.com:
+      requests_per_second: 0.15
+      burst_size: 2
+    thehill.com:
+      requests_per_second: 0.15
+      burst_size: 2
+    feeds.npr.org:
+      requests_per_second: 0.15
+      burst_size: 2
+    www.pbs.org:
+      requests_per_second: 0.1
+      burst_size: 2
+    api.axios.com:
+      requests_per_second: 0.1
+      burst_size: 2
+    news.un.org:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.iaea.org:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.imf.org:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.worldbank.org:
+      requests_per_second: 0.05
+      burst_size: 1
+    news.google.com:
+      requests_per_second: 0.1
+      burst_size: 2
+    api.gdeltproject.org:
+      requests_per_second: 0.1
+      burst_size: 3
+    www.euractiv.com:
+      requests_per_second: 0.1
+      burst_size: 2
+    www.politico.eu:
+      requests_per_second: 0.1
+      burst_size: 2
+    feeds.marketwatch.com:
+      requests_per_second: 0.1
+      burst_size: 2
+    search.cnbc.com:
+      requests_per_second: 0.1
+      burst_size: 2
+    www.federalreserve.gov:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.ecb.europa.eu:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.gov.uk:
+      requests_per_second: 0.05
+      burst_size: 1
+    www.cbc.ca:
+      requests_per_second: 0.1
+      burst_size: 2
   global_limits:
     max_concurrent_requests: 20
     max_requests_per_minute: 300
-
-###############################################################################
-# FEEDS
-###############################################################################
-
 feeds:
-
-  # ==========================================================================
-  # CATEGORY 1: IRAN & MIDDLE EAST / MENA (15 feeds)
-  # Focus: Iran nuclear, IRGC, proxy forces, Persian Gulf, Iraq, Syria, Yemen
-  # ==========================================================================
-
-  - url: "https://en.irna.ir/rss"
-    name: "IRNA English — Islamic Republic News Agency"
-    category: "iran_mena"
-    poll_interval: 300
-    priority: 1
-    # Official Iranian state news agency. May have intermittent availability
-    # (cyberattack reported Feb 2026). Route via proxy if needed.
-
-  - url: "https://www.tehrantimes.com/rss"
-    name: "Tehran Times"
-    category: "iran_mena"
-    poll_interval: 300
-    priority: 1
-    # First English daily post-1979 revolution. Section feeds also available.
-
-  - url: "https://www.presstv.ir/rss"
-    name: "Press TV — Iranian State English TV"
-    category: "iran_mena"
-    poll_interval: 300
-    priority: 1
-    # Note: presstv.com seized by US DOJ in 2021; use .ir domain.
-    # Sanctioned/blocked in some jurisdictions (AU, EU).
-
-  - url: "https://www.al-monitor.com/rss"
-    name: "Al-Monitor Middle East"
-    category: "iran_mena"
-    poll_interval: 300
-    priority: 1
-    # Independent, award-winning MENA coverage. Verified active.
-
-  - url: "https://www.middleeasteye.net/rss"
-    name: "Middle East Eye"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 1
-    # London-based independent MENA outlet. Confirmed active.
-
-  - url: "https://www.longwarjournal.org/feed"
-    name: "FDD's Long War Journal"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 1
-    # Tracks terrorism, proxy forces (Hezbollah, Houthis, IRGC proxies).
-
-  - url: "https://mei.edu/rss.xml"
-    name: "Middle East Institute"
-    category: "iran_mena"
-    poll_interval: 1800
-    priority: 2
-    # Non-partisan DC think tank. Policy analysis and commentary.
-
-  - url: "https://carnegie-mec.org/rss/?lang=en"
-    name: "Carnegie Middle East Center"
-    category: "iran_mena"
-    poll_interval: 1800
-    priority: 2
-    # Beirut-based. Regional analysis, Iran nuclear, sectarian dynamics.
-
-  - url: "https://www.fdd.org/feed"
-    name: "Foundation for Defense of Democracies"
-    category: "iran_mena"
-    poll_interval: 1800
-    priority: 2
-    # Major Iran/ME-focused DC think tank. WordPress standard feed.
-
-  - url: "https://feeds.feedburner.com/ArmsControlAssociationUpdates"
-    name: "Arms Control Association — Iran & Nonproliferation"
-    category: "iran_mena"
-    poll_interval: 1800
-    priority: 2
-    # Covers P4+1 / Iran nuclear deal, proliferation alerts.
-    # FeedBurner URL per ACA's official RSS page.
-
-  - url: "https://gulfnews.com/rss"
-    name: "Gulf News"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 2
-    # Largest English newspaper in UAE. Persian Gulf security coverage.
-
-  - url: "https://www.thenationalnews.com/rss"
-    name: "The National (Abu Dhabi)"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 2
-    # UAE-based broadsheet. Extensive Gulf and MENA coverage.
-
-  - url: "https://www.memri.org/rss.xml"
-    name: "MEMRI — Middle East Media Research Institute"
-    category: "iran_mena"
-    poll_interval: 1800
-    priority: 2
-    # Translations from Arabic/Farsi/Turkish media. Verify exact URL.
-
-  - url: "https://www.rudaw.net/english/rss"
-    name: "Rudaw — Kurdish Media Network"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 2
-    # Erbil-based. Covers Kurdish regions of Iraq, Syria, Turkey, Iran.
-
-  - url: "https://www.timesofisrael.com/feed/"
-    name: "Times of Israel"
-    category: "iran_mena"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active WordPress feed. High-volume Israel/ME coverage.
-
-  # ==========================================================================
-  # CATEGORY 2: INDO-PACIFIC / CHINA / TAIWAN / SOUTH CHINA SEA (15 feeds)
-  # Focus: PLA, Taiwan Strait, SCS, North Korea, AUKUS, Pacific defense
-  # ==========================================================================
-
-  - url: "https://thediplomat.com/feed"
-    name: "The Diplomat"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 1
-    # Asia-Pacific's leading current affairs magazine. Confirmed active.
-
-  - url: "https://www.scmp.com/rss/91/feed"
-    name: "South China Morning Post — Asia"
-    category: "indo_pacific"
-    poll_interval: 300
-    priority: 1
-    # Hong Kong premier English paper. /rss/91/ = Asia section.
-
-  - url: "https://asia.nikkei.com/rss/feed/nar"
-    name: "Nikkei Asia"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 1
-    # Headlines-only feed per Nikkei terms. Japan/China/SE Asia coverage.
-
-  - url: "https://www.nknews.org/feed"
-    name: "NK News"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 1
-    # Independent DPRK-focused outlet. Some content paywalled.
-
-  - url: "https://www.38north.org/feed"
-    name: "38 North — Stimson Center"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 1
-    # Premier North Korea analysis incl. satellite imagery. Confirmed active.
-
-  - url: "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml"
-    name: "Channel News Asia — Latest"
-    category: "indo_pacific"
-    poll_interval: 300
-    priority: 1
-    # Singapore-based Mediacorp. API-based RSS. Breaking news source.
-
-  - url: "https://asiatimes.com/feed"
-    name: "Asia Times"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 2
-    # Pan-Asia coverage since 1995. Politics, economics, security.
-
-  - url: "https://eastasiaforum.org/feed"
-    name: "East Asia Forum — ANU"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 2
-    # Peer-reviewed analysis from Australian National University.
-
-  - url: "https://www.japantimes.co.jp/feed"
-    name: "Japan Times"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 2
-    # Japan's oldest English-language newspaper. Defense and Asia-Pacific.
-
-  - url: "https://www.lowyinstitute.org/the-interpreter/rss.xml"
-    name: "The Interpreter — Lowy Institute"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 2
-    # Daily analysis blog. Strong Indo-Pacific / Australia perspective.
-
-  - url: "https://www.taiwannews.com.tw/feed"
-    name: "Taiwan News"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 1
-    # English-language Taiwan news. Cross-strait relations, military.
-
-  - url: "https://www.stimson.org/feed"
-    name: "Stimson Center"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 2
-    # Hosts 38 North and South Asian Voices. Arms control, Indo-Pacific.
-
-  - url: "https://www.straitstimes.com/rssfeed/asia"
-    name: "The Straits Times — Asia"
-    category: "indo_pacific"
-    poll_interval: 600
-    priority: 2
-    # Singapore's major English daily. Asia section feed.
-
-  - url: "https://www.rand.org/topics/asia-pacific-region.xml"
-    name: "RAND Corporation — Asia Pacific"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 2
-    # Topic-based RSS. Verify exact slug at rand.org/news/rss.html.
-
-  - url: "https://pacforum.org/feed"
-    name: "Pacific Forum"
-    category: "indo_pacific"
-    poll_interval: 1800
-    priority: 3
-    # Honolulu-based think tank. Pacific Islands, AUKUS, alliances.
-
-  # ==========================================================================
-  # CATEGORY 3: CYBERSECURITY & THREAT INTELLIGENCE (15 feeds)
-  # Focus: CVEs, APT tracking, zero-days, ransomware, nation-state cyber ops
-  # ==========================================================================
-
-  - url: "https://www.cisa.gov/cybersecurity-advisories/all.xml"
-    name: "CISA Cybersecurity Advisories"
-    category: "cybersecurity"
-    poll_interval: 300
-    priority: 1
-    # WARNING: CISA announced RSS discontinuation May 2025, then paused
-    # the change after backlash. Status uncertain. Subscribe to GovDelivery
-    # email as backup: public.govdelivery.com/accounts/USDHSCISA/subscriber/new
-
-  - url: "https://api.msrc.microsoft.com/update-guide/rss"
-    name: "Microsoft Security Response Center"
-    category: "cybersecurity"
-    poll_interval: 300
-    priority: 1
-    # Official Security Update Guide RSS. Critical for Patch Tuesday.
-    # Blog feed also at: msrc.microsoft.com/blog/feed/
-
-  - url: "https://isc.sans.edu/rssfeed_full.xml"
-    name: "SANS Internet Storm Center — Handler's Diary"
-    category: "cybersecurity"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active March 2026. Full-text handler diary.
-    # Title-only: isc.sans.edu/rssfeed.xml
-
-  - url: "https://krebsonsecurity.com/feed/"
-    name: "Krebs on Security"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 1
-    # Confirmed active. Brian Krebs investigative cybercrime journalism.
-
-  - url: "https://feeds.feedburner.com/TheHackersNews"
-    name: "The Hacker News"
-    category: "cybersecurity"
-    poll_interval: 600
-    priority: 1
-    # High-volume daily cyber news. Alt: thehackernews.com/feeds/posts/default
-
-  - url: "https://www.bleepingcomputer.com/feed/"
-    name: "BleepingComputer"
-    category: "cybersecurity"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active. Ransomware, malware, Patch Tuesday, vulnerabilities.
-
-  - url: "https://unit42.paloaltonetworks.com/feed/"
-    name: "Unit 42 — Palo Alto Networks Threat Research"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 1
-    # Confirmed active. APT campaigns, malware analysis, zero-day advisories.
-
-  - url: "https://cloud.google.com/blog/topics/threat-intelligence/rss"
-    name: "Google Cloud Threat Intelligence (Mandiant)"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 1
-    # Mandiant blog migrated to Google Cloud. M-Trends, APT research.
-    # Alt: cloud.google.com/feeds/blog/topics/threat-intelligence
-
-  - url: "https://blog.google/threat-analysis-group/rss/"
-    name: "Google Threat Analysis Group (TAG)"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 1
-    # Government-backed hacking, coordinated influence ops. Lower volume.
-
-  - url: "https://www.darkreading.com/rss.xml"
-    name: "Dark Reading"
-    category: "cybersecurity"
-    poll_interval: 600
-    priority: 2
-    # Confirmed active. Enterprise security, attacks, breaches.
-
-  - url: "https://www.crowdstrike.com/en-us/blog/feed"
-    name: "CrowdStrike Blog"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 2
-    # Threat intel, adversary tracking. Category feed:
-    # crowdstrike.com/blog/category/threat-intel-research/feed
-
-  - url: "https://blog.rapid7.com/rss/"
-    name: "Rapid7 Blog"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 2
-    # Vulnerability research, exploit analysis, emergent threats.
-
-  - url: "https://www.recordedfuture.com/feed/"
-    name: "Recorded Future / Insikt Group"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 2
-    # Threat intelligence blog. APT tracking, geopolitical cyber threats.
-
-  - url: "https://www.schneier.com/blog/atom.xml"
-    name: "Schneier on Security"
-    category: "cybersecurity"
-    poll_interval: 1800
-    priority: 2
-    # Confirmed active. Cryptography, privacy, security policy analysis.
-
-  - url: "https://medium.com/mitre-attack/feed"
-    name: "MITRE ATT&CK Blog"
-    category: "cybersecurity"
-    poll_interval: 3600
-    priority: 2
-    # No RSS on attack.mitre.org; updates via Medium blog.
-    # Framework data via STIX/TAXII: cti-taxii.mitre.org
-
-  # NOTE: NVD retired legacy RSS (nvd-rss.xml) Aug 2025. Use NVD 2.0 REST
-  # API instead: services.nvd.nist.gov/rest/json/cves/2.0
-  # NOTE: Threatpost ceased publishing mid-2022 — do not use.
-
-  # ==========================================================================
-  # CATEGORY 4: US NATIONAL SECURITY & DEFENSE (15 feeds)
-  # Focus: Pentagon, DoD, combatant commands, defense policy, procurement
-  # ==========================================================================
-
-  - url: "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10"
-    name: "Department of Defense — News Stories"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # DotNetNuke RSS module. Note: defense.gov may now redirect to war.gov
-    # under current admin rebranding. Verify RSS page at /News/RSS/.
-
-  - url: "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=8&Site=945&max=10"
-    name: "Department of Defense — Press Releases"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Official DoD press releases, operational updates.
-
-  - url: "https://www.centcom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=816&max=10"
-    name: "U.S. Central Command (CENTCOM)"
-    category: "us_defense"
-    poll_interval: 300
-    priority: 1
-    # Critical for Middle East / Central Asia operations.
-    # Verify exact Site ID at centcom.mil/RSS/
-
-  - url: "https://www.pacom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=680&max=10"
-    name: "U.S. Indo-Pacific Command (INDOPACOM)"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Indo-Pacific security, China/DPRK ops, FONOPS.
-
-  - url: "https://www.eucom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=702&max=10"
-    name: "U.S. European Command (EUCOM)"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # European theater, NATO coordination, Russia/Ukraine context.
-
-  - url: "https://www.defenseone.com/rss/"
-    name: "Defense One"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active. National security strategy, Pentagon policy.
-
-  - url: "https://breakingdefense.com/feed/"
-    name: "Breaking Defense"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active 2026. Defense strategy, procurement, tech.
-
-  - url: "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml"
-    name: "Defense News"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Premier defense procurement and policy. Sightline Media Group.
-
-  - url: "https://www.twz.com/feed"
-    name: "The War Zone"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Migrated from thedrive.com to twz.com. Exceptional OSINT and analysis.
-
-  - url: "https://news.usni.org/feed"
-    name: "USNI News — Naval Institute"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 1
-    # Confirmed active March 2026. Fleet tracker, naval/maritime security.
-
-  - url: "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml"
-    name: "Military Times"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 2
-
-  - url: "https://www.c4isrnet.com/arc/outboundfeeds/rss/?outputType=xml"
-    name: "C4ISRNet"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 2
-    # AI, unmanned, battlefield tech, electronic warfare, cyber.
-
-  - url: "https://defensescoop.com/feed/"
-    name: "DefenseScoop"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 2
-    # Defense tech modernization. Part of Scoop News Group.
-
-  - url: "https://www.airandspaceforces.com/feed/"
-    name: "Air & Space Forces Magazine"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 2
-    # USAF/USSF operations, programs, technology. Confirmed active 2026.
-
-  - url: "https://www.stripes.com/feed"
-    name: "Stars and Stripes"
-    category: "us_defense"
-    poll_interval: 600
-    priority: 2
-    # Independent military community news. Global correspondents.
-
-  # NOTE: Congressional Research Service has NO public RSS feed.
-  # CRS reports available at crsreports.congress.gov (no RSS) or
-  # via Federation of American Scientists: sgp.fas.org/crs/
-
-  # ==========================================================================
-  # CATEGORY 5: GLOBAL NEWS & WIRE SERVICES (12 feeds)
-  # Focus: Major international news for situational awareness
-  # ==========================================================================
-
-  - url: "https://feeds.bbci.co.uk/news/world/rss.xml"
-    name: "BBC World News"
-    category: "global_news"
-    poll_interval: 300
-    priority: 1
-    # Confirmed active and well-maintained. Extensive BBC RSS ecosystem.
-    # Regional: /news/world/asia/rss.xml, /news/world/europe/rss.xml
-
-  - url: "https://www.aljazeera.com/xml/rss/all.xml"
-    name: "Al Jazeera English"
-    category: "global_news"
-    poll_interval: 300
-    priority: 1
-    # Confirmed active. ~336 articles/week. 24/7 breaking news.
-
-  - url: "https://www.france24.com/en/rss"
-    name: "France24 English"
-    category: "global_news"
-    poll_interval: 300
-    priority: 1
-    # France Médias Monde. Section feeds: /en/africa/rss, /en/middle-east/rss
-
-  - url: "https://www.theguardian.com/world/rss"
-    name: "The Guardian — World"
-    category: "global_news"
-    poll_interval: 300
-    priority: 1
-    # Excellent RSS support. Confirmed active.
-
-  - url: "https://rss.dw.com/xml/rss-en-all"
-    name: "DW — Deutsche Welle English"
-    category: "global_news"
-    poll_interval: 300
-    priority: 2
-    # Confirmed active. All English content feed.
-
-  - url: "https://www3.nhk.or.jp/nhkworld/data/en/news/backstory/rss.xml"
-    name: "NHK World-Japan — In-Depth News"
-    category: "global_news"
-    poll_interval: 600
-    priority: 2
-    # In-depth features. NHK English RSS is more limited than Japanese.
-
-  - url: "https://english.news.cn/rss/"
-    name: "Xinhua English"
-    category: "global_news"
-    poll_interval: 600
-    priority: 2
-    # Chinese state media — know your adversary. RSS page lists
-    # section feeds. Verify exact XML URLs from the index.
-
-  - url: "https://tass.com/rss/v2.xml"
-    name: "TASS English"
-    category: "global_news"
-    poll_interval: 600
-    priority: 2
-    # Russian state media — adversary narrative monitoring.
-
-  - url: "https://kyivindependent.com/feed/"
-    name: "Kyiv Independent"
-    category: "global_news"
-    poll_interval: 600
-    priority: 1
-    # Ukraine's premier English-language outlet. WordPress feed.
-
-  - url: "https://www.africanews.com/feed/rss"
-    name: "Africanews"
-    category: "global_news"
-    poll_interval: 600
-    priority: 3
-    # Pan-African news (Euronews group). Confirmed active with 2026 content.
-
-  - url: "https://feeds.feedburner.com/securityweek"
-    name: "SecurityWeek"
-    category: "global_news"
-    poll_interval: 600
-    priority: 2
-    # IT security news wire. Alt: securityweek.com/feed/
-
-  - url: "https://www.jpost.com/rss/rssfeedsfrontpage.aspx"
-    name: "Jerusalem Post"
-    category: "global_news"
-    poll_interval: 600
-    priority: 2
-    # Major Israeli English-language paper. ME/Israel security.
-
-  # KNOWN GAP: Reuters discontinued all RSS feeds June 2020.
-  # KNOWN GAP: AP News (apnews.com) has no official RSS feed.
-  # Workaround: Use third-party RSS generators (RSS.app, FiveFilters)
-  # or Reuters/AP APIs for programmatic access.
-
-  # ==========================================================================
-  # CATEGORY 6: SANCTIONS, TRADE CONTROLS & FINANCIAL INTELLIGENCE (8 feeds)
-  # Focus: OFAC, EU sanctions, export controls, AML/CFT
-  # ==========================================================================
-
-  - url: "https://home.treasury.gov/system/files/126/press_releases.rss"
-    name: "US Treasury Press Releases"
-    category: "sanctions_financial"
-    poll_interval: 3600
-    priority: 2
-    # Covers sanctions designations, CFIUS, FinCEN news.
-    # Alt: home.treasury.gov/news/press-releases/feed
-
-  - url: "https://www.consilium.europa.eu/en/press/press-releases/rss/"
-    name: "EU Council Press Releases"
-    category: "sanctions_financial"
-    poll_interval: 3600
-    priority: 2
-    # Covers all Council press incl. sanctions decisions.
-    # Filter client-side for sanctions-specific content.
-
-  - url: "https://www.europeansanctions.com/feed/"
-    name: "European Sanctions Blog"
-    category: "sanctions_financial"
-    poll_interval: 1800
-    priority: 3
-    # Confirmed active. EU restrictive measures, compliance analysis.
-
-  - url: "https://www.commerce.gov/feed"
-    name: "US Commerce Department Press"
-    category: "sanctions_financial"
-    poll_interval: 3600
-    priority: 3
-    # BIS export control announcements, Entity List additions.
-
-  - url: "https://www.federalregister.gov/documents/search.atom?conditions%5Bagencies%5D%5B%5D=treasury-department&conditions%5Bagencies%5D%5B%5D=foreign-assets-office"
-    name: "Federal Register — OFAC/Treasury Rules"
-    category: "sanctions_financial"
-    poll_interval: 3600
-    priority: 2
-    # Filtered Atom feed for OFAC and Treasury rulemaking.
-    # Federal Register supports custom Atom feeds via search params.
-
-  - url: "https://www.federalregister.gov/documents/search.atom?conditions%5Bagencies%5D%5B%5D=industry-and-security-bureau"
-    name: "Federal Register — BIS Export Controls"
-    category: "sanctions_financial"
-    poll_interval: 3600
-    priority: 2
-    # Filtered for Bureau of Industry and Security rulemaking.
-
-  - url: "https://www.justice.gov/news/feed"
-    name: "DOJ Press — Sanctions Enforcement"
-    category: "sanctions_financial"
-    poll_interval: 600
-    priority: 2
-    # Covers sanctions violation prosecutions, national security cases.
-
-  - url: "https://www.sec.gov/news/pressreleases.rss"
-    name: "SEC Press Releases"
-    category: "sanctions_financial"
-    poll_interval: 600
-    priority: 3
-    # Enforcement actions, financial fraud, compliance.
-
-  # KNOWN GAP: OFAC retired its RSS feed on January 31, 2025.
-  #   Backup: GovDelivery email (code USTREAS_61), or scrape
-  #   ofac.treasury.gov/recent-actions
-  # KNOWN GAP: FATF (fatf-gafi.org) has no RSS feed.
-  # KNOWN GAP: FinCEN primarily uses email subscriptions, no confirmed RSS.
-  # KNOWN GAP: Kharon, Castellum.AI — commercial, no public RSS.
-
-  # ==========================================================================
-  # CATEGORY 7: US GOVERNMENT & REGULATORY (10 feeds)
-  # Focus: Federal Register, legislative tracking, oversight
-  # ==========================================================================
-
-  - url: "https://www.federalregister.gov/documents/search.atom?conditions%5Bsignificant%5D=1"
-    name: "Federal Register — Significant Rules"
-    category: "us_government"
-    poll_interval: 600
-    priority: 2
-    # Filtered for significant rules under EO 12866. Reduces volume.
-
-  - url: "https://www.gao.gov/rss/reports.xml"
-    name: "GAO Reports & Testimonies"
-    category: "us_government"
-    poll_interval: 3600
-    priority: 3
-    # Confirmed active. Also: /rss/press.xml, /blog/feed (WatchBlog).
-
-  - url: "https://www.cbo.gov/publications/feed"
-    name: "CBO Publications"
-    category: "us_government"
-    poll_interval: 3600
-    priority: 3
-    # Budget analyses, cost estimates, economic reports.
-
-  - url: "https://www.whitehouse.gov/feed/"
-    name: "White House Briefings & News"
-    category: "us_government"
-    poll_interval: 600
-    priority: 2
-    # WordPress standard feed. Alt: /briefing-room/feed/
-
-  - url: "https://www.state.gov/feed/"
-    name: "State Department Press Releases"
-    category: "us_government"
-    poll_interval: 600
-    priority: 2
-    # Diplomatic statements, travel warnings, foreign policy.
-
-  - url: "https://www.congress.gov/rss/most-viewed-bills.xml"
-    name: "Congress.gov — Most Viewed Bills"
-    category: "us_government"
-    poll_interval: 3600
-    priority: 3
-    # Legislative activity tracking. Custom alerts also available.
-
-  - url: "https://www.govinfo.gov/rss/crec.xml"
-    name: "GovInfo — Congressional Record"
-    category: "us_government"
-    poll_interval: 3600
-    priority: 3
-    # Full Congressional Record via GovInfo RSS.
-
-  - url: "https://www.dni.gov/index.php/rss"
-    name: "ODNI — Office of the Director of National Intelligence"
-    category: "us_government"
-    poll_interval: 3600
-    priority: 3
-    # IC assessments, threat reports, declassified documents. Joomla-based.
-
-  - url: "https://www.dhs.gov/news-releases/feed"
-    name: "DHS Press Releases"
-    category: "us_government"
-    poll_interval: 600
-    priority: 3
-    # Border security, immigration, homeland security advisories.
-    # Alt FeedBurner: feeds.feedburner.com/dhs/zOAi
-
-  - url: "https://www.state.gov/rss-feeds/arms-control-and-international-security/feed/"
-    name: "State Dept — Arms Control & International Security"
-    category: "us_government"
-    poll_interval: 1800
-    priority: 2
-    # Specific section feed for arms control and security policy.
-
-  # ==========================================================================
-  # CATEGORY 8: GEOPOLITICAL ANALYSIS & THINK TANKS (12 feeds)
-  # Focus: Long-form analysis for strategic intelligence
-  # ==========================================================================
-
-  - url: "https://www.csis.org/analysis/feed"
-    name: "CSIS — Center for Strategic and International Studies"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # Confirmed Drupal feed path. Premier defense/security think tank.
-
-  - url: "https://www.brookings.edu/feed/"
-    name: "Brookings Institution"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # WordPress standard feed. Major policy research institution.
-
-  - url: "https://www.rand.org/pubs/commentary.xml"
-    name: "RAND Corporation — Commentary"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # Verified from RAND's official RSS page. Also: /pubs/new.xml, /news/press.xml
-
-  - url: "https://carnegieendowment.org/rss/feeds/search.xml"
-    name: "Carnegie Endowment for International Peace"
-    category: "think_tanks"
-    poll_interval: 3600
-    priority: 3
-
-  - url: "https://www.cfr.org/blog/feed"
-    name: "Council on Foreign Relations Blog"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-
-  - url: "https://www.foreignaffairs.com/rss.xml"
-    name: "Foreign Affairs"
-    category: "think_tanks"
-    poll_interval: 3600
-    priority: 2
-    # Confirmed by Feedspot. May include only abstracts for paywalled content.
-
-  - url: "https://warontherocks.com/feed/"
-    name: "War on the Rocks"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # Confirmed active. National security commentary platform.
-
-  - url: "https://www.lawfaremedia.org/feed"
-    name: "Lawfare"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # National security law and policy. Migrated from lawfareblog.com.
-
-  - url: "https://www.atlanticcouncil.org/feed/"
-    name: "Atlantic Council"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # NATO, defense, transatlantic relations.
-
-  - url: "https://www.rusi.org/rss/latest-commentary.xml"
-    name: "RUSI — Royal United Services Institute"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # Verified from RUSI RSS page. Also: /rss/latest-publications.xml
-
-  - url: "https://www.chathamhouse.org/rss/all"
-    name: "Chatham House"
-    category: "think_tanks"
-    poll_interval: 3600
-    priority: 3
-    # RSS page at chathamhouse.org/rss-feeds. May require standard user-agent.
-
-  - url: "https://ecfr.eu/feed/"
-    name: "European Council on Foreign Relations"
-    category: "think_tanks"
-    poll_interval: 1800
-    priority: 2
-    # Verified from ECFR feeds page. EU foreign policy analysis.
-
-  # ==========================================================================
-  # CATEGORY 9: EUROPE & RUSSIA / UKRAINE (12 feeds)
-  # Focus: Ukraine conflict, NATO, EU defense, Russian military, Baltic
-  # ==========================================================================
-
-  - url: "https://www.iswresearch.org/feeds/posts/default"
-    name: "ISW — Institute for the Study of War"
-    category: "europe_russia"
-    poll_interval: 600
-    priority: 1
-    # Blogger/Blogspot feed. Daily Ukraine conflict assessments.
-    # For RSS2: append ?alt=rss. Critical battlefield analysis.
-
-  - url: "https://meduza.io/rss/en/all"
-    name: "Meduza (English)"
-    category: "europe_russia"
-    poll_interval: 600
-    priority: 1
-    # Latvia-based independent Russian media. Internal Russian developments.
-
-  - url: "https://www.themoscowtimes.com/rss/news"
-    name: "The Moscow Times"
-    category: "europe_russia"
-    poll_interval: 600
-    priority: 2
-    # Confirmed from RSS page. Also: /rss/opinion. Independent English Russian news.
-
-  - url: "https://www.nato.int/cps/en/natohq/news.xml"
-    name: "NATO Press Releases & News"
-    category: "europe_russia"
-    poll_interval: 1800
-    priority: 1
-    # Confirmed active via Feeder.co.
-
-  - url: "https://www.ukrinform.net/rss/block-lastnews"
-    name: "Ukrinform — Ukrainian National News Agency"
-    category: "europe_russia"
-    poll_interval: 600
-    priority: 1
-    # Ukraine's national news agency (est. 1918). High-volume breaking news.
-
-  - url: "https://euromaidanpress.com/feed/"
-    name: "Euromaidan Press"
-    category: "europe_russia"
-    poll_interval: 1800
-    priority: 2
-    # Ukrainian volunteer-run English outlet since 2014.
-
-  - url: "https://en.defence-ua.com/rss/rss_en.xml"
-    name: "Defense Express — Ukraine"
-    category: "europe_russia"
-    poll_interval: 600
-    priority: 2
-    # Ukrainian defense industry, military equipment, battlefield tech.
-
-  - url: "https://news.err.ee/rss"
-    name: "ERR News — Estonia / Baltic"
-    category: "europe_russia"
-    poll_interval: 1800
-    priority: 2
-    # Estonian public broadcaster. NATO eastern flank, Baltic security.
-
-  - url: "https://blogs.lse.ac.uk/europpblog/feed/"
-    name: "LSE EUROPP Blog"
-    category: "europe_russia"
-    poll_interval: 3600
-    priority: 3
-    # Academic analysis of European politics and policy.
-
-  - url: "https://www.eeas.europa.eu/eeas/rss-feeds_en"
-    name: "EU External Action Service (EEAS)"
-    category: "europe_russia"
-    poll_interval: 1800
-    priority: 2
-    # EU foreign policy, CSDP missions, sanctions. Verify exact XML endpoint.
-
-  - url: "https://www.rusi.org/rss/latest-publications.xml"
-    name: "RUSI — Latest Publications"
-    category: "europe_russia"
-    poll_interval: 1800
-    priority: 2
-    # RUSI publications feed (distinct from commentary feed in think_tanks).
-
-  - url: "https://www.hudson.org/feed"
-    name: "Hudson Institute"
-    category: "europe_russia"
-    poll_interval: 3600
-    priority: 3
-    # Conservative defense think tank. Russia/Europe/defense coverage.
-
-  # ==========================================================================
-  # CATEGORY 10: AFRICA & LATIN AMERICA (10 feeds)
-  # Focus: African security, Latin American organized crime
-  # ==========================================================================
-
-  - url: "https://www.theafricareport.com/feed/"
-    name: "The Africa Report"
-    category: "africa_latam"
-    poll_interval: 1800
-    priority: 3
-    # Jeune Afrique Media Group. Leading English-language African news.
-
-  - url: "https://www.africa-confidential.com/rss"
-    name: "Africa Confidential"
-    category: "africa_latam"
-    poll_interval: 3600
-    priority: 3
-    # Oldest Africa specialist publication (since 1960). Some content paywalled.
-
-  - url: "https://reliefweb.int/updates?primary_country=8657&format=rss"
-    name: "ReliefWeb — Africa Filtered"
-    category: "africa_latam"
-    poll_interval: 1800
-    priority: 3
-    # ReliefWeb supports region/country filtering via URL params.
-
-  - url: "https://insightcrime.org/feed/"
-    name: "InSight Crime"
-    category: "africa_latam"
-    poll_interval: 1800
-    priority: 3
-    # Confirmed active. Organized crime in Latin America and Caribbean.
-
-  - url: "https://www.americasquarterly.org/feed/"
-    name: "Americas Quarterly"
-    category: "africa_latam"
-    poll_interval: 3600
-    priority: 3
-    # Americas Society / Council of the Americas. LatAm policy.
-
-  - url: "https://brazilian.report/feed/"
-    name: "The Brazilian Report"
-    category: "africa_latam"
-    poll_interval: 3600
-    priority: 4
-    # English-language Brazil analysis. Some content paywalled.
-
-  - url: "https://punchng.com/feed/"
-    name: "Punch Nigeria"
-    category: "africa_latam"
-    poll_interval: 1800
-    priority: 4
-    # Confirmed. Nigeria's most widely read newspaper.
-
-  - url: "https://www.dailymaverick.co.za/dmrss/"
-    name: "Daily Maverick — South Africa"
-    category: "africa_latam"
-    poll_interval: 1800
-    priority: 3
-    # Confirmed active. Custom RSS path (/dmrss/). Independent SA news.
-
-  - url: "https://issafrica.org/feed/"
-    name: "ISS Africa — Institute for Security Studies"
-    category: "africa_latam"
-    poll_interval: 3600
-    priority: 3
-    # African security research: peace, justice, governance.
-
-  - url: "https://www.france24.com/en/africa/rss"
-    name: "France24 — Africa Section"
-    category: "africa_latam"
-    poll_interval: 600
-    priority: 3
-    # France24's dedicated Africa section RSS feed.
-
-  # ==========================================================================
-  # CATEGORY 11: CONFLICT, HUMANITARIAN & OSINT (8 feeds)
-  # Focus: Conflict tracking, humanitarian crises, open-source intelligence
-  # ==========================================================================
-
-  - url: "https://reliefweb.int/updates?format=rss"
-    name: "ReliefWeb — All Updates"
-    category: "conflict_osint"
-    poll_interval: 600
-    priority: 2
-    # OCHA humanitarian information. Highly customizable via URL params.
-    # Source filtering: &source=1503 for OCHA-specific content.
-
-  - url: "https://www.bellingcat.com/feed/"
-    name: "Bellingcat"
-    category: "conflict_osint"
-    poll_interval: 1800
-    priority: 2
-    # Confirmed active. OSINT investigations, conflict verification.
-
-  - url: "https://www.crisisgroup.org/rss/"
-    name: "International Crisis Group"
-    category: "conflict_osint"
-    poll_interval: 1800
-    priority: 2
-    # Confirmed. CrisisWatch, regional feeds at /rss-0 page.
-
-  - url: "https://www.sipri.org/rss"
-    name: "SIPRI — Stockholm International Peace Research Institute"
-    category: "conflict_osint"
-    poll_interval: 3600
-    priority: 3
-    # Arms transfers, military expenditure, peace operations.
-
-  - url: "https://www.msf.org/rss/all"
-    name: "MSF / Doctors Without Borders"
-    category: "conflict_osint"
-    poll_interval: 1800
-    priority: 3
-    # Frontline humanitarian reporting. Verify exact endpoint.
-
-  - url: "https://blogs.icrc.org/law-and-policy/feed/"
-    name: "ICRC — Humanitarian Law & Policy Blog"
-    category: "conflict_osint"
-    poll_interval: 3600
-    priority: 3
-    # WordPress feed. IHL analysis, conflict zone reporting.
-
-  - url: "https://feeds.feedburner.com/cfr_main"
-    name: "CFR — Global Conflict Updates"
-    category: "conflict_osint"
-    poll_interval: 1800
-    priority: 3
-    # CFR FeedBurner. Includes Global Conflict Tracker content.
-
-  - url: "https://reliefweb.int/updates?source=1503&format=rss"
-    name: "OCHA via ReliefWeb"
-    category: "conflict_osint"
-    poll_interval: 600
-    priority: 2
-    # OCHA content filtered through ReliefWeb. Source ID 1503 = OCHA.
-
-  # KNOWN GAP: ACLED has no RSS — use API at acleddata.com/data/
-  # KNOWN GAP: Janes is fully paywalled — no public RSS
-  # KNOWN GAP: Liveuamap has no RSS feed
-  # KNOWN GAP: Airwars has no standard RSS feed
-
-  # ==========================================================================
-  # CATEGORY 12: ACADEMIC & RESEARCH (8 feeds)
-  # Focus: AI/ML research, cybersecurity research, nuclear/arms policy
-  # ==========================================================================
-
-  - url: "https://rss.arxiv.org/rss/cs.AI"
-    name: "arXiv — cs.AI (Artificial Intelligence)"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 4
-    # New rss.arxiv.org infrastructure (2024+). Daily updates.
-
-  - url: "https://rss.arxiv.org/rss/cs.CR"
-    name: "arXiv — cs.CR (Cryptography & Security)"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 4
-    # Information security, network security research papers.
-
-  - url: "https://rss.arxiv.org/rss/cs.CL"
-    name: "arXiv — cs.CL (Computation & Language)"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 5
-    # NLP, LLM research. High-volume feed.
-
-  - url: "https://thebulletin.org/feed/"
-    name: "Bulletin of the Atomic Scientists"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 4
-    # Nuclear risk, Doomsday Clock, disruptive technologies.
-
-  - url: "https://www.armscontrol.org/taxonomy/term/11/feed"
-    name: "Arms Control Association — Analysis"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 4
-    # Arms control policy, nonproliferation. ACA has multiple feed endpoints.
-
-  - url: "https://www.science.org/rss/news_current.xml"
-    name: "Science (AAAS) — Current News"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 5
-    # Science policy, biosecurity, technology. Verify current URL.
-
-  - url: "https://www.tandfonline.com/feed/rss/fjss20"
-    name: "Journal of Strategic Studies"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 5
-    # Taylor & Francis RSS pattern: /feed/rss/[journal-code].
-
-  - url: "https://www.tandfonline.com/feed/rss/rbul20"
-    name: "Bulletin of the Atomic Scientists — Journal"
-    category: "academic_research"
-    poll_interval: 3600
-    priority: 5
-    # Academic journal version via Taylor & Francis (distinct from blog feed).
-
-  # KNOWN GAP: SSRN has no standard RSS — preprint repository with
-  #   email alerts only.
-  # KNOWN GAP: Nuclear Threat Initiative (nti.org) has no RSS feed.
-
-  # ==========================================================================
-  # CATEGORY 13: SUPPLY CHAIN & MARITIME (5 feeds)
-  # Focus: Chokepoints, sanctions evasion, shipping disruption
-  # ==========================================================================
-
-  - url: "https://feeds.feedburner.com/gcaptain"
-    name: "gCaptain"
-    category: "supply_chain_maritime"
-    poll_interval: 600
-    priority: 3
-    # Confirmed active. Leading maritime news: shipping, chokepoints, piracy.
-
-  - url: "https://maritime-executive.com/articles.rss"
-    name: "The Maritime Executive"
-    category: "supply_chain_maritime"
-    poll_interval: 1800
-    priority: 3
-    # Shipping, offshore, piracy, port news, maritime security.
-
-  - url: "https://splash247.com/feed/"
-    name: "Splash 24/7"
-    category: "supply_chain_maritime"
-    poll_interval: 1800
-    priority: 3
-    # Asia Shipping Media. Maritime and offshore news.
-
-  - url: "https://www.hellenicshippingnews.com/feed/"
-    name: "Hellenic Shipping News Worldwide"
-    category: "supply_chain_maritime"
-    poll_interval: 1800
-    priority: 4
-    # Confirmed RSS feeds page. Global shipping, chartering, freight markets.
-
-  - url: "https://feeds.feedburner.com/FreightWaves"
-    name: "FreightWaves"
-    category: "supply_chain_maritime"
-    poll_interval: 1800
-    priority: 3
-    # Trucking, maritime, rail, supply chain. Multi-modal logistics.
-
-  # KNOWN GAP: Lloyd's List is fully paywalled — no public RSS.
-  # KNOWN GAP: Flexport blog has no RSS feed.
-
-  # ==========================================================================
-  # CATEGORY 14: HEALTH SECURITY & BIODEFENSE (5 feeds)
-  # Focus: Disease outbreaks, biosecurity, pandemic preparedness
-  # ==========================================================================
-
-  - url: "https://www.who.int/feeds/entity/don/en/rss.xml"
-    name: "WHO — Disease Outbreak News"
-    category: "health_security"
-    poll_interval: 1800
-    priority: 3
-    # Classic endpoint. WHO site redesigns may break this URL.
-    # Fallback: who.int/rss-feeds/news-english.xml (general WHO news).
-
-  - url: "https://tools.cdc.gov/podcasts/feed.asp?feedid=183"
-    name: "CDC MMWR — Morbidity and Mortality Weekly Report"
-    category: "health_security"
-    poll_interval: 1800
-    priority: 3
-    # Confirmed active Jan 2026. Weekly epidemiological reports.
-    # Alt: cdc.gov/mmwr/rss/mmwrall.xml
-
-  - url: "https://www.cidrap.umn.edu/news/rss"
-    name: "CIDRAP — Infectious Disease Research & Policy"
-    category: "health_security"
-    poll_interval: 1800
-    priority: 3
-    # Confirmed active 2026. Topic feeds: /news/49/rss (avian flu),
-    # /news/50/rss (biosecurity).
-
-  - url: "https://www.statnews.com/feed/"
-    name: "STAT News"
-    category: "health_security"
-    poll_interval: 1800
-    priority: 4
-    # RSS feeds page at statnews.com/rss-feeds/. Health and biotech.
-    # Also: /category/infectious-disease/feed/
-
-  - url: "https://www.thelancet.com/rssfeed/laninf_current.xml"
-    name: "The Lancet Infectious Diseases"
-    category: "health_security"
-    poll_interval: 3600
-    priority: 4
-    # Confirmed active. Online-first: /rssfeed/laninf_online.xml
-
-  # KNOWN GAP: ProMED moved to subscription model late 2023 — RSS may
-  #   require authentication.
-  # KNOWN GAP: Global Health Security Agenda (ghsagenda.org) has no RSS.
+- url: https://en.irna.ir/rss
+  name: IRNA English — Islamic Republic News Agency
+  category: iran_mena
+  poll_interval: 300
+  priority: 1
+- url: https://www.tehrantimes.com/rss
+  name: Tehran Times
+  category: iran_mena
+  poll_interval: 300
+  priority: 1
+- url: https://www.presstv.ir/rss
+  name: Press TV — Iranian State English TV
+  category: iran_mena
+  poll_interval: 300
+  priority: 1
+- url: https://www.al-monitor.com/rss
+  name: Al-Monitor Middle East
+  category: iran_mena
+  poll_interval: 300
+  priority: 1
+- url: https://www.middleeasteye.net/rss
+  name: Middle East Eye
+  category: iran_mena
+  poll_interval: 600
+  priority: 1
+- url: https://www.longwarjournal.org/feed
+  name: FDD's Long War Journal
+  category: iran_mena
+  poll_interval: 600
+  priority: 1
+- url: https://mei.edu/rss.xml
+  name: Middle East Institute
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://carnegie-mec.org/rss/?lang=en
+  name: Carnegie Middle East Center
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://www.fdd.org/feed
+  name: Foundation for Defense of Democracies
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://feeds.feedburner.com/ArmsControlAssociationUpdates
+  name: Arms Control Association — Iran & Nonproliferation
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://gulfnews.com/rss
+  name: Gulf News
+  category: iran_mena
+  poll_interval: 600
+  priority: 2
+- url: https://www.thenationalnews.com/rss
+  name: The National (Abu Dhabi)
+  category: iran_mena
+  poll_interval: 600
+  priority: 2
+- url: https://www.memri.org/rss.xml
+  name: MEMRI — Middle East Media Research Institute
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://www.rudaw.net/english/rss
+  name: Rudaw — Kurdish Media Network
+  category: iran_mena
+  poll_interval: 600
+  priority: 2
+- url: https://www.timesofisrael.com/feed/
+  name: Times of Israel
+  category: iran_mena
+  poll_interval: 600
+  priority: 1
+- url: https://thediplomat.com/feed
+  name: The Diplomat
+  category: indo_pacific
+  poll_interval: 600
+  priority: 1
+- url: https://www.scmp.com/rss/91/feed
+  name: South China Morning Post — Asia
+  category: indo_pacific
+  poll_interval: 300
+  priority: 1
+- url: https://asia.nikkei.com/rss/feed/nar
+  name: Nikkei Asia
+  category: indo_pacific
+  poll_interval: 600
+  priority: 1
+- url: https://www.nknews.org/feed
+  name: NK News
+  category: indo_pacific
+  poll_interval: 600
+  priority: 1
+- url: https://www.38north.org/feed
+  name: 38 North — Stimson Center
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 1
+- url: https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml
+  name: Channel News Asia — Latest
+  category: indo_pacific
+  poll_interval: 300
+  priority: 1
+- url: https://asiatimes.com/feed
+  name: Asia Times
+  category: indo_pacific
+  poll_interval: 600
+  priority: 2
+- url: https://eastasiaforum.org/feed
+  name: East Asia Forum — ANU
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://www.japantimes.co.jp/feed
+  name: Japan Times
+  category: indo_pacific
+  poll_interval: 600
+  priority: 2
+- url: https://www.lowyinstitute.org/the-interpreter/rss.xml
+  name: The Interpreter — Lowy Institute
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://www.taiwannews.com.tw/feed
+  name: Taiwan News
+  category: indo_pacific
+  poll_interval: 600
+  priority: 1
+- url: https://www.stimson.org/feed
+  name: Stimson Center
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://www.straitstimes.com/rssfeed/asia
+  name: The Straits Times — Asia
+  category: indo_pacific
+  poll_interval: 600
+  priority: 2
+- url: https://www.rand.org/topics/asia-pacific-region.xml
+  name: RAND Corporation — Asia Pacific
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://pacforum.org/feed
+  name: Pacific Forum
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 3
+- url: https://www.cisa.gov/cybersecurity-advisories/all.xml
+  name: CISA Cybersecurity Advisories
+  category: cybersecurity
+  poll_interval: 300
+  priority: 1
+- url: https://api.msrc.microsoft.com/update-guide/rss
+  name: Microsoft Security Response Center
+  category: cybersecurity
+  poll_interval: 300
+  priority: 1
+- url: https://isc.sans.edu/rssfeed_full.xml
+  name: SANS Internet Storm Center — Handler's Diary
+  category: cybersecurity
+  poll_interval: 600
+  priority: 1
+- url: https://krebsonsecurity.com/feed/
+  name: Krebs on Security
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 1
+- url: https://feeds.feedburner.com/TheHackersNews
+  name: The Hacker News
+  category: cybersecurity
+  poll_interval: 600
+  priority: 1
+- url: https://www.bleepingcomputer.com/feed/
+  name: BleepingComputer
+  category: cybersecurity
+  poll_interval: 600
+  priority: 1
+- url: https://unit42.paloaltonetworks.com/feed/
+  name: Unit 42 — Palo Alto Networks Threat Research
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 1
+- url: https://cloud.google.com/blog/topics/threat-intelligence/rss
+  name: Google Cloud Threat Intelligence (Mandiant)
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 1
+- url: https://blog.google/threat-analysis-group/rss/
+  name: Google Threat Analysis Group (TAG)
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 1
+- url: https://www.darkreading.com/rss.xml
+  name: Dark Reading
+  category: cybersecurity
+  poll_interval: 600
+  priority: 2
+- url: https://www.crowdstrike.com/en-us/blog/feed
+  name: CrowdStrike Blog
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 2
+- url: https://blog.rapid7.com/rss/
+  name: Rapid7 Blog
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 2
+- url: https://www.recordedfuture.com/feed/
+  name: Recorded Future / Insikt Group
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 2
+- url: https://www.schneier.com/blog/atom.xml
+  name: Schneier on Security
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 2
+- url: https://medium.com/mitre-attack/feed
+  name: MITRE ATT&CK Blog
+  category: cybersecurity
+  poll_interval: 3600
+  priority: 2
+- url: https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10
+  name: Department of Defense — News Stories
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=8&Site=945&max=10
+  name: Department of Defense — Press Releases
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.centcom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=816&max=10
+  name: U.S. Central Command (CENTCOM)
+  category: us_defense
+  poll_interval: 300
+  priority: 1
+- url: https://www.pacom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=680&max=10
+  name: U.S. Indo-Pacific Command (INDOPACOM)
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.eucom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=702&max=10
+  name: U.S. European Command (EUCOM)
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.defenseone.com/rss/
+  name: Defense One
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://breakingdefense.com/feed/
+  name: Breaking Defense
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml
+  name: Defense News
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.twz.com/feed
+  name: The War Zone
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://news.usni.org/feed
+  name: USNI News — Naval Institute
+  category: us_defense
+  poll_interval: 600
+  priority: 1
+- url: https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml
+  name: Military Times
+  category: us_defense
+  poll_interval: 600
+  priority: 2
+- url: https://www.c4isrnet.com/arc/outboundfeeds/rss/?outputType=xml
+  name: C4ISRNet
+  category: us_defense
+  poll_interval: 600
+  priority: 2
+- url: https://defensescoop.com/feed/
+  name: DefenseScoop
+  category: us_defense
+  poll_interval: 600
+  priority: 2
+- url: https://www.airandspaceforces.com/feed/
+  name: Air & Space Forces Magazine
+  category: us_defense
+  poll_interval: 600
+  priority: 2
+- url: https://www.stripes.com/feed
+  name: Stars and Stripes
+  category: us_defense
+  poll_interval: 600
+  priority: 2
+- url: https://feeds.bbci.co.uk/news/world/rss.xml
+  name: BBC World News
+  category: global_news
+  poll_interval: 300
+  priority: 1
+- url: https://www.aljazeera.com/xml/rss/all.xml
+  name: Al Jazeera English
+  category: global_news
+  poll_interval: 300
+  priority: 1
+- url: https://www.france24.com/en/rss
+  name: France24 English
+  category: global_news
+  poll_interval: 300
+  priority: 1
+- url: https://www.theguardian.com/world/rss
+  name: The Guardian — World
+  category: global_news
+  poll_interval: 300
+  priority: 1
+- url: https://rss.dw.com/xml/rss-en-all
+  name: DW — Deutsche Welle English
+  category: global_news
+  poll_interval: 300
+  priority: 2
+- url: https://www3.nhk.or.jp/nhkworld/data/en/news/backstory/rss.xml
+  name: NHK World-Japan — In-Depth News
+  category: global_news
+  poll_interval: 600
+  priority: 2
+- url: https://english.news.cn/rss/
+  name: Xinhua English
+  category: global_news
+  poll_interval: 600
+  priority: 2
+- url: https://tass.com/rss/v2.xml
+  name: TASS English
+  category: global_news
+  poll_interval: 600
+  priority: 2
+- url: https://kyivindependent.com/feed/
+  name: Kyiv Independent
+  category: global_news
+  poll_interval: 600
+  priority: 1
+- url: https://www.africanews.com/feed/rss
+  name: Africanews
+  category: global_news
+  poll_interval: 600
+  priority: 3
+- url: https://feeds.feedburner.com/securityweek
+  name: SecurityWeek
+  category: global_news
+  poll_interval: 600
+  priority: 2
+- url: https://www.jpost.com/rss/rssfeedsfrontpage.aspx
+  name: Jerusalem Post
+  category: global_news
+  poll_interval: 600
+  priority: 2
+- url: https://home.treasury.gov/system/files/126/press_releases.rss
+  name: US Treasury Press Releases
+  category: sanctions_financial
+  poll_interval: 3600
+  priority: 2
+- url: https://www.consilium.europa.eu/en/press/press-releases/rss/
+  name: EU Council Press Releases
+  category: sanctions_financial
+  poll_interval: 3600
+  priority: 2
+- url: https://www.europeansanctions.com/feed/
+  name: European Sanctions Blog
+  category: sanctions_financial
+  poll_interval: 1800
+  priority: 3
+- url: https://www.commerce.gov/feed
+  name: US Commerce Department Press
+  category: sanctions_financial
+  poll_interval: 3600
+  priority: 3
+- url: https://www.federalregister.gov/documents/search.atom?conditions%5Bagencies%5D%5B%5D=treasury-department&conditions%5Bagencies%5D%5B%5D=foreign-assets-office
+  name: Federal Register — OFAC/Treasury Rules
+  category: sanctions_financial
+  poll_interval: 3600
+  priority: 2
+- url: https://www.federalregister.gov/documents/search.atom?conditions%5Bagencies%5D%5B%5D=industry-and-security-bureau
+  name: Federal Register — BIS Export Controls
+  category: sanctions_financial
+  poll_interval: 3600
+  priority: 2
+- url: https://www.justice.gov/news/feed
+  name: DOJ Press — Sanctions Enforcement
+  category: sanctions_financial
+  poll_interval: 600
+  priority: 2
+- url: https://www.sec.gov/news/pressreleases.rss
+  name: SEC Press Releases
+  category: sanctions_financial
+  poll_interval: 600
+  priority: 3
+- url: https://www.federalregister.gov/documents/search.atom?conditions%5Bsignificant%5D=1
+  name: Federal Register — Significant Rules
+  category: us_government
+  poll_interval: 600
+  priority: 2
+- url: https://www.gao.gov/rss/reports.xml
+  name: GAO Reports & Testimonies
+  category: us_government
+  poll_interval: 3600
+  priority: 3
+- url: https://www.cbo.gov/publications/feed
+  name: CBO Publications
+  category: us_government
+  poll_interval: 3600
+  priority: 3
+- url: https://www.whitehouse.gov/feed/
+  name: White House Briefings & News
+  category: us_government
+  poll_interval: 600
+  priority: 2
+- url: https://www.state.gov/feed/
+  name: State Department Press Releases
+  category: us_government
+  poll_interval: 600
+  priority: 2
+- url: https://www.congress.gov/rss/most-viewed-bills.xml
+  name: Congress.gov — Most Viewed Bills
+  category: us_government
+  poll_interval: 3600
+  priority: 3
+- url: https://www.govinfo.gov/rss/crec.xml
+  name: GovInfo — Congressional Record
+  category: us_government
+  poll_interval: 3600
+  priority: 3
+- url: https://www.dni.gov/index.php/rss
+  name: ODNI — Office of the Director of National Intelligence
+  category: us_government
+  poll_interval: 3600
+  priority: 3
+- url: https://www.dhs.gov/news-releases/feed
+  name: DHS Press Releases
+  category: us_government
+  poll_interval: 600
+  priority: 3
+- url: https://www.state.gov/rss-feeds/arms-control-and-international-security/feed/
+  name: State Dept — Arms Control & International Security
+  category: us_government
+  poll_interval: 1800
+  priority: 2
+- url: https://www.csis.org/analysis/feed
+  name: CSIS — Center for Strategic and International Studies
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.brookings.edu/feed/
+  name: Brookings Institution
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.rand.org/pubs/commentary.xml
+  name: RAND Corporation — Commentary
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://carnegieendowment.org/rss/feeds/search.xml
+  name: Carnegie Endowment for International Peace
+  category: think_tanks
+  poll_interval: 3600
+  priority: 3
+- url: https://www.cfr.org/blog/feed
+  name: Council on Foreign Relations Blog
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.foreignaffairs.com/rss.xml
+  name: Foreign Affairs
+  category: think_tanks
+  poll_interval: 3600
+  priority: 2
+- url: https://warontherocks.com/feed/
+  name: War on the Rocks
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.lawfaremedia.org/feed
+  name: Lawfare
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.atlanticcouncil.org/feed/
+  name: Atlantic Council
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.rusi.org/rss/latest-commentary.xml
+  name: RUSI — Royal United Services Institute
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.chathamhouse.org/rss/all
+  name: Chatham House
+  category: think_tanks
+  poll_interval: 3600
+  priority: 3
+- url: https://ecfr.eu/feed/
+  name: European Council on Foreign Relations
+  category: think_tanks
+  poll_interval: 1800
+  priority: 2
+- url: https://www.iswresearch.org/feeds/posts/default
+  name: ISW — Institute for the Study of War
+  category: europe_russia
+  poll_interval: 600
+  priority: 1
+- url: https://meduza.io/rss/en/all
+  name: Meduza (English)
+  category: europe_russia
+  poll_interval: 600
+  priority: 1
+- url: https://www.themoscowtimes.com/rss/news
+  name: The Moscow Times
+  category: europe_russia
+  poll_interval: 600
+  priority: 2
+- url: https://www.nato.int/cps/en/natohq/news.xml
+  name: NATO Press Releases & News
+  category: europe_russia
+  poll_interval: 1800
+  priority: 1
+- url: https://www.ukrinform.net/rss/block-lastnews
+  name: Ukrinform — Ukrainian National News Agency
+  category: europe_russia
+  poll_interval: 600
+  priority: 1
+- url: https://euromaidanpress.com/feed/
+  name: Euromaidan Press
+  category: europe_russia
+  poll_interval: 1800
+  priority: 2
+- url: https://en.defence-ua.com/rss/rss_en.xml
+  name: Defense Express — Ukraine
+  category: europe_russia
+  poll_interval: 600
+  priority: 2
+- url: https://news.err.ee/rss
+  name: ERR News — Estonia / Baltic
+  category: europe_russia
+  poll_interval: 1800
+  priority: 2
+- url: https://blogs.lse.ac.uk/europpblog/feed/
+  name: LSE EUROPP Blog
+  category: europe_russia
+  poll_interval: 3600
+  priority: 3
+- url: https://www.eeas.europa.eu/eeas/rss-feeds_en
+  name: EU External Action Service (EEAS)
+  category: europe_russia
+  poll_interval: 1800
+  priority: 2
+- url: https://www.rusi.org/rss/latest-publications.xml
+  name: RUSI — Latest Publications
+  category: europe_russia
+  poll_interval: 1800
+  priority: 2
+- url: https://www.hudson.org/feed
+  name: Hudson Institute
+  category: europe_russia
+  poll_interval: 3600
+  priority: 3
+- url: https://www.theafricareport.com/feed/
+  name: The Africa Report
+  category: africa_latam
+  poll_interval: 1800
+  priority: 3
+- url: https://www.africa-confidential.com/rss
+  name: Africa Confidential
+  category: africa_latam
+  poll_interval: 3600
+  priority: 3
+- url: https://reliefweb.int/updates?primary_country=8657&format=rss
+  name: ReliefWeb — Africa Filtered
+  category: africa_latam
+  poll_interval: 1800
+  priority: 3
+- url: https://insightcrime.org/feed/
+  name: InSight Crime
+  category: africa_latam
+  poll_interval: 1800
+  priority: 3
+- url: https://www.americasquarterly.org/feed/
+  name: Americas Quarterly
+  category: africa_latam
+  poll_interval: 3600
+  priority: 3
+- url: https://brazilian.report/feed/
+  name: The Brazilian Report
+  category: africa_latam
+  poll_interval: 3600
+  priority: 4
+- url: https://punchng.com/feed/
+  name: Punch Nigeria
+  category: africa_latam
+  poll_interval: 1800
+  priority: 4
+- url: https://www.dailymaverick.co.za/dmrss/
+  name: Daily Maverick — South Africa
+  category: africa_latam
+  poll_interval: 1800
+  priority: 3
+- url: https://issafrica.org/feed/
+  name: ISS Africa — Institute for Security Studies
+  category: africa_latam
+  poll_interval: 3600
+  priority: 3
+- url: https://www.france24.com/en/africa/rss
+  name: France24 — Africa Section
+  category: africa_latam
+  poll_interval: 600
+  priority: 3
+- url: https://reliefweb.int/updates?format=rss
+  name: ReliefWeb — All Updates
+  category: conflict_osint
+  poll_interval: 600
+  priority: 2
+- url: https://www.bellingcat.com/feed/
+  name: Bellingcat
+  category: conflict_osint
+  poll_interval: 1800
+  priority: 2
+- url: https://www.crisisgroup.org/rss/
+  name: International Crisis Group
+  category: conflict_osint
+  poll_interval: 1800
+  priority: 2
+- url: https://www.sipri.org/rss
+  name: SIPRI — Stockholm International Peace Research Institute
+  category: conflict_osint
+  poll_interval: 3600
+  priority: 3
+- url: https://www.msf.org/rss/all
+  name: MSF / Doctors Without Borders
+  category: conflict_osint
+  poll_interval: 1800
+  priority: 3
+- url: https://blogs.icrc.org/law-and-policy/feed/
+  name: ICRC — Humanitarian Law & Policy Blog
+  category: conflict_osint
+  poll_interval: 3600
+  priority: 3
+- url: https://feeds.feedburner.com/cfr_main
+  name: CFR — Global Conflict Updates
+  category: conflict_osint
+  poll_interval: 1800
+  priority: 3
+- url: https://reliefweb.int/updates?source=1503&format=rss
+  name: OCHA via ReliefWeb
+  category: conflict_osint
+  poll_interval: 600
+  priority: 2
+- url: https://rss.arxiv.org/rss/cs.AI
+  name: arXiv — cs.AI (Artificial Intelligence)
+  category: academic_research
+  poll_interval: 3600
+  priority: 4
+- url: https://rss.arxiv.org/rss/cs.CR
+  name: arXiv — cs.CR (Cryptography & Security)
+  category: academic_research
+  poll_interval: 3600
+  priority: 4
+- url: https://rss.arxiv.org/rss/cs.CL
+  name: arXiv — cs.CL (Computation & Language)
+  category: academic_research
+  poll_interval: 3600
+  priority: 5
+- url: https://thebulletin.org/feed/
+  name: Bulletin of the Atomic Scientists
+  category: academic_research
+  poll_interval: 3600
+  priority: 4
+- url: https://www.armscontrol.org/taxonomy/term/11/feed
+  name: Arms Control Association — Analysis
+  category: academic_research
+  poll_interval: 3600
+  priority: 4
+- url: https://www.science.org/rss/news_current.xml
+  name: Science (AAAS) — Current News
+  category: academic_research
+  poll_interval: 3600
+  priority: 5
+- url: https://www.tandfonline.com/feed/rss/fjss20
+  name: Journal of Strategic Studies
+  category: academic_research
+  poll_interval: 3600
+  priority: 5
+- url: https://www.tandfonline.com/feed/rss/rbul20
+  name: Bulletin of the Atomic Scientists — Journal
+  category: academic_research
+  poll_interval: 3600
+  priority: 5
+- url: https://feeds.feedburner.com/gcaptain
+  name: gCaptain
+  category: supply_chain_maritime
+  poll_interval: 600
+  priority: 3
+- url: https://maritime-executive.com/articles.rss
+  name: The Maritime Executive
+  category: supply_chain_maritime
+  poll_interval: 1800
+  priority: 3
+- url: https://splash247.com/feed/
+  name: Splash 24/7
+  category: supply_chain_maritime
+  poll_interval: 1800
+  priority: 3
+- url: https://www.hellenicshippingnews.com/feed/
+  name: Hellenic Shipping News Worldwide
+  category: supply_chain_maritime
+  poll_interval: 1800
+  priority: 4
+- url: https://feeds.feedburner.com/FreightWaves
+  name: FreightWaves
+  category: supply_chain_maritime
+  poll_interval: 1800
+  priority: 3
+- url: https://www.who.int/feeds/entity/don/en/rss.xml
+  name: WHO — Disease Outbreak News
+  category: health_security
+  poll_interval: 1800
+  priority: 3
+- url: https://tools.cdc.gov/podcasts/feed.asp?feedid=183
+  name: CDC MMWR — Morbidity and Mortality Weekly Report
+  category: health_security
+  poll_interval: 1800
+  priority: 3
+- url: https://www.cidrap.umn.edu/news/rss
+  name: CIDRAP — Infectious Disease Research & Policy
+  category: health_security
+  poll_interval: 1800
+  priority: 3
+- url: https://www.statnews.com/feed/
+  name: STAT News
+  category: health_security
+  poll_interval: 1800
+  priority: 4
+- url: https://www.thelancet.com/rssfeed/laninf_current.xml
+  name: The Lancet Infectious Diseases
+  category: health_security
+  poll_interval: 3600
+  priority: 4
+- url: https://rss.politico.com/politics-news.xml
+  name: Politico — Top Political News
+  category: domestic_policy
+  poll_interval: 300
+  priority: 1
+- url: https://thehill.com/feed/
+  name: The Hill — News
+  category: domestic_policy
+  poll_interval: 300
+  priority: 1
+- url: https://feeds.npr.org/1001/rss.xml
+  name: NPR — News
+  category: domestic_policy
+  poll_interval: 600
+  priority: 1
+- url: https://www.pbs.org/newshour/feeds/rss/headlines
+  name: PBS NewsHour
+  category: domestic_policy
+  poll_interval: 600
+  priority: 2
+- url: https://api.axios.com/feed/
+  name: Axios
+  category: domestic_policy
+  poll_interval: 600
+  priority: 1
+- url: https://feeds.propublica.org/propublica/main
+  name: ProPublica
+  category: domestic_policy
+  poll_interval: 1800
+  priority: 2
+- url: https://www.themarshallproject.org/rss/all
+  name: The Marshall Project
+  category: domestic_policy
+  poll_interval: 1800
+  priority: 3
+- url: https://www.hstoday.us/feed/
+  name: Homeland Security Today
+  category: domestic_policy
+  poll_interval: 1800
+  priority: 2
+- url: https://www.fbi.gov/feeds/fbi-news-rss
+  name: FBI Press Releases
+  category: domestic_policy
+  poll_interval: 3600
+  priority: 2
+- url: https://rss.politico.com/congress.xml
+  name: Politico — Congress
+  category: legislative
+  poll_interval: 300
+  priority: 1
+- url: https://www.rollcall.com/feed/
+  name: Roll Call
+  category: legislative
+  poll_interval: 600
+  priority: 1
+- url: https://thehill.com/policy/feed/
+  name: The Hill — Policy
+  category: legislative
+  poll_interval: 600
+  priority: 1
+- url: https://www.congress.gov/rss/bill-status-change.xml
+  name: Congress.gov — Bill Status Changes
+  category: legislative
+  poll_interval: 3600
+  priority: 2
+- url: https://www.govtrack.us/events/events.rss
+  name: GovTrack — Legislative Events
+  category: legislative
+  poll_interval: 3600
+  priority: 2
+- url: https://www.brennancenter.org/rss/all
+  name: Brennan Center for Justice
+  category: legislative
+  poll_interval: 1800
+  priority: 3
+- url: https://www.brookings.edu/topic/governance/feed/
+  name: Brookings — Governance
+  category: legislative
+  poll_interval: 1800
+  priority: 3
+- url: https://www.thehindu.com/news/national/feeder/default.rss
+  name: The Hindu — National
+  category: indo_pacific
+  poll_interval: 600
+  priority: 2
+- url: https://www.dawn.com/feeds/home
+  name: Dawn — Pakistan
+  category: indo_pacific
+  poll_interval: 600
+  priority: 2
+- url: https://southasianvoices.org/feed/
+  name: South Asian Voices — Stimson
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 3
+- url: https://www.aspistrategist.org.au/feed/
+  name: ASPI — The Strategist
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://www.iiss.org/blogs/rss
+  name: IISS Blog
+  category: indo_pacific
+  poll_interval: 1800
+  priority: 2
+- url: https://syriadirect.org/feed/
+  name: Syria Direct
+  category: iran_mena
+  poll_interval: 1800
+  priority: 2
+- url: https://www.newarab.com/rss
+  name: The New Arab
+  category: iran_mena
+  poll_interval: 600
+  priority: 2
+- url: https://carnegieendowment.org/sada/rss
+  name: Sada — Carnegie Arab Politics
+  category: iran_mena
+  poll_interval: 1800
+  priority: 3
+- url: https://mg.co.za/africa/feed/
+  name: Mail & Guardian — Africa
+  category: africa
+  poll_interval: 1800
+  priority: 2
+- url: https://www.theeastafrican.co.ke/tea/rss
+  name: The East African
+  category: africa
+  poll_interval: 600
+  priority: 2
+- url: https://sahelstandard.com/feed/
+  name: Sahel Standard
+  category: africa
+  poll_interval: 1800
+  priority: 3
+- url: https://africanarguments.org/feed/
+  name: African Arguments
+  category: africa
+  poll_interval: 1800
+  priority: 3
+- url: https://www.premiumtimesng.com/feed
+  name: Premium Times Nigeria
+  category: africa
+  poll_interval: 600
+  priority: 2
+- url: https://www.aljazeera.com/xml/rss/africa.xml
+  name: Al Jazeera — Africa
+  category: africa
+  poll_interval: 600
+  priority: 1
+- url: https://www.thecontinent.org/feed
+  name: The Continent
+  category: africa
+  poll_interval: 3600
+  priority: 3
+- url: https://www.devex.com/news/rss
+  name: Devex — Global Development
+  category: africa
+  poll_interval: 1800
+  priority: 2
+- url: https://mexiconewsdaily.com/feed/
+  name: Mexico News Daily
+  category: western_hemisphere
+  poll_interval: 600
+  priority: 2
+- url: https://english.elpais.com/rss/elpais/inenglish.xml
+  name: El País English
+  category: western_hemisphere
+  poll_interval: 600
+  priority: 1
+- url: https://www.as-coa.org/rss.xml
+  name: Americas Society / Council of the Americas
+  category: western_hemisphere
+  poll_interval: 1800
+  priority: 2
+- url: https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com+latin+america&ceid=US:en&hl=en-US&gl=US
+  name: Reuters LatAm (via Google News)
+  category: western_hemisphere
+  poll_interval: 600
+  priority: 1
+- url: https://www.cbc.ca/webfeed/rss/rss-world
+  name: CBC — World
+  category: western_hemisphere
+  poll_interval: 600
+  priority: 2
+- url: https://www.batimes.com.ar/feed
+  name: Buenos Aires Times
+  category: western_hemisphere
+  poll_interval: 1800
+  priority: 3
+- url: https://dialogo-americas.com/feed/
+  name: Diálogo Américas
+  category: western_hemisphere
+  poll_interval: 1800
+  priority: 3
+- url: https://www.caribbeannewsglobal.com/feed/
+  name: Caribbean News Global
+  category: western_hemisphere
+  poll_interval: 1800
+  priority: 3
+- url: https://news.mongabay.com/feed/
+  name: Mongabay — Environmental/Resource Security
+  category: western_hemisphere
+  poll_interval: 1800
+  priority: 3
+- url: https://www.euractiv.com/feed/
+  name: Euractiv — EU Policy
+  category: europe
+  poll_interval: 600
+  priority: 1
+- url: https://euobserver.com/rss
+  name: EUobserver
+  category: europe
+  poll_interval: 600
+  priority: 2
+- url: https://balkaninsight.com/feed/
+  name: Balkan Insight (BIRN)
+  category: europe
+  poll_interval: 1800
+  priority: 2
+- url: https://www.thelocal.com/feed/
+  name: The Local — Europe
+  category: europe
+  poll_interval: 1800
+  priority: 3
+- url: https://polandin.com/rss
+  name: Polandin — English Poland News
+  category: europe
+  poll_interval: 1800
+  priority: 3
+- url: https://rss.dw.com/xml/rss-en-eu
+  name: Deutsche Welle — Europe
+  category: europe
+  poll_interval: 600
+  priority: 1
+- url: https://www.politico.eu/feed/
+  name: Politico Europe
+  category: europe
+  poll_interval: 600
+  priority: 1
+- url: https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom
+  name: UK FCDO — Foreign Policy
+  category: europe
+  poll_interval: 1800
+  priority: 2
+- url: https://news.un.org/feed/subscribe/en/news/all/rss.xml
+  name: UN News — All
+  category: multilateral
+  poll_interval: 600
+  priority: 1
+- url: https://news.un.org/feed/subscribe/en/news/topic/peace-and-security/feed/rss.xml
+  name: UN News — Peace & Security
+  category: multilateral
+  poll_interval: 600
+  priority: 1
+- url: https://press.un.org/en/rss.xml
+  name: UN Security Council — Press
+  category: multilateral
+  poll_interval: 1800
+  priority: 1
+- url: https://www.iaea.org/feeds/news
+  name: IAEA News
+  category: multilateral
+  poll_interval: 1800
+  priority: 1
+- url: https://www.worldbank.org/en/news/rss.xml
+  name: World Bank News
+  category: multilateral
+  poll_interval: 1800
+  priority: 2
+- url: https://www.imf.org/en/News/Rss?Language=ENG
+  name: IMF News
+  category: multilateral
+  poll_interval: 1800
+  priority: 2
+- url: https://www.unhcr.org/rss/news.xml
+  name: UNHCR — Refugee Agency
+  category: multilateral
+  poll_interval: 1800
+  priority: 2
+- url: https://www.icc-cpi.int/rss
+  name: ICC — International Criminal Court
+  category: multilateral
+  poll_interval: 3600
+  priority: 2
+- url: https://www.wto.org/english/news_e/news_e.rss
+  name: WTO News
+  category: multilateral
+  poll_interval: 3600
+  priority: 2
+- url: https://www.gov.uk/government/organisations/ministry-of-defence.atom
+  name: UK Ministry of Defence
+  category: multilateral
+  poll_interval: 1800
+  priority: 2
+- url: https://ustr.gov/about-us/policy-offices/press-office/press-releases/rss
+  name: USTR — Trade Representative
+  category: multilateral
+  poll_interval: 3600
+  priority: 2
+- url: https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.rss
+  name: State Dept — Travel Advisories
+  category: multilateral
+  poll_interval: 3600
+  priority: 2
+- url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?ceid=US:en&hl=en-US&gl=US
+  name: Google News — World
+  category: wire_surrogates
+  poll_interval: 300
+  priority: 1
+- url: https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US
+  name: Reuters via Google News
+  category: wire_surrogates
+  poll_interval: 600
+  priority: 1
+- url: https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&ceid=US:en&hl=en-US&gl=US
+  name: AP News via Google News
+  category: wire_surrogates
+  poll_interval: 600
+  priority: 1
+- url: https://www.ft.com/rss/home
+  name: Financial Times — Home
+  category: financial
+  poll_interval: 600
+  priority: 1
+- url: https://feeds.marketwatch.com/marketwatch/topstories/
+  name: MarketWatch — Top Stories
+  category: financial
+  poll_interval: 600
+  priority: 1
+- url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362
+  name: CNBC — World
+  category: financial
+  poll_interval: 600
+  priority: 2
+- url: https://news.google.com/rss/search?q=when:24h+allinurl:bloomberg.com&ceid=US:en&hl=en-US&gl=US
+  name: Bloomberg via Google News
+  category: financial
+  poll_interval: 600
+  priority: 1
+- url: https://www.federalreserve.gov/feeds/press_all.xml
+  name: Federal Reserve — All Press Releases
+  category: financial
+  poll_interval: 3600
+  priority: 1
+- url: https://www.ecb.europa.eu/rss/press.html
+  name: European Central Bank — Press
+  category: financial
+  poll_interval: 3600
+  priority: 2
+- url: https://www.piie.com/rss.xml
+  name: Peterson Institute — Trade & Economic Policy
+  category: financial
+  poll_interval: 1800
+  priority: 2
+- url: https://blog.talosintelligence.com/rss/
+  name: Cisco Talos Blog
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 1
+- url: https://www.sentinelone.com/labs/feed/
+  name: SentinelOne Labs
+  category: cybersecurity
+  poll_interval: 1800
+  priority: 2
+- url: https://www.whitehouse.gov/presidential-actions/feed/
+  name: White House — Presidential Actions
+  category: us_government
+  poll_interval: 600
+  priority: 1
+- url: https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:spa%20(security%20OR%20military%20OR%20cartel%20OR%20migration)%20sourcecountry:MX%20OR%20sourcecountry:CO%20OR%20sourcecountry:VE%20OR%20sourcecountry:BR&mode=artlist&maxrecords=75&timespan=24h&sort=datedesc&format=rss
+  name: GDELT — LatAm Security
+  category: gdelt_custom
+  poll_interval: 1800
+  priority: 2
+- url: https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict%20OR%20coup%20OR%20election%20OR%20peacekeeping)%20sourcecontinent:AF&mode=artlist&maxrecords=75&timespan=24h&sort=datedesc&format=rss
+  name: GDELT — Africa Conflict & Governance
+  category: gdelt_custom
+  poll_interval: 1800
+  priority: 2
+- url: https://api.gdeltproject.org/api/v2/doc/doc?query=(%22united%20nations%22%20OR%20%22security%20council%22%20OR%20%22general%20assembly%22%20OR%20IAEA%20OR%20UNESCO%20OR%20WHO)&mode=artlist&maxrecords=75&timespan=24h&sort=datedesc&format=rss
+  name: GDELT — UN & Multilateral
+  category: gdelt_custom
+  poll_interval: 1800
+  priority: 2
+- url: https://api.gdeltproject.org/api/v2/doc/doc?query=(%22executive%20order%22%20OR%20%22white%20house%22%20OR%20congress%20OR%20%22supreme%20court%22)%20sourcecountry:US&mode=artlist&maxrecords=75&timespan=24h&sort=datedesc&format=rss
+  name: GDELT — US Domestic Policy
+  category: gdelt_custom
+  poll_interval: 1800
+  priority: 2
