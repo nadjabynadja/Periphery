@@ -149,8 +149,24 @@ class ICIJOffshoreSource(DataSource):
         zip_path = self._data_dir / "icij_offshore_full.zip"
         self._data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Stream download to disk — ZIP is ~500MB+
-        await self._download_zip(session, zip_path)
+        # Skip download if we already have a fresh copy (less than poll_interval old).
+        # This prevents re-downloading the full ZIP on every container restart.
+        should_download = True
+        if zip_path.exists() and zip_path.stat().st_size > 1_000_000:
+            age_seconds = time.time() - zip_path.stat().st_mtime
+            max_age = self.poll_interval if self.poll_interval else self.default_poll_interval
+            if age_seconds < max_age:
+                logger.info(
+                    "icij_zip_cache_hit",
+                    path=str(zip_path),
+                    age_hours=round(age_seconds / 3600, 1),
+                    max_age_hours=round(max_age / 3600, 1),
+                )
+                should_download = False
+
+        if should_download:
+            # Stream download to disk — ZIP is ~500MB+
+            await self._download_zip(session, zip_path)
 
         docs = await asyncio.get_event_loop().run_in_executor(
             None, self._parse_zip, zip_path
