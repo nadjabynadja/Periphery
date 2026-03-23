@@ -8,6 +8,7 @@ from periphery.models import (
 )
 from periphery.ingest import embedder, parsers
 from periphery.ingest.store import FAISSStore
+from periphery.db import get_pool
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -116,10 +117,47 @@ async def search(request: SearchRequest):
 
 @router.get("/stats")
 async def stats():
-    """Return store statistics."""
+    """Return store statistics — combines RSS pipeline SQLite counts with FAISS index size."""
     store = get_store()
+
+    # Query the RSS pipeline's SQLite document store for real counts
+    rss_total = 0
+    rss_by_status: dict = {}
+    rss_last_hour = 0
+    rss_last_day = 0
+    try:
+        pool = get_pool()
+        async with pool.acquire() as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM documents")
+            row = await cursor.fetchone()
+            rss_total = row[0] if row else 0
+
+            cursor = await db.execute(
+                "SELECT processing_status, COUNT(*) FROM documents GROUP BY processing_status"
+            )
+            rss_by_status = {r[0]: r[1] for r in await cursor.fetchall()}
+
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM documents WHERE ingested > datetime('now', '-1 hour')"
+            )
+            row = await cursor.fetchone()
+            rss_last_hour = row[0] if row else 0
+
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM documents WHERE ingested > datetime('now', '-1 day')"
+            )
+            row = await cursor.fetchone()
+            rss_last_day = row[0] if row else 0
+    except Exception:
+        pass  # pool may not be initialized in all test contexts
+
     return {
-        "total_documents": len(_documents),
+        "total_documents": rss_total,
         "total_vectors": store.total,
         "embedding_dim": store.dim,
+        "processing_status_breakdown": rss_by_status,
+        "ingested_last_hour": rss_last_hour,
+        "ingested_last_day": rss_last_day,
+        # Legacy: docs submitted via HTTP /ingest/ endpoint (not RSS pipeline)
+        "legacy_http_ingest_count": len(_documents),
     }
