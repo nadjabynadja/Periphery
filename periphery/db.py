@@ -361,9 +361,11 @@ CREATE TABLE IF NOT EXISTS approved_emails (
 CREATE INDEX IF NOT EXISTS idx_approved_email_org ON approved_emails(org_id);
 
 -- ===== Personal Ontology =====
+-- Note: user_id references are NOT FK-constrained because users live in the
+-- isolated auth database (periphery_auth.db), not in this main document DB.
 CREATE TABLE IF NOT EXISTS user_entity_annotations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL REFERENCES users(user_id),
+    user_id TEXT NOT NULL,
     canonical_id TEXT NOT NULL,
     annotation_type TEXT NOT NULL,
     annotation_data JSON DEFAULT '{}',
@@ -374,7 +376,7 @@ CREATE INDEX IF NOT EXISTS idx_user_entity_ann ON user_entity_annotations(user_i
 
 CREATE TABLE IF NOT EXISTS user_entity_groups (
     group_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(user_id),
+    user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     entity_ids JSON DEFAULT '[]',
@@ -384,7 +386,7 @@ CREATE INDEX IF NOT EXISTS idx_user_groups ON user_entity_groups(user_id);
 
 CREATE TABLE IF NOT EXISTS user_saved_views (
     view_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(user_id),
+    user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     filters JSON DEFAULT '{}',
     layout JSON DEFAULT '{}',

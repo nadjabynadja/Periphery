@@ -14,6 +14,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
+
+def _sanitize_fts_query(q: str) -> str:
+    """Sanitize a user query for safe FTS5 MATCH usage.
+
+    Wraps each token in double quotes to prevent FTS5 operator injection
+    (OR, NOT, NEAR, etc.) while preserving phrase-search intent.
+    """
+    q = q.strip()
+    if not q:
+        return '""'
+    # If the user already quoted the whole thing, pass through
+    if q.startswith('"') and q.endswith('"'):
+        return q
+    # Quote individual tokens to neutralize FTS5 operators
+    tokens = q.split()
+    return " ".join(f'"{t}"' for t in tokens)
+
 _db_path: str = "./data/periphery_documents.db"
 
 
@@ -37,10 +54,11 @@ async def search_documents(
     limit: int = Query(default=25, le=100),
     offset: int = 0,
 ) -> dict[str, Any]:
+    safe_q = _sanitize_fts_query(q)
     async with get_connection(_db_path) as db:
         # Build WHERE clauses for filters
         filters = []
-        params: list[Any] = [q]
+        params: list[Any] = [safe_q]
 
         if source_feed:
             filters.append("d.source_feed = ?")
@@ -173,9 +191,10 @@ async def search_entities(
     limit: int = Query(default=25, le=100),
     offset: int = 0,
 ) -> dict[str, Any]:
+    safe_q = _sanitize_fts_query(q)
     async with get_connection(_db_path) as db:
         filters = []
-        params: list[Any] = [q]
+        params: list[Any] = [safe_q]
 
         if entity_type:
             filters.append("ei.entity_type = ?")
@@ -279,9 +298,10 @@ async def search_relationships(
     limit: int = Query(default=25, le=100),
     offset: int = 0,
 ) -> dict[str, Any]:
+    safe_q = _sanitize_fts_query(q)
     async with get_connection(_db_path) as db:
         filters = []
-        params: list[Any] = [q]
+        params: list[Any] = [safe_q]
 
         if predicate:
             filters.append("ri.predicate = ?")
@@ -414,13 +434,14 @@ async def search_facets(
 ) -> dict[str, Any]:
     async with get_connection(_db_path) as db:
         if q:
+            safe_q = _sanitize_fts_query(q)
             # Scoped facets — only count documents matching the query
             base = """
                 FROM documents_fts fts
                 JOIN documents d ON d.rowid = fts.rowid
                 WHERE documents_fts MATCH ?
             """
-            base_params: list[Any] = [q]
+            base_params: list[Any] = [safe_q]
         else:
             base = "FROM documents d WHERE 1=1"
             base_params = []

@@ -64,11 +64,19 @@ async def get_optional_user(
 
 
 def require_role(*roles: str):
-    """Return a dependency that checks the user has one of the given roles."""
+    """Return a FastAPI dependency that checks the user has one of the given roles.
+
+    Usage::
+
+        @router.get("/admin-only")
+        async def admin_endpoint(user: AuthenticatedUser = Depends(require_role("admin"))):
+            ...
+    """
+    from fastapi import Depends
+
     async def _check(
-        user: AuthenticatedUser = Header(None),  # replaced at call-site
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> AuthenticatedUser:
-        # This is called after get_current_user via Depends chain
         if user.role not in roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user

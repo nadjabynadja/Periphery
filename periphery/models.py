@@ -50,7 +50,7 @@ class IngestRequest(BaseModel):
 
 
 class IngestBatchRequest(BaseModel):
-    documents: list[IngestRequest]
+    documents: list[IngestRequest] = Field(max_length=1000)
 
 
 class IngestResponse(BaseModel):

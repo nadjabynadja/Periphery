@@ -510,7 +510,7 @@ class TestFactory:
     def test_build_sources_all_disabled(self):
         """With defaults, all sources are disabled."""
         from periphery.config import Settings
-        settings = Settings(
+        settings = Settings(_env_file=None, 
             anthropic_api_key="test",
             exa_api_key="test",
         )
@@ -520,7 +520,7 @@ class TestFactory:
 
     def test_build_sources_opensky_enabled(self):
         from periphery.config import Settings
-        settings = Settings(
+        settings = Settings(_env_file=None, 
             anthropic_api_key="test",
             exa_api_key="test",
             opensky_enabled=True,
@@ -533,7 +533,7 @@ class TestFactory:
 
     def test_build_sources_maritime_with_watchlist(self):
         from periphery.config import Settings
-        settings = Settings(
+        settings = Settings(_env_file=None, 
             anthropic_api_key="test",
             exa_api_key="test",
             maritime_enabled=True,
@@ -548,7 +548,7 @@ class TestFactory:
 
     def test_build_sources_celestrak_with_norad_ids(self):
         from periphery.config import Settings
-        settings = Settings(
+        settings = Settings(_env_file=None, 
             anthropic_api_key="test",
             exa_api_key="test",
             celestrak_enabled=True,

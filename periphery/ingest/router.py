@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends
@@ -10,6 +11,8 @@ from periphery.ingest import embedder, parsers
 from periphery.ingest.store import FAISSStore
 from periphery.db import get_pool
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 # These get set by main.py on startup
@@ -21,6 +24,7 @@ _store: FAISSStore | None = None
 # SQLite-backed DocumentStore instead.
 # TODO: Replace with a database-backed store to prevent silent data loss on restart.
 _documents: dict[str, Document] = {}
+_legacy_warning_emitted = False
 
 
 def set_store(store: FAISSStore) -> None:
@@ -39,7 +43,20 @@ def get_documents() -> dict[str, Document]:
 
 @router.post("/", response_model=IngestResponse)
 async def ingest_document(request: IngestRequest):
-    """Ingest a single document into the embedding space."""
+    """Ingest a single document into the embedding space.
+
+    .. deprecated::
+        This endpoint uses an in-memory document store that is **not persisted**.
+        All documents submitted here are lost on server restart.
+        Use the RSS pipeline or the database-backed ingest path instead.
+    """
+    global _legacy_warning_emitted
+    if not _legacy_warning_emitted:
+        logger.warning(
+            "legacy_ingest_endpoint_used: /ingest/ stores documents in-memory only. "
+            "Data will be lost on restart. Migrate to the database-backed pipeline."
+        )
+        _legacy_warning_emitted = True
     store = get_store()
     chunks = parsers.parse(request.content, request.content_type)
 

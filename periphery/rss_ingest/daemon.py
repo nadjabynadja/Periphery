@@ -121,18 +121,18 @@ class RSSIngestDaemon:
 
 def create_app(config_path: str | Path | None = None) -> FastAPI:
     """Create a standalone FastAPI app for the RSS daemon."""
-    app = FastAPI(title="Periphery RSS Ingest", version="0.1.0")
-    app.include_router(status_router)
+    from contextlib import asynccontextmanager
+
     daemon = RSSIngestDaemon(config_path)
 
-    @app.on_event("startup")
-    async def _startup() -> None:
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI):
         await daemon.start()
-
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:
+        yield
         await daemon.stop()
 
+    app = FastAPI(title="Periphery RSS Ingest", version="0.1.0", lifespan=_lifespan)
+    app.include_router(status_router)
     return app
 
 

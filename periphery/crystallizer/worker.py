@@ -706,10 +706,12 @@ class CrystallizerWorker:
             if vectors is None:
                 continue
 
+            # Build O(1) lookup instead of O(n) list.index() per noise doc
+            doc_id_to_idx = {did: i for i, did in enumerate(doc_ids_list)}
             noise_indices = [
-                doc_ids_list.index(did)
+                doc_id_to_idx[did]
                 for did in noise_ids
-                if did in doc_ids_list
+                if did in doc_id_to_idx
             ]
             if len(noise_indices) < 3:
                 continue

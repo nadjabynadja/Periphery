@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +39,14 @@ class FAISSStore:
 
     def add(self, ids: list[str], vectors: np.ndarray) -> None:
         """Add vectors with string IDs to the index."""
-        assert vectors.shape[1] == self.dim
-        assert len(ids) == vectors.shape[0]
+        if vectors.shape[1] != self.dim:
+            raise ValueError(
+                f"Vector dimension mismatch: expected {self.dim}, got {vectors.shape[1]}"
+            )
+        if len(ids) != vectors.shape[0]:
+            raise ValueError(
+                f"ID count mismatch: {len(ids)} IDs for {vectors.shape[0]} vectors"
+            )
 
         start_pos = self.index.ntotal
         self.index.add(vectors.astype(np.float32))
@@ -106,24 +111,35 @@ class FAISSStore:
             json.dump(id_map_data, f)
 
     def load(self) -> None:
-        """Load index and ID mapping from disk.
-
-        Supports both JSON (preferred) and legacy pickle format.
-        Legacy pickle files are automatically migrated to JSON on next save.
-        """
-        self.index = faiss.read_index(self.index_path)
+        """Load index and ID mapping from disk."""
+        try:
+            self.index = faiss.read_index(self.index_path)
+        except RuntimeError as e:
+            logger.error(
+                "faiss_index_corrupt",
+                path=self.index_path,
+                error=str(e),
+                hint="Delete the index file and re-ingest to rebuild.",
+            )
+            raise
         try:
             with open(self.id_map_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
             self.pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
         except (UnicodeDecodeError, json.JSONDecodeError):
-            # Legacy pickle format — migrate on next save()
-            logger.warning("loading_legacy_pickle_id_map", path=self.id_map_path)
-            with open(self.id_map_path, "rb") as f:
-                self.id_to_pos, self.pos_to_id = pickle.load(f)
-            # Immediately re-save as JSON
-            self.save()
+            # Legacy pickle format is no longer supported (security risk).
+            # Re-index from scratch if this happens.
+            logger.error(
+                "id_map_unreadable_not_json",
+                path=self.id_map_path,
+                hint="Legacy pickle ID maps are no longer supported. "
+                     "Delete the .ids file and re-ingest to rebuild.",
+            )
+            raise ValueError(
+                f"Cannot load ID map at {self.id_map_path}: "
+                "not valid JSON and pickle deserialization is disabled for security."
+            )
 
 
 class MultiSpaceIndexManager:
@@ -186,9 +202,12 @@ class MultiSpaceIndexManager:
                         id_to_pos = {k: int(v) for k, v in data["id_to_pos"].items()}
                         pos_to_id = {int(k): v for k, v in data["pos_to_id"].items()}
                     except (UnicodeDecodeError, json.JSONDecodeError):
-                        logger.warning("loading_legacy_pickle_id_map", space=space, path=map_path)
-                        with open(map_path, "rb") as f:
-                            id_to_pos, pos_to_id = pickle.load(f)
+                        logger.error(
+                            "id_map_unreadable_not_json",
+                            space=space, path=map_path,
+                            hint="Legacy pickle ID maps are no longer supported.",
+                        )
+                        raise
                     self._id_maps[space] = {
                         "id_to_pos": id_to_pos,
                         "pos_to_id": pos_to_id,

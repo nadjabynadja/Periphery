@@ -192,10 +192,9 @@ class TestChallengeFlow:
         assert challenge.status == "pending"
         assert len(challenge.challenge_code) == 6
 
-        # Verify QR payload
-        payload = json.loads(challenge.qr_payload)
-        assert payload["challenge_id"] == challenge.challenge_id
-        assert payload["server_url"] == "http://localhost:8000"
+        # Verify QR payload — now a URL (not JSON) per mobile auth flow
+        assert challenge.qr_payload.startswith("http://localhost:8000/app/?challenge=")
+        assert challenge.challenge_id in challenge.qr_payload
 
         # Step 2: Phone scans
         scanned = await scan_challenge(challenge.challenge_id, user.user_id, org.org_id)

@@ -31,36 +31,33 @@ critic_store: CriticStore | None = None
 analytical_engine: AnalyticalQueryEngine | None = None
 
 
-async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, float]:
-    """Called by crystallizer after each clustering pass to score + train the critic."""
-    if worker is None or worker.current_snapshot is None:
-        return {}
+async def critic_callback(snapshot) -> None:
+    """Called by crystallizer after each clustering pass.
 
-    scores: dict[int, float] = {}
+    Receives a LivingOntologySnapshot, scores it with the Critic,
+    syncs the analytical engine, and broadcasts to WebSocket clients.
+    """
+    if worker is None or snapshot is None:
+        return
+
     if critic_runner is not None:
         try:
-            await critic_runner.score_snapshot(worker.current_snapshot)
-            await critic_runner.maybe_retrain(worker.current_snapshot)
-            scores = {
-                int(s["id"]): s["confidence"]
-                for s in critic_runner.last_scoring_results
-                if s.get("type") == "cluster"
-                and s.get("id", "").isdigit()
-            }
+            await critic_runner.score_snapshot(snapshot)
+            await critic_runner.maybe_retrain(snapshot)
         except Exception:
             logger.exception("critic_runner_scoring_failed")
 
     # Keep the analytical query engine's snapshot in sync
     if analytical_engine is not None:
-        analytical_engine.snapshot = worker.current_snapshot
+        analytical_engine.snapshot = snapshot
 
     # Broadcast new snapshot to WebSocket clients
-    if worker.current_snapshot is not None:
+    try:
         from periphery.ws.router import broadcast_snapshot, set_current_snapshot
-        set_current_snapshot(worker.current_snapshot)
-        await broadcast_snapshot(worker.current_snapshot)
-
-    return scores
+        set_current_snapshot(snapshot)
+        await broadcast_snapshot(snapshot)
+    except Exception:
+        logger.exception("ws_broadcast_failed")
 
 
 @asynccontextmanager
@@ -251,11 +248,36 @@ async def lifespan(app: FastAPI):
     # Start background crystallizer
     await worker.start()
 
+    # Start periodic WebSocket cleanup and DB retention task
+    async def _periodic_maintenance():
+        while True:
+            await asyncio.sleep(300)  # every 5 minutes
+            try:
+                from periphery.ws.router import ws_manager
+                ws_manager.cleanup_dead_connections()
+            except Exception:
+                logger.debug("ws_cleanup_error", exc_info=True)
+            try:
+                from periphery.db import get_pool
+                pool = get_pool()
+                await pool.run_retention()
+            except Exception:
+                logger.debug("retention_error", exc_info=True)
+
+    _maintenance_task = asyncio.create_task(
+        _periodic_maintenance(), name="periodic-maintenance"
+    )
+
     logger.info("Periphery API server initialized — query layers active")
 
     yield
 
     # Shutdown
+    _maintenance_task.cancel()
+    try:
+        await _maintenance_task
+    except asyncio.CancelledError:
+        pass
     await worker.stop()
 
     store.save()
@@ -285,6 +307,25 @@ app.add_middleware(
 # GZip compression — added after CORS so gzip wraps the full response
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+# Security headers middleware — defense-in-depth for production deployments
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: StarletteResponse = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Mount routers
 from periphery.ingest.router import router as ingest_router
@@ -333,11 +374,21 @@ async def root():
 
 @app.get("/health")
 async def health():
+    db_health = {}
+    try:
+        from periphery.db import get_pool
+        pool = get_pool()
+        db_health = pool.health()
+    except Exception:
+        db_health = {"status": "unavailable"}
+
     return {
         "status": "healthy",
         "vectors": store.total if store else 0,
         "clusters": len(worker.clusters) if worker else 0,
         "last_crystallization": worker.last_run.isoformat() if worker and worker.last_run else None,
+        "crystallizer": worker.health() if worker else None,
+        "database": db_health,
     }
 
 
