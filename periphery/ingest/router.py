@@ -79,7 +79,20 @@ async def ingest_document(request: IngestRequest):
 
 @router.post("/batch", response_model=IngestResponse)
 async def ingest_batch(request: IngestBatchRequest):
-    """Ingest multiple documents at once."""
+    """Ingest multiple documents at once.
+
+    .. deprecated::
+        This endpoint uses an in-memory document store that is **not persisted**.
+        All documents submitted here are lost on server restart.
+        Use the RSS pipeline or the database-backed ingest path instead.
+    """
+    global _legacy_warning_emitted
+    if not _legacy_warning_emitted:
+        logger.warning(
+            "legacy_ingest_batch_endpoint_used: /ingest/batch stores documents in-memory only. "
+            "Data will be lost on restart. Migrate to the database-backed pipeline."
+        )
+        _legacy_warning_emitted = True
     store = get_store()
     all_ids = []
     all_texts = []

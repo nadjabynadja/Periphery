@@ -27,9 +27,10 @@ def _sanitize_fts_query(q: str) -> str:
     # If the user already quoted the whole thing, pass through
     if q.startswith('"') and q.endswith('"'):
         return q
-    # Quote individual tokens to neutralize FTS5 operators
+    # Quote individual tokens to neutralize FTS5 operators.
+    # Escape embedded double quotes (FTS5 uses "" as escape sequence).
     tokens = q.split()
-    return " ".join(f'"{t}"' for t in tokens)
+    return " ".join(f'"{t.replace(chr(34), chr(34)+chr(34))}"' for t in tokens)
 
 _db_path: str = "./data/periphery_documents.db"
 

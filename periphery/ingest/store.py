@@ -218,8 +218,6 @@ class MultiSpaceIndexManager:
                         dim=dim,
                         vectors=self._indices[space].ntotal,
                     )
-                    # Re-save as JSON if loaded from pickle
-                    self.save_space(space)
                     continue
                 except Exception:
                     logger.exception("index_load_failed", space=space)

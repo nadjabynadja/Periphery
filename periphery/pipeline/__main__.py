@@ -15,7 +15,7 @@ import logging
 import signal
 from pathlib import Path
 
-import numpy as np
+
 import structlog
 
 from periphery.config import get_settings
@@ -150,22 +150,15 @@ async def main() -> None:
         anthropic_api_key=settings.anthropic_api_key,
     )
 
-    async def critic_callback(vectors: np.ndarray, labels: np.ndarray) -> dict[int, float]:
+    async def critic_callback(snapshot) -> None:
         """Score and train the critic after each clustering pass."""
-        if worker.current_snapshot is None:
-            return {}
+        if snapshot is None:
+            return
         try:
-            await critic_runner.score_snapshot(worker.current_snapshot)
-            await critic_runner.maybe_retrain(worker.current_snapshot)
-            return {
-                int(s["id"]): s["confidence"]
-                for s in critic_runner.last_scoring_results
-                if s.get("type") == "cluster"
-                and s.get("id", "").isdigit()
-            }
+            await critic_runner.score_snapshot(snapshot)
+            await critic_runner.maybe_retrain(snapshot)
         except Exception:
             logger.exception("pipeline_critic_scoring_failed")
-            return {}
 
     worker.on_crystallize = critic_callback
 
