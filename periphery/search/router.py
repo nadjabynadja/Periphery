@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import json
 import logging
-import math
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -117,7 +117,6 @@ async def search_documents(
             max_rank = max(ranks)
 
         # Batch-fetch all enrichment counts in a single query (avoids N+1)
-        import json as _json
         enrichment_map: dict[str, tuple[int, int]] = {}
         if rows:
             doc_ids_batch = [row[0] for row in rows]
@@ -131,10 +130,10 @@ async def search_documents(
                 relationship_count = 0
                 try:
                     if erow[1]:
-                        ents = _json.loads(erow[1]) if isinstance(erow[1], str) else erow[1]
+                        ents = json.loads(erow[1]) if isinstance(erow[1], str) else erow[1]
                         entity_count = len(ents) if isinstance(ents, list) else 0
                     if erow[2]:
-                        rels = _json.loads(erow[2]) if isinstance(erow[2], str) else erow[2]
+                        rels = json.loads(erow[2]) if isinstance(erow[2], str) else erow[2]
                         relationship_count = len(rels) if isinstance(rels, list) else 0
                 except Exception:
                     pass

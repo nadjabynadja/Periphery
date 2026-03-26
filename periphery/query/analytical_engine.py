@@ -14,8 +14,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-import numpy as np
-
 from periphery.crystallizer.models import LivingOntologySnapshot
 from periphery.ingest import embedder
 from periphery.ingest.store import FAISSStore, MultiSpaceIndexManager

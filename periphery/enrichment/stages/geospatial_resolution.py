@@ -18,7 +18,6 @@ Also handles:
 
 from __future__ import annotations
 import sqlite3
-import asyncio
 import json
 import math
 import re

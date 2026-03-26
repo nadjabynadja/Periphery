@@ -35,8 +35,6 @@ import asyncio
 import csv
 import hashlib
 import io
-import os
-import tempfile
 import time
 import zipfile
 from collections import defaultdict

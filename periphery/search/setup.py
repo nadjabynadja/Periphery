@@ -11,8 +11,6 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-import aiosqlite
-
 from periphery.db import get_connection
 
 logger = logging.getLogger(__name__)

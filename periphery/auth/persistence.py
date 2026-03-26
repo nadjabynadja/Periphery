@@ -7,7 +7,6 @@ for seconds during heavy pipeline processing.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
