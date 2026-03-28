@@ -195,7 +195,7 @@ class GDELTDocSource(DataSource):
         poll_interval: int | None = None,
         enabled: bool = True,
         max_articles_per_query: int = 75,
-        query_delay: float = 2.0,
+        query_delay: float = 5.0,
         queries: list[dict[str, str]] | None = None,
     ) -> None:
         super().__init__(poll_interval=poll_interval, enabled=enabled)
@@ -251,28 +251,48 @@ class GDELTDocSource(DataSource):
         query: str,
         category: str,
     ) -> list[IngestedDocument]:
-        """Execute a single GDELT DOC API query and parse results."""
-        params = {
-            "query": query,
-            "mode": "artlist",
-            "format": "json",
-            "timespan": "15min",
-            "maxrecords": str(self._max_articles),
-            "sort": "DateDesc",
-        }
+        """Execute a single GDELT DOC API query and parse results.
 
+        Retries up to 2 times on 429/5xx with exponential backoff.
+        """
         url = f"{_DOC_API_BASE}?query={quote(query)}&mode=artlist&format=json&timespan=15min&maxrecords={self._max_articles}&sort=DateDesc"
 
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-            if resp.status != 200:
-                logger.warning(
-                    "gdelt_api_error",
-                    status=resp.status,
-                    category=category,
-                )
-                return []
+        data = None
+        for attempt in range(3):
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 429:
+                    wait = 10 * (2 ** attempt)
+                    logger.debug(
+                        "gdelt_rate_limited",
+                        category=category,
+                        attempt=attempt + 1,
+                        wait_seconds=wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                if resp.status >= 500:
+                    await asyncio.sleep(5 * (attempt + 1))
+                    continue
+                if resp.status != 200:
+                    logger.warning(
+                        "gdelt_api_error",
+                        status=resp.status,
+                        category=category,
+                    )
+                    return []
 
-            data = await resp.json(content_type=None)
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    # GDELT sometimes returns HTML on overload
+                    logger.debug("gdelt_json_parse_error", category=category)
+                    await asyncio.sleep(10)
+                    continue
+                break
+
+        if data is None:
+            logger.warning("gdelt_query_exhausted_retries", category=category)
+            return []
 
         articles = data.get("articles", [])
         if not articles:

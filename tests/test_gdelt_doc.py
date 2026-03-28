@@ -81,7 +81,7 @@ def test_source_defaults():
     assert src.category == "global_news"
     assert src.default_poll_interval == 900
     assert src._max_articles == 75
-    assert src._query_delay == 2.0
+    assert src._query_delay == 5.0
 
 
 def test_source_custom_params():
