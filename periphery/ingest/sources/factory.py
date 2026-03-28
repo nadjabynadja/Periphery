@@ -13,6 +13,7 @@ from .icij_offshore import ICIJOffshoreSource
 from .maritime import MaritimeSource
 from .ofac_sanctions import OFACSanctionsSource
 from .opensky import OpenSkySource
+from .nc_voter import NCVoterSource
 from .openstreetmap import OpenStreetMapSource
 
 
@@ -122,6 +123,15 @@ def build_sources(settings: Settings) -> list[DataSource]:
             poll_interval=settings.ofac_poll_interval,
             enabled=settings.ofac_enabled,
             include_consolidated=settings.ofac_include_consolidated,
+        )
+    )
+
+    # NC Voter Registration
+    sources.append(
+        NCVoterSource(
+            data_dir=settings.nc_voter_data_dir,
+            poll_interval=settings.nc_voter_poll_interval,
+            enabled=settings.nc_voter_enabled,
         )
     )
 

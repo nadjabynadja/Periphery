@@ -142,6 +142,8 @@ class DocumentStore:
             source_type = (doc.metadata or {}).get("source_type", "")
             if source_type in ("icij_offshore",):
                 priority = 3  # ICIJ historical = low priority
+            elif source_type == "nc_voter":
+                priority = 2  # voter data = medium priority
             elif source_type == "gdelt_doc":
                 priority = 2  # GDELT = medium priority
             elif doc.source_category == "sanctions_financial":

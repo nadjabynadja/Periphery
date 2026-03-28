@@ -150,6 +150,11 @@ class Settings(BaseSettings):
     icij_node_types: str = "entities,officers,intermediaries"
     icij_data_dir: str = "/app/data"
 
+    # NC Voter Registration
+    nc_voter_enabled: bool = False
+    nc_voter_poll_interval: int = 604800  # weekly
+    nc_voter_data_dir: str = "/app/data/voter"
+
     # OFAC Sanctions Lists
     ofac_enabled: bool = False
     ofac_poll_interval: int = 86400  # daily
