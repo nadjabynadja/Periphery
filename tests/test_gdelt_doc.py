@@ -69,8 +69,8 @@ def test_parse_seendate_invalid():
 
 
 def test_query_count():
-    """We should have 28 query sets across 8 categories."""
-    assert len(GDELT_QUERIES) == 28
+    """We should have 8 consolidated query sets across 8 categories."""
+    assert len(GDELT_QUERIES) == 8
     categories = {q["category"] for q in GDELT_QUERIES}
     assert len(categories) == 8
 
@@ -81,7 +81,7 @@ def test_source_defaults():
     assert src.category == "global_news"
     assert src.default_poll_interval == 900
     assert src._max_articles == 75
-    assert src._query_delay == 5.0
+    assert src._query_delay == 10.0
 
 
 def test_source_custom_params():

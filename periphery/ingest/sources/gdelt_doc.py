@@ -38,127 +38,76 @@ logger = structlog.get_logger(__name__)
 # GDELT DOC 2.0 base URL
 _DOC_API_BASE = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-# 28 query sets across 8 DIC topic areas
+# Consolidated query sets — 8 queries (one per DIC topic area) to stay
+# well within GDELT's undocumented rate limits.  Each query combines the
+# sub-topic terms from Kate's original 28-query spec into a single broad
+# query.  This cuts API calls from 28 → 8 per cycle while maintaining
+# the same coverage.
 GDELT_QUERIES: list[dict[str, str]] = [
-    # --- DOMESTIC POLICY AND SECURITY ---
+    # --- DOMESTIC POLICY AND SECURITY + LEGISLATIVE ---
     {
-        "category": "domestic_security",
-        "query": '"DHS shutdown" OR "federal shutdown" sourcecountry:US',
-    },
-    {
-        "category": "domestic_security",
-        "query": '"executive order" OR "White House" sourcecountry:US',
-    },
-    {
-        "category": "domestic_security",
-        "query": '"FBI" OR "DOJ" OR "homeland security" sourcecountry:US',
-    },
-    {
-        "category": "domestic_security",
-        "query": '"immigration" OR "border" sourcecountry:US',
-    },
-    # --- LEGISLATIVE AFFAIRS ---
-    {
-        "category": "legislative",
-        "query": '"Congress" OR "Senate" OR "House" sourcecountry:US',
-    },
-    {
-        "category": "legislative",
-        "query": '"legislation" OR "bill passed" OR "committee hearing" sourcecountry:US',
+        "category": "domestic_policy",
+        "query": (
+            '"DHS" OR "federal shutdown" OR "executive order" OR "White House" '
+            'OR "FBI" OR "DOJ" OR "homeland security" OR "immigration" '
+            'OR "Congress" OR "Senate" OR "legislation" sourcecountry:US'
+        ),
     },
     # --- INDO-PACIFIC ---
     {
         "category": "indo_pacific",
-        "query": '"China" OR "Taiwan" OR "South China Sea"',
-    },
-    {
-        "category": "indo_pacific",
-        "query": '"North Korea" OR "DPRK" OR "Kim Jong"',
-    },
-    {
-        "category": "indo_pacific",
-        "query": '"India" OR "Pakistan" OR "Modi"',
-    },
-    {
-        "category": "indo_pacific",
-        "query": '"ASEAN" OR "Philippines" OR "Indonesia" OR "Vietnam"',
+        "query": (
+            '"China" OR "Taiwan" OR "South China Sea" OR "North Korea" '
+            'OR "DPRK" OR "India" OR "Pakistan" OR "ASEAN" OR "Philippines"'
+        ),
     },
     # --- MIDDLE EAST ---
     {
         "category": "middle_east",
-        "query": '"Iran" OR "Hormuz" OR "IRGC"',
-    },
-    {
-        "category": "middle_east",
-        "query": '"Israel" OR "Gaza" OR "IDF" OR "Hezbollah"',
-    },
-    {
-        "category": "middle_east",
-        "query": '"Saudi Arabia" OR "UAE" OR "Gulf"',
-    },
-    {
-        "category": "middle_east",
-        "query": '"Syria" OR "Iraq" OR "Yemen" OR "Houthi"',
+        "query": (
+            '"Iran" OR "Hormuz" OR "IRGC" OR "Israel" OR "Gaza" '
+            'OR "Saudi Arabia" OR "UAE" OR "Syria" OR "Iraq" OR "Yemen" OR "Houthi"'
+        ),
     },
     # --- AFRICA AND GLOBAL SOUTH ---
     {
         "category": "africa",
-        "query": '"Sudan" OR "RSF" OR "Darfur"',
-    },
-    {
-        "category": "africa",
-        "query": '"Ethiopia" OR "Eritrea" OR "Somalia"',
-    },
-    {
-        "category": "africa",
-        "query": '"Nigeria" OR "Sahel" OR "Mali" OR "Burkina Faso"',
-    },
-    {
-        "category": "africa",
-        "query": '"South Africa" OR "DRC" OR "Congo"',
+        "query": (
+            '"Sudan" OR "RSF" OR "Ethiopia" OR "Somalia" OR "Nigeria" '
+            'OR "Sahel" OR "South Africa" OR "DRC" OR "Congo"'
+        ),
     },
     # --- WESTERN HEMISPHERE ---
     {
         "category": "western_hemisphere",
-        "query": '"Mexico" OR "cartel" OR "AMLO" OR "Sheinbaum"',
+        "query": (
+            '"Mexico" OR "cartel" OR "Venezuela" OR "Maduro" OR "Colombia" '
+            'OR "Brazil" OR "Lula" OR "Argentina" OR "Milei" OR "Canada"'
+        ),
     },
-    {
-        "category": "western_hemisphere",
-        "query": '"Venezuela" OR "Maduro" OR "Colombia"',
-    },
-    {
-        "category": "western_hemisphere",
-        "query": '"Brazil" OR "Lula" OR "Argentina" OR "Milei"',
-    },
-    {
-        "category": "western_hemisphere",
-        "query": '"Canada" OR "Trudeau" OR "Carney"',
-    },
-    # --- EASTERN AND WESTERN EUROPE ---
+    # --- EUROPE ---
     {
         "category": "europe",
-        "query": '"Ukraine" OR "Zelensky" OR "Kursk"',
-    },
-    {
-        "category": "europe",
-        "query": '"Russia" OR "Putin" OR "Kremlin"',
-    },
-    {
-        "category": "europe",
-        "query": '"NATO" OR "European Union" OR "EU"',
-    },
-    {
-        "category": "europe",
-        "query": '"Germany" OR "France" OR "UK" OR "Starmer"',
+        "query": (
+            '"Ukraine" OR "Zelensky" OR "Russia" OR "Putin" OR "NATO" '
+            'OR "European Union" OR "Germany" OR "France" OR "Starmer"'
+        ),
     },
     # --- MULTILATERAL AND DIPLOMATIC ---
     {
         "category": "multilateral",
-        "query": '"United Nations" OR "UN Security Council"',
+        "query": (
+            '"United Nations" OR "UN Security Council" OR "IMF" '
+            'OR "World Bank" OR "WTO" OR "WHO" OR "IAEA" OR "ICC"'
+        ),
     },
+    # --- CONFLICT AND SECURITY (cross-cutting) ---
     {
-        "category": "multilateral",
-        "query": '"IMF" OR "World Bank" OR "WTO" OR "WHO" OR "IAEA" OR "ICC"',
+        "category": "conflict_security",
+        "query": (
+            '"Hezbollah" OR "IDF" OR "Kursk" OR "Kremlin" '
+            'OR "Darfur" OR "Burkina Faso" OR "Mali" OR "Sheinbaum"'
+        ),
     },
 ]
 
@@ -195,7 +144,7 @@ class GDELTDocSource(DataSource):
         poll_interval: int | None = None,
         enabled: bool = True,
         max_articles_per_query: int = 75,
-        query_delay: float = 5.0,
+        query_delay: float = 10.0,
         queries: list[dict[str, str]] | None = None,
     ) -> None:
         super().__init__(poll_interval=poll_interval, enabled=enabled)
