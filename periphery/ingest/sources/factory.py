@@ -8,6 +8,7 @@ from .adsb_exchange import ADSBExchangeSource
 from .base import DataSource
 from .cctv import CCTVSource
 from .celestrak import CelesTrakSource
+from .gdelt_doc import GDELTDocSource
 from .icij_offshore import ICIJOffshoreSource
 from .maritime import MaritimeSource
 from .ofac_sanctions import OFACSanctionsSource
@@ -121,6 +122,15 @@ def build_sources(settings: Settings) -> list[DataSource]:
             poll_interval=settings.ofac_poll_interval,
             enabled=settings.ofac_enabled,
             include_consolidated=settings.ofac_include_consolidated,
+        )
+    )
+
+    # GDELT DOC 2.0
+    sources.append(
+        GDELTDocSource(
+            poll_interval=settings.gdelt_poll_interval,
+            enabled=settings.gdelt_enabled,
+            max_articles_per_query=settings.gdelt_max_articles_per_query,
         )
     )
 

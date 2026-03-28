@@ -101,6 +101,11 @@ class Settings(BaseSettings):
     sources_enabled: bool = True
     sources_config: str = ""  # path to sources.yaml; empty = use env vars
 
+    # GDELT DOC 2.0
+    gdelt_enabled: bool = False
+    gdelt_poll_interval: int = 900  # 15 minutes
+    gdelt_max_articles_per_query: int = 75
+
     # OpenSky Network
     opensky_enabled: bool = False
     opensky_poll_interval: int = 15
