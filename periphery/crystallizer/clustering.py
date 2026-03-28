@@ -128,8 +128,12 @@ class SpaceClusterer:
         """Compute centroid for each cluster."""
         members = self.get_cluster_members()
         centroids = {}
+        max_idx = len(vectors)
         for cluster_id, indices in members.items():
-            centroids[cluster_id] = vectors[indices].mean(axis=0)
+            valid = [i for i in indices if i < max_idx]
+            if not valid:
+                continue
+            centroids[cluster_id] = vectors[valid].mean(axis=0)
         return centroids
 
     def get_cluster_densities(self) -> dict[int, float]:
@@ -138,8 +142,12 @@ class SpaceClusterer:
             return {}
         members = self.get_cluster_members()
         densities = {}
+        max_idx = len(self._probabilities)
         for cluster_id, indices in members.items():
-            probs = self._probabilities[indices]
+            valid = [i for i in indices if i < max_idx]
+            if not valid:
+                continue
+            probs = self._probabilities[valid]
             densities[cluster_id] = float(np.mean(probs))
         return densities
 
