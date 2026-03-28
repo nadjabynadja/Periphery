@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # LLM verification stage settings
     verification_enabled: bool = True
-    verification_model: str = "claude-haiku-3-5-20241022"
+    verification_model: str = "claude-3-5-haiku-20241022"
     verification_exa_enabled: bool = True
     verification_exa_min_source_count: int = 3
     verification_batch_size: int = 50
@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     pipeline_embedding_batch_size: int = 20
     pipeline_embedding_poll_interval: float = 15.0
     pipeline_crystallization_batch_size: int = 50
-    pipeline_crystallization_poll_interval: float = 30.0
+    pipeline_crystallization_poll_interval: float = 300.0  # 5 min — reduced to avoid DB lock contention
     pipeline_crystallization_min_batch: int = 1
     pipeline_stale_claim_timeout_seconds: float = 600.0
     pipeline_consumer_restart_delay: float = 5.0
