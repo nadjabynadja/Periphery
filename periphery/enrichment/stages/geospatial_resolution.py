@@ -24,7 +24,7 @@ import re
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 

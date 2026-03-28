@@ -8,13 +8,13 @@ results to the document_enrichments table.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
 
 import aiosqlite
 from periphery.config import get_settings
-from periphery.db import get_connection
 import structlog
 
 from periphery.enrichment.models import EnrichedDocument
@@ -268,14 +268,12 @@ class EnrichmentConsumer(StageConsumer):
         if isinstance(entity_name, str):
             entity_name = entity_name.strip()
 
-        import hashlib
         obs_id = hashlib.sha256(
             f"{doc_id}:{source_type}:{entity_id}".encode()
         ).hexdigest()[:24]
 
         observed_at = metadata.get("api_time")
         if observed_at is None:
-            from datetime import datetime, timezone
             observed_at = datetime.now(timezone.utc).isoformat()
 
         # Extra observation metadata (altitude, speed, heading, etc.)

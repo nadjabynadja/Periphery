@@ -11,7 +11,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -28,7 +28,7 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from periphery.config import get_settings, Settings
+    from periphery.config import Settings
 
 logger = structlog.get_logger(__name__)
 

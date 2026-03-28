@@ -22,7 +22,7 @@ from typing import Any, Optional
 import numpy as np
 import torch
 
-from periphery.critic.features import TOTAL_INPUT_DIM, to_input_vector
+from periphery.critic.features import to_input_vector
 from periphery.critic.network import CoherenceCritic
 
 logger = logging.getLogger(__name__)

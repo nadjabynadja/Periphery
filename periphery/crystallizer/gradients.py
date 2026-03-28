@@ -9,7 +9,7 @@ Computes composite relationship scores between cluster pairs based on:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import numpy as np

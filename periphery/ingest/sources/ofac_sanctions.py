@@ -31,7 +31,7 @@ import csv
 import hashlib
 import io
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import aiohttp

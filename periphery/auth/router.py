@@ -36,7 +36,6 @@ from periphery.auth.persistence import (
     create_session,
     create_user,
     delete_session,
-    get_approved_email,
     get_challenge,
     get_or_create_user_for_email,
     get_organization,

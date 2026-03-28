@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, UploadFile, File, Form
 
 from periphery.models import (
     Document, IngestRequest, IngestBatchRequest, IngestResponse,

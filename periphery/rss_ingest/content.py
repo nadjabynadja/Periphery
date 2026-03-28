@@ -12,7 +12,7 @@ Full-page fetches go through the rate limiter chain and robots.txt checker.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import aiohttp

@@ -14,13 +14,12 @@ from __future__ import annotations
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import structlog
 
 from periphery.critic.explanations import generate_explanation
-from periphery.critic.features import TOTAL_INPUT_DIM
 from periphery.critic.network import CoherenceCritic
 from periphery.critic.persistence import CriticStore
 from periphery.critic.perturbations import PerturbationEngine
@@ -29,14 +28,10 @@ from periphery.critic.scoring import (
     SnapshotScorer,
     propagate_gradient_confidence,
     propagate_trajectory_confidence,
-    propagated_confidence,
 )
 from periphery.critic.trainer import CriticTrainer
 from periphery.crystallizer.models import (
-    DetectedCluster,
     LivingOntologySnapshot,
-    RelationalGradient,
-    Trajectory,
 )
 
 logger = structlog.get_logger(__name__)

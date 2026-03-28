@@ -16,8 +16,8 @@ Type indicators:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 import numpy as np
 

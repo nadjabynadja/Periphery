@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
 
-from .models import BackoffState, DaemonStatus, DomainStatus, FeedState, HealthStatus
+from .models import DaemonStatus, DomainStatus, FeedState, HealthStatus
 
 if TYPE_CHECKING:
     from .daemon import RSSIngestDaemon

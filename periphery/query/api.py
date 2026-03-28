@@ -23,7 +23,6 @@ from periphery.db import get_connection
 from periphery.query.models import (
     AnalyticalQueryRequest,
     AnalyticalQueryResponse,
-    StreamUpdate,
 )
 from periphery.query.renderer import ConfidenceRenderer, confidence_to_rendering
 

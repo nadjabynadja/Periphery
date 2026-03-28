@@ -10,7 +10,7 @@ social media handles, and document/case reference numbers.
 from __future__ import annotations
 
 import re
-from typing import ClassVar
+
 
 import structlog
 

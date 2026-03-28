@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any
 from urllib.parse import quote
 
 import aiohttp
@@ -129,7 +128,7 @@ def _parse_seendate(raw: str) -> datetime | None:
 class GDELTDocSource(DataSource):
     """GDELT DOC 2.0 API article ingestion source.
 
-    Polls 28 topic-specific queries every 15 minutes, deduplicates
+    Polls 8 consolidated topic queries every 15 minutes, deduplicates
     by URL within each cycle, and produces IngestedDocument objects
     for the enrichment pipeline.
     """
