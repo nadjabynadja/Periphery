@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS documents (
     crystallization_started_at TIMESTAMP,
     crystallization_completed_at TIMESTAMP,
     retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3
+    max_retries INTEGER DEFAULT 3,
+    priority INTEGER DEFAULT 3
 );
 
 CREATE INDEX IF NOT EXISTS idx_ingested ON documents(ingested);
@@ -58,6 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_processing_status ON documents(processing_status)
 CREATE INDEX IF NOT EXISTS idx_url ON documents(url);
 CREATE INDEX IF NOT EXISTS idx_content_quality ON documents(content_quality);
 CREATE INDEX IF NOT EXISTS idx_processing_retry ON documents(processing_status, retry_count);
+CREATE INDEX IF NOT EXISTS idx_priority ON documents(priority);
 
 CREATE TABLE IF NOT EXISTS document_enrichments (
     document_id TEXT PRIMARY KEY REFERENCES documents(id),
@@ -452,6 +454,8 @@ ALTER TABLE query_sessions ADD COLUMN org_id TEXT;
 ALTER TABLE query_sessions ADD COLUMN user_id TEXT;
 ALTER TABLE analyst_annotations ADD COLUMN org_id TEXT;
 ALTER TABLE query_bookmarks ADD COLUMN org_id TEXT;
+-- Priority column for enrichment queue ordering
+ALTER TABLE documents ADD COLUMN priority INTEGER DEFAULT 3;
 """
 
 # ---------------------------------------------------------------------------

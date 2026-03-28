@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     crystallizer_auto_label_budget_hourly_usd: float = 2.0
 
     # Enrichment pipeline settings
-    enrichment_concurrency: int = 4
+    enrichment_concurrency: int = 50
     enrichment_spacy_model: str = "en_core_web_sm"
     enrichment_llm_model: str = "claude-sonnet-4-20250514"
     enrichment_llm_hourly_cap_usd: float = 5.0
@@ -60,7 +60,8 @@ class Settings(BaseSettings):
 
     # Processing pipeline settings
     pipeline_db_path: str = "./data/periphery_documents.db"
-    pipeline_enrichment_batch_size: int = 10
+    pipeline_enrichment_batch_size: int = 50
+    enrichment_high_priority_reserved_slots: int = 25
     pipeline_enrichment_poll_interval: float = 10.0
     pipeline_embedding_batch_size: int = 20
     pipeline_embedding_poll_interval: float = 15.0

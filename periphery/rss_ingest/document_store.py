@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS documents (
     crystallization_started_at TIMESTAMP,
     crystallization_completed_at TIMESTAMP,
     retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3
+    max_retries INTEGER DEFAULT 3,
+    priority INTEGER DEFAULT 3
 )
 """
 
@@ -56,6 +57,7 @@ _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_processing_status ON documents(processing_status)",
     "CREATE INDEX IF NOT EXISTS idx_url ON documents(url)",
     "CREATE INDEX IF NOT EXISTS idx_content_quality ON documents(content_quality)",
+    "CREATE INDEX IF NOT EXISTS idx_priority ON documents(priority)",
 ]
 
 _CREATE_DOCUMENT_ENRICHMENTS = """
@@ -92,8 +94,8 @@ _INSERT_DOC = """
 INSERT OR IGNORE INTO documents
     (id, source_feed, source_category, source_credibility_tier, title, url,
      published, ingested, content, raw_html, summary, content_quality,
-     metadata, processing_status)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     metadata, processing_status, priority)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -118,6 +120,7 @@ class DocumentStore:
         # Migrate legacy schema: rename old columns if they exist
         await self._migrate_legacy_columns()
         await self._migrate_embeddings_schema()
+        await self._migrate_priority_column()
         await self._db.commit()
         logger.info("document_store_initialized", db_path=str(self._db_path))
 
@@ -127,12 +130,22 @@ class DocumentStore:
             await self._db.close()
             self._db = None
 
-    async def insert(self, doc: IngestedDocument) -> bool:
+    async def insert(self, doc: IngestedDocument, *, priority: int | None = None) -> bool:
         """Insert a document. Returns True if inserted, False if duplicate."""
         assert self._db is not None
         published_str = doc.published.isoformat() if doc.published else None
         ingested_str = doc.ingested.isoformat()
         metadata_json = json.dumps(doc.metadata) if doc.metadata else None
+
+        # Determine priority: explicit param > source-based heuristic > default 3
+        if priority is None:
+            source_type = (doc.metadata or {}).get("source_type", "")
+            if source_type in ("icij_offshore",):
+                priority = 3  # ICIJ historical = low priority
+            elif doc.source_category == "sanctions_financial":
+                priority = 3
+            else:
+                priority = 1  # RSS articles = high priority
 
         cursor = await self._db.execute(
             _INSERT_DOC,
@@ -151,6 +164,7 @@ class DocumentStore:
                 doc.content_quality,
                 metadata_json,
                 "pending",
+                priority,
             ),
         )
         await self._db.commit()
@@ -327,3 +341,15 @@ class DocumentStore:
                     f"ALTER TABLE document_embeddings ADD COLUMN {col_name} {col_type}"
                 )
                 logger.info("embeddings_schema_migrated", column=col_name)
+
+    async def _migrate_priority_column(self) -> None:
+        """Add priority column to documents if it doesn't exist."""
+        assert self._db is not None
+        cursor = await self._db.execute("PRAGMA table_info(documents)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+        if "priority" not in columns:
+            await self._db.execute(
+                "ALTER TABLE documents ADD COLUMN priority INTEGER DEFAULT 3"
+            )
+            logger.info("priority_column_added")

@@ -217,15 +217,15 @@ class StageConsumer(abc.ABC):
         """Claim a batch of documents by atomically updating their status."""
         now = datetime.now(timezone.utc).isoformat()
 
-        # Select candidates ordered by credibility tier (highest first) then ingested (oldest first)
+        # Select candidates ordered by priority (lower = higher), credibility tier, then ingested (oldest first)
         cursor = await db.execute(
             """
             SELECT id, source_feed, source_category, source_credibility_tier,
                    title, url, content, summary, metadata, retry_count,
-                   published, ingested
+                   published, ingested, priority
             FROM documents
             WHERE processing_status = ?
-            ORDER BY COALESCE(source_credibility_tier, 4) ASC, ingested ASC
+            ORDER BY COALESCE(priority, 3) ASC, COALESCE(source_credibility_tier, 4) ASC, ingested ASC
             LIMIT ?
             """,
             (self.input_status, self.batch_size),

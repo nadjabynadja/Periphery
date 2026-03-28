@@ -9,9 +9,11 @@ results to the document_enrichments table.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 import aiosqlite
+from periphery.config import get_settings
 from periphery.db import get_connection
 import structlog
 
@@ -25,7 +27,12 @@ logger = structlog.get_logger(__name__)
 
 
 class EnrichmentConsumer(StageConsumer):
-    """Processes documents from pending -> enriching -> enriched."""
+    """Processes documents from pending -> enriching -> enriched.
+
+    Implements two-track claiming: reserves a portion of each batch for
+    high-priority documents (priority <= 2) to ensure fresh RSS articles
+    are never starved by the ICIJ backlog.
+    """
 
     input_status = "pending"
     processing_status = "enriching"
@@ -41,10 +48,110 @@ class EnrichmentConsumer(StageConsumer):
     ) -> None:
         super().__init__(db_path, **kwargs)
         self._pipeline = pipeline
+        settings = get_settings()
+        self._high_priority_reserved_slots = settings.enrichment_high_priority_reserved_slots
 
     def set_pipeline(self, pipeline: EnrichmentPipeline) -> None:
         """Set the enrichment pipeline (for deferred initialization)."""
         self._pipeline = pipeline
+
+    async def _claim_batch(self, db: aiosqlite.Connection) -> list[dict[str, Any]]:
+        """Two-track claiming: high-priority first, then fill remaining slots."""
+        now = datetime.now(timezone.utc).isoformat()
+        reserved = self._high_priority_reserved_slots
+        total = self.batch_size
+
+        all_docs: list[dict[str, Any]] = []
+
+        # Track 1: Claim up to `reserved` high-priority docs (priority <= 2)
+        if reserved > 0:
+            cursor = await db.execute(
+                """
+                SELECT id, source_feed, source_category, source_credibility_tier,
+                       title, url, content, summary, metadata, retry_count,
+                       published, ingested, priority
+                FROM documents
+                WHERE processing_status = ? AND COALESCE(priority, 3) <= 2
+                ORDER BY COALESCE(priority, 3) ASC, COALESCE(source_credibility_tier, 4) ASC, ingested ASC
+                LIMIT ?
+                """,
+                (self.input_status, reserved),
+            )
+            rows = await cursor.fetchall()
+            for row in rows:
+                all_docs.append(dict(row))
+
+        # Track 2: Fill remaining slots from any priority
+        remaining = total - len(all_docs)
+        if remaining > 0:
+            already_claimed_ids = [d["id"] for d in all_docs]
+            if already_claimed_ids:
+                placeholders = ",".join("?" for _ in already_claimed_ids)
+                cursor = await db.execute(
+                    f"""
+                    SELECT id, source_feed, source_category, source_credibility_tier,
+                           title, url, content, summary, metadata, retry_count,
+                           published, ingested, priority
+                    FROM documents
+                    WHERE processing_status = ? AND id NOT IN ({placeholders})
+                    ORDER BY COALESCE(priority, 3) ASC, COALESCE(source_credibility_tier, 4) ASC, ingested ASC
+                    LIMIT ?
+                    """,
+                    [self.input_status, *already_claimed_ids, remaining],
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    SELECT id, source_feed, source_category, source_credibility_tier,
+                           title, url, content, summary, metadata, retry_count,
+                           published, ingested, priority
+                    FROM documents
+                    WHERE processing_status = ?
+                    ORDER BY COALESCE(priority, 3) ASC, COALESCE(source_credibility_tier, 4) ASC, ingested ASC
+                    LIMIT ?
+                    """,
+                    (self.input_status, remaining),
+                )
+            rows = await cursor.fetchall()
+            for row in rows:
+                all_docs.append(dict(row))
+
+        if not all_docs:
+            return []
+
+        # Claim them in a transaction
+        doc_ids = [d["id"] for d in all_docs]
+        placeholders = ",".join("?" for _ in doc_ids)
+
+        set_clause = "processing_status = ?"
+        params: list[Any] = [self.processing_status]
+        if self.started_at_column:
+            set_clause += f", {self.started_at_column} = ?"
+            params.append(now)
+
+        params.extend(doc_ids)
+        params.append(self.input_status)
+
+        await db.execute(
+            f"""
+            UPDATE documents
+            SET {set_clause}
+            WHERE id IN ({placeholders})
+              AND processing_status = ?
+            """,
+            params,
+        )
+        await db.commit()
+
+        hp_count = sum(1 for d in all_docs if (d.get("priority") or 3) <= 2)
+        logger.debug(
+            "enrichment_batch_claimed",
+            count=len(all_docs),
+            high_priority=hp_count,
+            low_priority=len(all_docs) - hp_count,
+            doc_ids=doc_ids[:3],
+        )
+        return all_docs
 
     async def process(
         self, db: aiosqlite.Connection, doc_rows: list[dict[str, Any]]
