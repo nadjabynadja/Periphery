@@ -85,6 +85,21 @@ CREATE TABLE IF NOT EXISTS approved_emails (
     added_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_approved_email_org ON approved_emails(org_id);
+CREATE TABLE IF NOT EXISTS api_keys (
+    key_id TEXT PRIMARY KEY,
+    key_hash TEXT NOT NULL,
+    label TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('admin', 'analyst', 'ingest')),
+    classification_scope TEXT NOT NULL DEFAULT '["PUBLIC"]',
+    rate_limit_rpm INTEGER DEFAULT 600,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    last_used TIMESTAMP,
+    is_active INTEGER DEFAULT 1,
+    created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_api_key_role ON api_keys(role);
+CREATE INDEX IF NOT EXISTS idx_api_key_active ON api_keys(is_active);
 """
 
 _auth_db_path: str | None = None

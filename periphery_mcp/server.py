@@ -30,6 +30,7 @@ from mcp.types import (
     Tool,
 )
 
+from periphery_mcp.auth import MCPAuthContext, audit_logger, tool_allowed
 from periphery_mcp.client import PeripheryClient
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 app = Server("periphery")
 _client: PeripheryClient | None = None
+_auth_context: MCPAuthContext | None = None
 
 
 def _get_client() -> PeripheryClient:
@@ -47,6 +49,25 @@ def _get_client() -> PeripheryClient:
     if _client is None:
         _client = PeripheryClient()
     return _client
+
+
+def _get_auth_context() -> MCPAuthContext:
+    """Get or create auth context from environment variables."""
+    global _auth_context
+    if _auth_context is None:
+        # Auth context is determined by the API key/token configured via env vars
+        # The actual validation happens when calling the backend API
+        api_key = os.environ.get("PERIPHERY_API_KEY", "")
+        role = os.environ.get("PERIPHERY_MCP_ROLE", "analyst")
+        scope_str = os.environ.get("PERIPHERY_MCP_CLASSIFICATION_SCOPE", "PUBLIC")
+        scope = [s.strip() for s in scope_str.split(",") if s.strip()]
+        _auth_context = MCPAuthContext(
+            key_id=api_key[:8] + "..." if api_key else None,
+            role=role,
+            classification_scope=scope,
+            label=os.environ.get("PERIPHERY_MCP_LABEL", "MCP Client"),
+        )
+    return _auth_context
 
 
 def _ok(data: Any) -> CallToolResult:
@@ -402,10 +423,40 @@ async def list_tools() -> list[Tool]:
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
     client = _get_client()
+    auth = _get_auth_context()
+
+    # Check tool access by role
+    if not auth.can_use_tool(name):
+        audit_logger.log_tool_call(
+            key_id=auth.key_id,
+            role=auth.role,
+            tool_name=name,
+            params=arguments,
+            success=False,
+            error=f"Tool not allowed for role '{auth.role}'",
+        )
+        return _err(f"Access denied: tool '{name}' is not available for role '{auth.role}'")
+
     try:
-        return await _dispatch(client, name, arguments)
+        result = await _dispatch(client, name, arguments)
+        audit_logger.log_tool_call(
+            key_id=auth.key_id,
+            role=auth.role,
+            tool_name=name,
+            params=arguments,
+            success=True,
+        )
+        return result
     except Exception as exc:
         logger.exception("tool_call_failed name=%s", name)
+        audit_logger.log_tool_call(
+            key_id=auth.key_id,
+            role=auth.role,
+            tool_name=name,
+            params=arguments,
+            success=False,
+            error=str(exc),
+        )
         return _err(str(exc))
 
 

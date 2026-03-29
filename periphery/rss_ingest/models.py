@@ -67,6 +67,7 @@ class IngestedDocument(BaseModel):
     full_content_blocked: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
     processing_status: str = "pending"  # pending | enriching | enriched | embedding | embedded | crystallized | failed
+    data_classification: str = "PUBLIC"  # PUBLIC | PII | CUI | PROPRIETARY | CLASSIFIED
 
 
 class DomainStatus(BaseModel):

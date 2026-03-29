@@ -63,6 +63,53 @@ class AuthenticatedUser(BaseModel):
     role: str
 
 
+class AuthContext(BaseModel):
+    """Unified auth context for both session and API key auth."""
+    auth_type: str  # "session" | "api_key" | "admin_key"
+    user_id: str | None = None
+    key_id: str | None = None
+    role: str  # admin | analyst | ingest | viewer
+    classification_scope: list[str] = Field(default_factory=lambda: ["PUBLIC"])
+    label: str  # display name or key label
+
+
+# ---------------------------------------------------------------------------
+# API Key models
+# ---------------------------------------------------------------------------
+
+class APIKey(BaseModel):
+    key_id: str
+    key_hash: str
+    label: str
+    role: str  # "admin" | "analyst" | "ingest"
+    classification_scope: list[str] = Field(default_factory=lambda: ["PUBLIC"])
+    rate_limit_rpm: int = 600
+    created_at: datetime | None = None
+    expires_at: datetime | None = None
+    last_used: datetime | None = None
+    is_active: bool = True
+    created_by: str | None = None
+
+
+class CreateAPIKeyRequest(BaseModel):
+    label: str
+    role: str  # admin | analyst | ingest
+    classification_scope: list[str] = Field(default_factory=lambda: ["PUBLIC"])
+    rate_limit_rpm: int = 600
+    expires_in_days: int | None = None
+
+
+class APIKeyResponse(BaseModel):
+    key_id: str
+    key: str  # ONLY returned once at creation time
+    label: str
+    role: str
+    classification_scope: list[str]
+    rate_limit_rpm: int
+    created_at: datetime
+    expires_at: datetime | None
+
+
 # ---------------------------------------------------------------------------
 # Request/response models
 # ---------------------------------------------------------------------------

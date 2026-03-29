@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS documents (
     crystallization_completed_at TIMESTAMP,
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 3,
-    priority INTEGER DEFAULT 3
+    priority INTEGER DEFAULT 3,
+    data_classification TEXT DEFAULT 'PUBLIC'
 )
 """
 
@@ -94,8 +95,8 @@ _INSERT_DOC = """
 INSERT OR IGNORE INTO documents
     (id, source_feed, source_category, source_credibility_tier, title, url,
      published, ingested, content, raw_html, summary, content_quality,
-     metadata, processing_status, priority)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     metadata, processing_status, priority, data_classification)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -121,6 +122,7 @@ class DocumentStore:
         await self._migrate_legacy_columns()
         await self._migrate_embeddings_schema()
         await self._migrate_priority_column()
+        await self._migrate_data_classification_column()
         await self._db.commit()
         logger.info("document_store_initialized", db_path=str(self._db_path))
 
@@ -130,12 +132,21 @@ class DocumentStore:
             await self._db.close()
             self._db = None
 
-    async def insert(self, doc: IngestedDocument, *, priority: int | None = None) -> bool:
+    async def insert(self, doc: IngestedDocument, *, priority: int | None = None, data_classification: str | None = None) -> bool:
         """Insert a document. Returns True if inserted, False if duplicate."""
         assert self._db is not None
         published_str = doc.published.isoformat() if doc.published else None
         ingested_str = doc.ingested.isoformat()
         metadata_json = json.dumps(doc.metadata) if doc.metadata else None
+
+        # Determine data classification: explicit param > source-based heuristic > doc field > PUBLIC
+        if data_classification is None:
+            source_type = (doc.metadata or {}).get("source_type", "")
+            from periphery.auth.classification import classify_source_type
+            data_classification = classify_source_type(source_type).value
+            # If the doc already has a non-default classification, respect it
+            if doc.data_classification and doc.data_classification != "PUBLIC":
+                data_classification = doc.data_classification
 
         # Determine priority: explicit param > source-based heuristic > default 3
         if priority is None:
@@ -169,6 +180,7 @@ class DocumentStore:
                 metadata_json,
                 "pending",
                 priority,
+                data_classification,
             ),
         )
         await self._db.commit()
@@ -357,3 +369,15 @@ class DocumentStore:
                 "ALTER TABLE documents ADD COLUMN priority INTEGER DEFAULT 3"
             )
             logger.info("priority_column_added")
+
+    async def _migrate_data_classification_column(self) -> None:
+        """Add data_classification column to documents if it doesn't exist."""
+        assert self._db is not None
+        cursor = await self._db.execute("PRAGMA table_info(documents)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+        if "data_classification" not in columns:
+            await self._db.execute(
+                "ALTER TABLE documents ADD COLUMN data_classification TEXT DEFAULT 'PUBLIC'"
+            )
+            logger.info("data_classification_column_added")

@@ -6,8 +6,9 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
+from periphery.auth.classification import DataClassification, highest_classification
 from periphery.db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def set_db_path(path: str) -> None:
 @router.get("/documents")
 async def search_documents(
     q: str,
+    response: Response,
     source_feed: str | None = None,
     category: str | None = None,
     date_from: str | None = None,
@@ -96,7 +98,8 @@ async def search_documents(
         search_sql = f"""
             SELECT d.id, d.title, d.url, d.source_feed, d.source_category,
                    d.published, d.processing_status, d.content_quality,
-                   d.content, d.summary, fts.rank
+                   d.content, d.summary, fts.rank,
+                   COALESCE(d.data_classification, 'PUBLIC') as data_classification
             FROM documents_fts fts
             JOIN documents d ON d.rowid = fts.rowid
             WHERE documents_fts MATCH ?
@@ -140,12 +143,15 @@ async def search_documents(
                 enrichment_map[erow[0]] = (entity_count, relationship_count)
 
         results = []
+        doc_classifications: list[str] = []
         for row in rows:
             doc_id = row[0]
             content = row[8] or ""
             summary = row[9] or ""
             snippet = summary[:300] if summary else content[:300]
             rank = row[10]
+            doc_cls = row[11] if len(row) > 11 else "PUBLIC"
+            doc_classifications.append(doc_cls or "PUBLIC")
 
             # Normalize rank to 0-1 (FTS5 rank is negative, more negative = more relevant)
             if max_rank != min_rank:
@@ -168,7 +174,18 @@ async def search_documents(
                 "entity_count": entity_count,
                 "relationship_count": relationship_count,
                 "relevance_score": round(relevance, 4),
+                "data_classification": doc_cls or "PUBLIC",
             })
+
+        # Set X-Data-Classification header to the highest classification in results
+        if doc_classifications:
+            try:
+                cls_enums = [DataClassification(c) for c in doc_classifications]
+                response.headers["X-Data-Classification"] = highest_classification(cls_enums).value
+            except (ValueError, KeyError):
+                response.headers["X-Data-Classification"] = "PUBLIC"
+        else:
+            response.headers["X-Data-Classification"] = "PUBLIC"
 
         return {
             "results": results,
