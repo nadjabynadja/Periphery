@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
     # Initialize full-text search indexes
     from periphery.search.setup import initialize_fts, rebuild_search_indexes
     await initialize_fts(settings.pipeline_db_path)
-    await rebuild_search_indexes(settings.pipeline_db_path, force=True)
+    await rebuild_search_indexes(settings.pipeline_db_path, force=False)
     logger.info("Full-text search indexes initialized")
 
     # Layer 1: Initialize embedding model and vector store
