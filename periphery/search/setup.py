@@ -51,9 +51,13 @@ async def initialize_fts(db_path: str) -> None:
             END;
         """)
 
-        # Rebuild from existing data
-        await db.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')")
-        await db.commit()
+        # Skip full FTS rebuild on large databases — triggers handle incremental updates
+        cursor = await db.execute("SELECT COUNT(*) FROM documents")
+        row = await cursor.fetchone()
+        doc_count = row[0] if row else 0
+        if doc_count < 100_000:
+            await db.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')")
+            await db.commit()
 
         # --- Entities materialized index ---
         await db.executescript("""

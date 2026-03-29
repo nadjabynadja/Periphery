@@ -3,10 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    entrypoint: ["/app/docker-entrypoint-api-only.sh"]
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
+      - ./docker-entrypoint-api-only.sh:/app/docker-entrypoint-api-only.sh:ro
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
