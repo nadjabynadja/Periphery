@@ -175,6 +175,22 @@ class Settings(BaseSettings):
     ofac_poll_interval: int = 86400  # daily
     ofac_include_consolidated: bool = True
 
+    # IRS Exempt Organizations (NC)
+    irs_exempt_enabled: bool = False
+    irs_exempt_poll_interval: int = 7776000  # ~quarterly (90 days)
+
+    # NC Secretary of State Business Profiles
+    nc_sos_enabled: bool = False
+    nc_sos_poll_interval: int = 604800  # weekly
+    nc_sos_seed_file: str = ""  # path to seed IDs file; empty = skip
+    nc_sos_daily_limit: int = 500
+
+    # NC Register of Deeds
+    nc_rod_enabled: bool = False
+    nc_rod_poll_interval: int = 604800  # weekly
+    nc_rod_counties: str = "WAKE"  # comma-separated county names
+    nc_rod_request_delay: float = 3.0
+
     # Admin API key — required to access command and admin endpoints.
     # If unset, all admin/command endpoints return 403.
     # Set via ADMIN_API_KEY env var or in .env.

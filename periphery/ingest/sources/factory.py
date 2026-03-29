@@ -18,6 +18,9 @@ from .fec_contributions import FECContributionsSource
 from .nc_campaign_finance import NCCampaignFinanceSource
 from .nc_parcels import NCParcelsSource
 from .openstreetmap import OpenStreetMapSource
+from .irs_exempt_orgs import IRSExemptOrgsSource
+from .nc_sos_business import NCSoSBusinessSource
+from .nc_register_of_deeds import NCRegisterOfDeedsSource
 
 
 def _parse_csv(value: str) -> list[str]:
@@ -171,6 +174,34 @@ def build_sources(settings: Settings) -> list[DataSource]:
             poll_interval=settings.gdelt_poll_interval,
             enabled=settings.gdelt_enabled,
             max_articles_per_query=settings.gdelt_max_articles_per_query,
+        )
+    )
+
+    # IRS Exempt Organizations (NC)
+    sources.append(
+        IRSExemptOrgsSource(
+            poll_interval=settings.irs_exempt_poll_interval,
+            enabled=settings.irs_exempt_enabled,
+        )
+    )
+
+    # NC Secretary of State Business Profiles
+    sources.append(
+        NCSoSBusinessSource(
+            seed_file=settings.nc_sos_seed_file,
+            daily_limit=settings.nc_sos_daily_limit,
+            poll_interval=settings.nc_sos_poll_interval,
+            enabled=settings.nc_sos_enabled,
+        )
+    )
+
+    # NC Register of Deeds (stub)
+    sources.append(
+        NCRegisterOfDeedsSource(
+            counties=_parse_csv(settings.nc_rod_counties) or ["WAKE"],
+            request_delay=settings.nc_rod_request_delay,
+            poll_interval=settings.nc_rod_poll_interval,
+            enabled=settings.nc_rod_enabled,
         )
     )
 
