@@ -8,7 +8,7 @@ import { useStore } from '../../store'
 import type { EntityNode, DetectedCluster } from '../../api/types'
 
 // Mapbox token from env or placeholder
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || import.meta.env.VITE_MAPBOX_TOKEN || ''
 
 export const GeographicOverlay: React.FC = () => {
   const mapContainer = useRef<HTMLDivElement>(null)
