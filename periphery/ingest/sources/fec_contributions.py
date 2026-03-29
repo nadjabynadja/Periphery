@@ -139,7 +139,7 @@ class FECContributionsSource(DataSource):
             await self._maybe_download(session, url, zip_path)
 
             # Process in thread (CPU-bound)
-            count = await asyncio.get_event_loop().run_in_executor(
+            count = await asyncio.get_running_loop().run_in_executor(
                 None, self._process_cycle_sync, zip_path, cycle
             )
             total_count += count
