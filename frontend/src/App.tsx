@@ -1,14 +1,13 @@
 // ============================================
-// PERIPHERY — Intelligence Console
-// Main Application Layout
+// App — Main layout with auth, panels, WebSocket
 // ============================================
 
-import { useEffect, useCallback, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { peripheryApi, wsManager } from './api'
+import React, { useEffect, useCallback } from 'react'
 import { useStore } from './store'
-import type { ViewMode } from './api/types'
+import { peripheryApi, wsManager } from './api/client'
+import type { SnapshotDelta } from './api/types'
 
+import { AuthProvider } from './components/auth/AuthProvider'
 import { SystemStatusBar } from './components/SystemStatusBar'
 import { DataFeedSidebar } from './components/DataFeedSidebar'
 import { SearchPanel } from './components/search/SearchPanel'
@@ -18,121 +17,85 @@ import { TemporalTimeline } from './components/graph/TemporalTimeline'
 import { QueryBar } from './components/query/QueryBar'
 import { QueryResults } from './components/query/QueryResults'
 import { DetailPanel } from './components/detail/DetailPanel'
-import { AuthProvider } from './components/auth/AuthProvider'
-import { LoginPage } from './components/auth/LoginPage'
-import { MobileConfirm } from './components/auth/MobileConfirm'
-import { DataSourcesFooter } from './components/shared/DataSourcesFooter'
 
-const VIEW_MODES: { id: ViewMode; label: string }[] = [
-  { id: 'graph', label: 'GRAPH' },
-  { id: 'map', label: 'MAP' },
-  { id: 'timeline', label: 'TIMELINE' },
-]
+const AppContent: React.FC = () => {
+  const viewMode = useStore((s) => s.viewMode)
+  const setSnapshot = useStore((s) => s.setSnapshot)
+  const setEntities = useStore((s) => s.setEntities)
+  const setRelationships = useStore((s) => s.setRelationships)
+  const setLoadingEntities = useStore((s) => s.setLoadingEntities)
+  const setConnectionStatus = useStore((s) => s.setConnectionStatus)
+  const setQueryHistory = useStore((s) => s.setQueryHistory)
+  const confidenceFloor = useStore((s) => s.confidenceFloor)
 
-const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
+  // Load initial data
+  const loadData = useCallback(async () => {
+    setLoadingEntities(true)
+    try {
+      const [snapshot, entitiesRes, relsRes] = await Promise.allSettled([
+        peripheryApi.getSnapshot({ confidence_floor: confidenceFloor, include_rendering: true }),
+        peripheryApi.getEntities({ limit: 500 }),
+        peripheryApi.getRelationships({ limit: 1000 }),
+      ])
 
-export default function App() {
-  const setSnapshot = useStore(s => s.setSnapshot)
-  const setEntities = useStore(s => s.setEntities)
-  const setRelationships = useStore(s => s.setRelationships)
-  const setLoadingEntities = useStore(s => s.setLoadingEntities)
-  const setHealth = useStore(s => s.setHealth)
-  const setPipelineStats = useStore(s => s.setPipelineStats)
-  const setCriticMonitoring = useStore(s => s.setCriticMonitoring)
-  const setConnectionStatus = useStore(s => s.setConnectionStatus)
-  const viewMode = useStore(s => s.viewMode)
-  const setViewMode = useStore(s => s.setViewMode)
-  const selectedElement = useStore(s => s.selectedElement)
-  const queryPanelExpanded = useStore(s => s.queryPanelExpanded)
-  const feedSidebarWidth = useStore(s => s.feedSidebarWidth)
-  const setFeedSidebarWidth = useStore(s => s.setFeedSidebarWidth)
-  const snapshot = useStore(s => s.snapshot)
-  const searchPanelOpen = useStore(s => s.searchPanelOpen)
-  const setSearchPanelOpen = useStore(s => s.setSearchPanelOpen)
+      if (snapshot.status === 'fulfilled') setSnapshot(snapshot.value)
+      if (entitiesRes.status === 'fulfilled') setEntities(entitiesRes.value.entities)
+      if (relsRes.status === 'fulfilled') setRelationships(relsRes.value.relationships)
+    } catch {
+      // Data load failed — UI shows empty state
+    } finally {
+      setLoadingEntities(false)
+    }
+  }, [setSnapshot, setEntities, setRelationships, setLoadingEntities, confidenceFloor])
 
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
-  const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
-
-  // --- Data fetching ---
-  useQuery({
-    queryKey: ['health'],
-    queryFn: async () => {
-      const data = await peripheryApi.getHealth()
-      setHealth(data)
-      return data
-    },
-    refetchInterval: 5000,
-  })
-
-  const lastSnapshotIdRef = useRef<string | null>(null)
-
-  useQuery({
-    queryKey: ['snapshot'],
-    queryFn: async () => {
-      const data = await peripheryApi.getSnapshot({ include_rendering: true })
-      setSnapshot(data)
-      // Only re-fetch entities when the snapshot actually changed
-      const snapshotKey = `${data.snapshot_id}|${data.generated_at}`
-      if (snapshotKey !== lastSnapshotIdRef.current) {
-        lastSnapshotIdRef.current = snapshotKey
-        setLoadingEntities(true)
-        peripheryApi.getEntities({ limit: 500 }).then(result => {
-          setEntities(result.entities)
-          setLoadingEntities(false)
-        }).catch(() => {
-          setLoadingEntities(false)
-        })
-      }
-      return data
-    },
-    refetchInterval: 30000,
-  })
-
-  useQuery({
-    queryKey: ['pipelineStats'],
-    queryFn: async () => {
-      try {
-        const data = await peripheryApi.getPipelineStats()
-        setPipelineStats(data)
-        return data
-      } catch {
-        return null
-      }
-    },
-    refetchInterval: 10000,
-  })
-
-  useQuery({
-    queryKey: ['criticMonitoring'],
-    queryFn: async () => {
-      try {
-        const data = await peripheryApi.getCriticMonitoring()
-        setCriticMonitoring(data)
-        return data
-      } catch {
-        return null
-      }
-    },
-    refetchInterval: 30000,
-  })
-
-  // --- WebSocket ---
+  // Load query history
   useEffect(() => {
-    const unsubStatus = wsManager.onStatusChange(setConnectionStatus)
-    try { wsManager.connect('/ws/snapshot') } catch { /* fallback to polling */ }
+    peripheryApi.getQueryHistory(20).then(setQueryHistory).catch(() => {})
+  }, [setQueryHistory])
 
-    const unsubDelta = wsManager.subscribe('snapshot_delta', () => {
-      peripheryApi.getSnapshot({ include_rendering: true }).then(snap => {
-        setSnapshot(snap)
-        // Only refresh entities when snapshot actually changed
-        const snapshotKey = `${snap.snapshot_id}|${snap.generated_at}`
-        if (snapshotKey !== lastSnapshotIdRef.current) {
-          lastSnapshotIdRef.current = snapshotKey
-          peripheryApi.getEntities({ limit: 500 }).then(result => {
-            setEntities(result.entities)
-          }).catch(() => {})
-        }
-      }).catch(() => {})
+  // Initial data load + periodic refresh
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 30_000)
+    return () => clearInterval(interval)
+  }, [loadData])
+
+  // WebSocket connection
+  useEffect(() => {
+    wsManager.connect('/ws/snapshot')
+
+    const unsubStatus = wsManager.onStatusChange(setConnectionStatus)
+    const unsubDelta = wsManager.subscribe('snapshot_delta', (data) => {
+      const delta = data as SnapshotDelta
+      // Apply delta to entities
+      const store = useStore.getState()
+      const currentEntities = [...store.entities]
+      const entityMap = new Map(currentEntities.map((e) => [e.canonical_id, e]))
+
+      // Remove
+      for (const id of delta.removed_entity_ids) {
+        entityMap.delete(id)
+      }
+
+      // Update
+      for (const entity of delta.updated_entities) {
+        entityMap.set(entity.canonical_id, entity)
+      }
+
+      // Add
+      for (const entity of delta.added_entities) {
+        entityMap.set(entity.canonical_id, entity)
+      }
+
+      setEntities(Array.from(entityMap.values()))
+
+      // Apply relationship delta
+      if (delta.added_relationships.length > 0) {
+        const currentRels = [...store.relationships]
+        const removedIds = new Set(delta.removed_relationship_ids)
+        const filtered = currentRels.filter((r) => !removedIds.has(r.id))
+        setRelationships([...filtered, ...delta.added_relationships])
+      }
     })
 
     return () => {
@@ -140,139 +103,65 @@ export default function App() {
       unsubDelta()
       wsManager.disconnect()
     }
-  }, [setConnectionStatus, setSnapshot])
+  }, [setConnectionStatus, setEntities, setRelationships])
 
-  // --- Ctrl+K to toggle search panel ---
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        const current = useStore.getState().searchPanelOpen
-        setSearchPanelOpen(!current)
-      }
+  // Render the active visualization
+  const renderVisualization = () => {
+    switch (viewMode) {
+      case 'graph':
+        return <OntologyGraph />
+      case 'map':
+        return <GeographicOverlay />
+      case 'timeline':
+        return <TemporalTimeline />
+      default:
+        return <OntologyGraph />
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [setSearchPanelOpen])
-
-  // --- Sidebar resize ---
-  const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    sidebarDragRef.current = { startX: e.clientX, startWidth: feedSidebarWidth }
-    setIsResizingSidebar(true)
-  }, [feedSidebarWidth])
-
-  useEffect(() => {
-    if (!isResizingSidebar) return
-    const handleMove = (e: MouseEvent) => {
-      if (!sidebarDragRef.current) return
-      const delta = e.clientX - sidebarDragRef.current.startX
-      setFeedSidebarWidth(Math.max(180, Math.min(400, sidebarDragRef.current.startWidth + delta)))
-    }
-    const handleUp = () => {
-      setIsResizingSidebar(false)
-      sidebarDragRef.current = null
-    }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [isResizingSidebar, setFeedSidebarWidth])
-
-  const detailPanelWidth = selectedElement ? 360 : 0
-  const isAuthenticated = useStore(s => s.isAuthenticated)
-
-  // Mobile auth flow: /app/?challenge=<id> renders the phone confirm page
-  const urlParams = new URLSearchParams(window.location.search)
-  const mobileChallenge = urlParams.get('challenge')
-  if (mobileChallenge) {
-    return <MobileConfirm challengeId={mobileChallenge} />
   }
 
   return (
-    <AuthProvider>
-    {AUTH_ENABLED && !isAuthenticated ? (
-      <LoginPage />
-    ) : (
-    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Scanline effect */}
       <div className="scanline-overlay" />
 
-      {/* System Status Bar — top, persistent */}
+      {/* Status bar */}
       <SystemStatusBar />
 
+      {/* Main area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left sidebar — data feed */}
+        <DataFeedSidebar />
 
-      {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden dashboard-layout" style={{ minHeight: 0 }}>
-        {/* Left: Data Feed Sidebar / Search Panel */}
-        <div className="shrink-0 overflow-hidden relative" style={{ width: feedSidebarWidth }}>
-          {searchPanelOpen ? <SearchPanel /> : <DataFeedSidebar />}
-          <div
-            className="resize-handle vertical"
-            style={{ right: 0 }}
-            onMouseDown={handleSidebarResizeStart}
-          />
+        {/* Center — visualization + query */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Visualization area */}
+          <div className="flex-1 overflow-hidden relative">
+            {renderVisualization()}
+          </div>
+
+          {/* Query results */}
+          <QueryResults />
+
+          {/* Query bar */}
+          <QueryBar />
         </div>
 
-        {/* Center: Graph + Query */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
-          {/* View mode selector */}
-          <div className="flex items-center justify-between px-2 py-1 border-b border-surface-border bg-base-800 shrink-0">
-            <div className="flex items-center gap-1">
-              {VIEW_MODES.map(mode => (
-                <button
-                  key={mode.id}
-                  onClick={() => setViewMode(mode.id)}
-                  className={`px-2 py-0.5 text-xxs font-display font-semibold tracking-wider uppercase border transition-all ${
-                    viewMode === mode.id
-                      ? 'text-accent-cyan border-accent-cyan/30 bg-accent-cyan/5'
-                      : 'text-text-dim border-transparent hover:text-text-secondary'
-                  }`}
-                  style={{ borderRadius: '2px' }}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-            <span className="data-readout">
-              {snapshot
-                ? `${(snapshot.total_entities ?? snapshot.entity_count).toLocaleString()} entities · ${(snapshot.total_relationships ?? snapshot.relationship_count).toLocaleString()} rels · ${snapshot.cluster_count} clusters`
-                : 'Awaiting data...'}
-            </span>
-          </div>
-
-          {/* Graph/Map/Timeline */}
-          <div className="flex-1 relative" style={{ minHeight: 0 }}>
-            {viewMode === 'graph' && <OntologyGraph />}
-            {viewMode === 'map' && <GeographicOverlay />}
-            {viewMode === 'timeline' && <TemporalTimeline />}
-          </div>
-
-          {/* Query Bar */}
-          <div className="shrink-0 border-t border-surface-border">
-            <QueryBar />
-          </div>
-
-          {/* Query Results Panel */}
-          {queryPanelExpanded && <QueryResults />}
-        </div>
-
-        {/* Right: Detail Panel */}
-        {selectedElement && (
-          <div
-            className="shrink-0 overflow-hidden border-l border-surface-border"
-            style={{ width: detailPanelWidth }}
-          >
-            <DetailPanel />
-          </div>
-        )}
+        {/* Right — detail panel */}
+        <DetailPanel />
       </div>
 
-      {/* Data source attribution — required by ODbL v1.0 / CC BY-SA 3.0 */}
-      <DataSourcesFooter />
+      {/* Search overlay */}
+      <SearchPanel />
     </div>
-    )}
+  )
+}
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
     </AuthProvider>
   )
 }
+
+export default App

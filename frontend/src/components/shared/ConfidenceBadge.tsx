@@ -1,75 +1,49 @@
-import type { LegibilityTier } from '../../api/types'
+// ============================================
+// ConfidenceBadge — shows confidence score with color coding
+// ============================================
 
-const tierColors: Record<string, string> = {
-  solid: '#00D4FF',
-  defined: '#00D4FF',
-  emerging: '#FFB833',
-  haze: '#3A4A5C',
-  whisper: '#2A3040',
-}
+import React from 'react'
 
 interface Props {
   confidence: number
-  tier?: LegibilityTier
   showLabel?: boolean
   size?: 'sm' | 'md'
+  className?: string
 }
 
-export function ConfidenceBadge({ confidence, tier, showLabel = false, size = 'sm' }: Props) {
-  const t = tier || getTier(confidence)
-  const color = tierColors[t] || '#3A4A5C'
-  const pct = (confidence * 100).toFixed(0)
+export const ConfidenceBadge: React.FC<Props> = ({
+  confidence,
+  showLabel = false,
+  size = 'sm',
+  className = '',
+}) => {
+  const pct = Math.round(confidence * 100)
+  const colorClass = confidence >= 0.7
+    ? 'text-accent-cyan'
+    : confidence >= 0.4
+      ? 'text-accent-amber'
+      : 'text-accent-red'
+
+  const bgClass = confidence >= 0.7
+    ? 'bg-accent-cyan/10'
+    : confidence >= 0.4
+      ? 'bg-amber-900/20'
+      : 'bg-red-900/20'
+
+  const sizeClass = size === 'sm' ? 'text-xxs px-1 py-0.5' : 'text-xs px-1.5 py-0.5'
 
   return (
-    <span className="inline-flex items-center gap-1">
-      <span
-        className="inline-block rounded-full"
-        style={{
-          width: size === 'sm' ? 6 : 8,
-          height: size === 'sm' ? 6 : 8,
-          backgroundColor: color,
-          boxShadow: confidence >= 0.6 ? `0 0 4px ${color}88` : 'none',
-          opacity: Math.max(0.3, confidence),
-        }}
-      />
-      <span
-        className="font-mono"
-        style={{
-          fontSize: size === 'sm' ? '0.6rem' : '0.7rem',
-          color,
-        }}
-      >
-        {pct}%
-      </span>
-      {showLabel && (
-        <span className="text-text-dim" style={{ fontSize: '0.6rem' }}>
-          {t.toUpperCase()}
-        </span>
-      )}
+    <span
+      className={`
+        inline-flex items-center gap-1 font-mono rounded-sm
+        ${bgClass} ${colorClass} ${sizeClass} ${className}
+      `}
+      title={`Confidence: ${pct}%`}
+    >
+      {showLabel && <span className="opacity-60">conf</span>}
+      {pct}%
     </span>
   )
 }
 
-function getTier(confidence: number): LegibilityTier {
-  if (confidence >= 0.8) return 'solid'
-  if (confidence >= 0.6) return 'defined'
-  if (confidence >= 0.4) return 'emerging'
-  if (confidence >= 0.2) return 'haze'
-  return 'whisper'
-}
-
-export function ConfidenceBar({ confidence, width = '100%' }: { confidence: number; width?: string }) {
-  const color = confidence >= 0.6 ? '#00D4FF' : confidence >= 0.4 ? '#FFB833' : '#3A4A5C'
-  return (
-    <div className="h-1 bg-base-500 overflow-hidden" style={{ borderRadius: '1px', width }}>
-      <div
-        className="h-full transition-all duration-300"
-        style={{
-          width: `${confidence * 100}%`,
-          backgroundColor: color,
-          boxShadow: `0 0 4px ${color}44`,
-        }}
-      />
-    </div>
-  )
-}
+export default ConfidenceBadge

@@ -1,215 +1,250 @@
 // ============================================
-// PERIPHERY — QR Code Login Page
-// Desktop shows QR code, polls for scan,
-// then shows passcode input for confirmation.
+// LoginPage — QR challenge flow + API Key auth tab
 // ============================================
 
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { peripheryApi } from '../../api'
+import { peripheryApi } from '../../api/client'
 import { useStore } from '../../store'
+import type { DataClassification } from '../../api/types'
 
-type LoginStage = 'qr' | 'passcode' | 'success' | 'error'
+type AuthTab = 'qr' | 'apikey'
 
-export function LoginPage() {
-  const setAuthUser = useStore(s => s.setAuthUser)
-  const setSessionToken = useStore(s => s.setSessionToken)
+export const LoginPage: React.FC = () => {
+  const [tab, setTab] = useState<AuthTab>('qr')
 
-  const [stage, setStage] = useState<LoginStage>('qr')
-  const [challengeId, setChallengeId] = useState('')
-  const [qrData, setQrData] = useState('')
-  const [expiresAt, setExpiresAt] = useState('')
-  const [passcode, setPasscode] = useState('')
-  const [userName, setUserName] = useState('')
-  const [error, setError] = useState('')
+  return (
+    <div className="h-screen flex items-center justify-center bg-base-900 grid-texture">
+      <div className="scanline-overlay" />
+      <div className="w-full max-w-md mx-4">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-display font-bold tracking-wider text-text-bright">
+            PERIPHERY
+          </h1>
+          <p className="data-readout mt-1">INTELLIGENCE CONSOLE</p>
+        </div>
+
+        {/* Auth card */}
+        <div className="panel p-6">
+          {/* Tab bar */}
+          <div className="tab-bar mb-6">
+            <button
+              className={`tab-item ${tab === 'qr' ? 'active' : ''}`}
+              onClick={() => setTab('qr')}
+            >
+              QR Login
+            </button>
+            <button
+              className={`tab-item ${tab === 'apikey' ? 'active' : ''}`}
+              onClick={() => setTab('apikey')}
+            >
+              API Key
+            </button>
+          </div>
+
+          {tab === 'qr' ? <QRLoginFlow /> : <ApiKeyLoginFlow />}
+        </div>
+
+        <p className="text-center text-text-dim text-xxs mt-4 font-mono">
+          SECURE ACCESS • TLS ENCRYPTED
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ---- QR Login Flow ----
+
+const QRLoginFlow: React.FC = () => {
+  const setAuthUser = useStore((s) => s.setAuthUser)
+  const setSessionToken = useStore((s) => s.setSessionToken)
+  const setClassificationScope = useStore((s) => s.setClassificationScope)
+  const setAuthRole = useStore((s) => s.setAuthRole)
+
+  const [challengeId, setChallengeId] = useState<string | null>(null)
+  const [qrData, setQrData] = useState<string | null>(null)
+  const [status, setStatus] = useState<string>('idle')
+  const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const startChallenge = useCallback(async () => {
     try {
-      setError('')
-      setPasscode('')
+      setError(null)
+      setStatus('loading')
       const res = await peripheryApi.startChallenge()
       setChallengeId(res.challenge_id)
       setQrData(res.qr_data)
-      setExpiresAt(res.expires_at)
-      setStage('qr')
+      setStatus('waiting')
     } catch (err: any) {
-      setError(err.message || 'Failed to start login')
-      setStage('error')
+      setError(err?.message || 'Failed to start challenge')
+      setStatus('error')
     }
   }, [])
 
   useEffect(() => {
     startChallenge()
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
   }, [startChallenge])
 
-  // Poll for challenge status while showing QR
   useEffect(() => {
-    if (stage !== 'qr' || !challengeId) return
+    if (!challengeId || status !== 'waiting') return
 
     pollRef.current = setInterval(async () => {
       try {
-        const status = await peripheryApi.pollChallengeStatus(challengeId)
-        if (status.status === 'scanned') {
-          setUserName(status.user_display_name || '')
-          setStage('passcode')
-        } else if (status.status === 'expired') {
-          setError('Challenge expired. Please try again.')
-          setStage('error')
+        const res = await peripheryApi.pollChallengeStatus(challengeId)
+        if (res.status === 'confirmed' || res.status === 'scanned') {
+          // Try to get session
+          try {
+            const me = await peripheryApi.getMe()
+            setAuthUser({
+              user_id: me.user_id,
+              org_id: me.org_id,
+              org_name: me.org_name,
+              display_name: me.display_name,
+              role: me.role,
+            })
+            setAuthRole(me.role)
+            if (me.classification_scope) {
+              setClassificationScope(me.classification_scope)
+            }
+            if (pollRef.current) clearInterval(pollRef.current)
+            setStatus('complete')
+          } catch {
+            // Not ready yet
+          }
         }
       } catch {
-        // Ignore poll errors
+        // Polling error — continue
       }
     }, 2000)
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [stage, challengeId])
+  }, [challengeId, status, setAuthUser, setSessionToken, setClassificationScope, setAuthRole])
 
-  const handleConfirm = async () => {
+  if (status === 'loading') {
+    return (
+      <div className="text-center py-8">
+        <div className="calibrating w-24 mx-auto mb-4" />
+        <span className="data-readout">GENERATING CHALLENGE…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-accent-red text-sm mb-4">{error}</p>
+        <button className="btn-primary" onClick={startChallenge}>
+          RETRY
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-center">
+      <p className="text-text-secondary text-xs mb-4">
+        Scan with the Periphery mobile app to authenticate
+      </p>
+      {qrData && (
+        <div className="inline-block p-4 bg-white rounded-sm mb-4">
+          <QRCodeSVG value={qrData} size={200} level="M" />
+        </div>
+      )}
+      <p className="data-readout">
+        {status === 'waiting' ? 'AWAITING SCAN…' : 'AUTHENTICATED ✓'}
+      </p>
+    </div>
+  )
+}
+
+// ---- API Key Login Flow ----
+
+const ApiKeyLoginFlow: React.FC = () => {
+  const setAuthUser = useStore((s) => s.setAuthUser)
+  const setApiKey = useStore((s) => s.setApiKey)
+  const setClassificationScope = useStore((s) => s.setClassificationScope)
+  const setAuthRole = useStore((s) => s.setAuthRole)
+
+  const [key, setKey] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<{ role: string; scope: string[] } | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!key.trim()) return
+
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
     try {
-      setError('')
-      const res = await peripheryApi.confirmChallenge(challengeId, passcode)
-      setSessionToken(res.session_token)
+      const me = await peripheryApi.loginWithApiKey(key.trim())
+      setApiKey(key.trim())
       setAuthUser({
-        user_id: res.user_id,
-        org_id: res.org_id,
-        org_name: '',
-        display_name: res.display_name,
-        role: res.role,
+        user_id: me.user_id,
+        org_id: me.org_id,
+        org_name: me.org_name,
+        display_name: me.display_name,
+        role: me.role,
       })
-      setStage('success')
+      setAuthRole(me.role)
+      const scope = me.classification_scope || ['PUBLIC']
+      setClassificationScope(scope as DataClassification[])
+      setSuccess({ role: me.role, scope })
     } catch (err: any) {
-      setError(err.message || 'Invalid passcode')
+      setError(err?.message || 'Invalid API key')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div
-      className="h-screen w-screen flex items-center justify-center"
-      style={{ background: 'var(--bg-primary)' }}
-    >
-      <div className="scanline-overlay" />
-      <div
-        className="w-full max-w-md p-8"
-        style={{
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-        }}
-      >
-        <h1
-          className="text-xl font-display font-bold tracking-wider text-center mb-1"
-          style={{ color: 'var(--accent-cyan)' }}
-        >
-          PERIPHERY
-        </h1>
-        <p className="text-xs text-center mb-6" style={{ color: 'var(--text-dim)' }}>
-          Intelligence Console
-        </p>
+    <form onSubmit={handleSubmit}>
+      <p className="text-text-secondary text-xs mb-4">
+        Paste your API key to authenticate
+      </p>
 
-        {stage === 'qr' && (
-          <div className="text-center">
-            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Scan this QR code with your phone to authenticate
-            </p>
-            <div className="inline-block p-4 bg-white rounded mb-4">
-              {qrData ? (
-                <QRCodeSVG value={qrData} size={192} />
-              ) : (
-                <div
-                  className="w-48 h-48 flex items-center justify-center text-xs"
-                  style={{ color: '#999' }}
-                >
-                  Generating…
-                </div>
-              )}
-            </div>
-            <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
-              Waiting for scan…
-            </p>
-            {expiresAt && (
-              <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
-                Expires {new Date(expiresAt).toLocaleTimeString()}
-              </p>
-            )}
-          </div>
-        )}
+      <input
+        type="password"
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
+        placeholder="pk_..."
+        className="command-input mb-3"
+        autoFocus
+        disabled={loading}
+      />
 
-        {stage === 'passcode' && (
-          <div className="text-center">
-            {userName && (
-              <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Scanned by:{' '}
-                <span style={{ color: 'var(--accent-cyan)' }}>{userName}</span>
-              </p>
-            )}
-            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Enter the 6-digit passcode shown on your device
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={passcode}
-              onChange={e => setPasscode(e.target.value.replace(/\D/g, ''))}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && passcode.length === 6) handleConfirm()
-              }}
-              className="w-48 text-center text-2xl font-mono tracking-[0.5em] p-3 mb-4 border rounded"
-              style={{
-                background: 'var(--bg-primary)',
-                borderColor: 'var(--border-color)',
-                color: 'var(--text-primary)',
-              }}
-              autoFocus
-              placeholder="——————"
-            />
-            <br />
-            <button
-              onClick={handleConfirm}
-              disabled={passcode.length !== 6}
-              className="px-6 py-2 text-sm font-display tracking-wider uppercase"
-              style={{
-                background:
-                  passcode.length === 6 ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-                color:
-                  passcode.length === 6 ? 'var(--bg-primary)' : 'var(--text-dim)',
-                border: 'none',
-                cursor: passcode.length === 6 ? 'pointer' : 'not-allowed',
-              }}
-            >
-              Confirm
-            </button>
-          </div>
-        )}
+      {error && (
+        <p className="text-accent-red text-xs mb-3">{error}</p>
+      )}
 
-        {stage === 'error' && (
-          <div className="text-center">
-            <p className="text-sm mb-4" style={{ color: '#ff5555' }}>
-              {error}
-            </p>
-            <button
-              onClick={startChallenge}
-              className="px-6 py-2 text-sm font-display tracking-wider uppercase"
-              style={{
-                background: 'var(--accent-cyan)',
-                color: 'var(--bg-primary)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {error && stage !== 'error' && (
-          <p className="text-xs text-center mt-4" style={{ color: '#ff5555' }}>
-            {error}
+      {success && (
+        <div className="mb-3 p-2 bg-green-900/20 border border-green-700/30 rounded-sm">
+          <p className="text-green-400 text-xs font-mono">
+            ✓ Authenticated as <strong>{success.role}</strong>
           </p>
-        )}
-      </div>
-    </div>
+          <p className="text-green-400/70 text-xxs font-mono mt-1">
+            Scope: {success.scope.join(', ')}
+          </p>
+        </div>
+      )}
+
+      <button
+        type="submit"
+        className="btn-primary w-full"
+        disabled={loading || !key.trim()}
+      >
+        {loading ? 'VALIDATING…' : 'AUTHENTICATE'}
+      </button>
+    </form>
   )
 }
+
+export default LoginPage

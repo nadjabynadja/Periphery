@@ -10,12 +10,19 @@ export interface Document {
   content: string
   metadata: Record<string, unknown>
   created_at: string
+  data_classification?: DataClassification
+  source_type?: string
+  source_category?: string
 }
 
 export interface SearchResult {
   document: Document
   score: number
 }
+
+// --- Data Classification ---
+
+export type DataClassification = 'PUBLIC' | 'PII' | 'CUI' | 'PROPRIETARY' | 'CLASSIFIED'
 
 // --- Ontology Graph (Legacy) ---
 
@@ -54,6 +61,7 @@ export interface EntityNode {
   last_seen: string
   location?: { lat: number; lon: number; name?: string }
   rendering: RenderingMetadata
+  data_classification?: DataClassification
 }
 
 export interface Relationship {
@@ -90,6 +98,7 @@ export interface DetectedCluster {
   formed_at?: string
   last_updated?: string
   rendering?: RenderingMetadata
+  data_classification?: DataClassification
 }
 
 export interface Trajectory {
@@ -520,6 +529,7 @@ export interface FeedEntry {
   content_quality: 'full' | 'summary' | 'metadata'
   confidence?: number
   entity_count?: number
+  data_classification?: DataClassification
 }
 
 // --- View Modes ---
@@ -541,6 +551,9 @@ export interface DocumentSearchResult {
   entity_count: number
   relationship_count: number
   relevance_score: number
+  data_classification?: DataClassification
+  source_type?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface DocumentSearchResponse {
@@ -606,4 +619,16 @@ export type SelectedElement =
   | { type: 'cluster'; id: string }
   | { type: 'relationship'; id: string }
   | { type: 'anomaly'; id: string }
+  | { type: 'document'; id: string; data?: Document }
   | null
+
+// --- Auth Me Response (for API key auth) ---
+
+export interface AuthMeResponse {
+  user_id: string
+  org_id: string
+  org_name: string
+  display_name: string
+  role: string
+  classification_scope?: DataClassification[]
+}

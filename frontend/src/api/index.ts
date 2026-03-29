@@ -5,6 +5,7 @@ export {
   setCachedSnapshot,
   computeRendering,
   subscribeToQuery,
+  getLastResponseClassification,
 } from './client'
 export type { CommandResponse, CommandStatusEntry, CommandStatusMap } from './client'
 export { PeripheryWebSocket } from './websocket'
@@ -14,6 +15,7 @@ export type { WSMessage, MessageType } from './websocket'
 export type {
   Document,
   SearchResult,
+  DataClassification,
   GraphNode,
   GraphEdge,
   LegacyOntologySnapshot,
@@ -70,4 +72,5 @@ export type {
   RelationshipSearchResponse,
   SuggestResponse,
   FacetsResponse,
+  AuthMeResponse,
 } from './types'

@@ -28,6 +28,8 @@ import type {
   RelationshipSearchResponse,
   SuggestResponse,
   FacetsResponse,
+  AuthMeResponse,
+  DataClassification,
 } from './types'
 import { PeripheryWebSocket, type WSMessage } from './websocket'
 
@@ -63,6 +65,13 @@ class ApiError extends Error {
   }
 }
 
+/** Last data classification header from any response */
+let lastResponseClassification: DataClassification | null = null
+
+export function getLastResponseClassification(): DataClassification | null {
+  return lastResponseClassification
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit & { timeout?: number },
@@ -73,16 +82,29 @@ async function request<T>(
   const timer = setTimeout(() => controller.abort(), timeout)
 
   try {
-    const token = localStorage.getItem('periphery_session')
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) {
+
+    // API key takes precedence over session token
+    const apiKey = localStorage.getItem('periphery_api_key')
+    const token = localStorage.getItem('periphery_session')
+
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey
+    } else if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
+
     const res = await fetch(`${BASE_URL}${path}`, {
       headers,
       signal: controller.signal,
       ...init,
     })
+
+    // Read data classification header if present
+    const classHeader = res.headers.get('X-Data-Classification')
+    if (classHeader) {
+      lastResponseClassification = classHeader as DataClassification
+    }
 
     if (!res.ok) {
       throw new ApiError(res.status, res.statusText)
@@ -167,7 +189,6 @@ class WebSocketManager {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     let wsBase: string
     if (BASE_URL) {
-      // Convert http(s) BASE_URL to ws(s)
       wsBase = BASE_URL.replace(/^http/, 'ws')
     } else {
       wsBase = `${protocol}//${window.location.host}`
@@ -227,7 +248,7 @@ class WebSocketManager {
         const listeners = this.listeners.get(channel)
         listeners?.forEach(cb => cb(msg))
       })
-    }, 500) // Flush every 500ms to avoid rendering thrash
+    }, 500)
   }
 
   private stopBufferFlush() {
@@ -292,7 +313,6 @@ export const peripheryApi = {
       }
       return snapshot
     } catch {
-      // Fall back to legacy endpoint
       const legacy = await requestWithRetry<LegacyOntologySnapshot>('/crystallizer/graph')
       const converted = convertLegacySnapshot(legacy)
       if (!filters) {
@@ -590,11 +610,22 @@ export const peripheryApi = {
     return request('/auth/logout', { method: 'POST' })
   },
 
-  getMe(): Promise<{
-    user_id: string; org_id: string; org_name: string;
-    display_name: string; role: string;
-  }> {
+  getMe(): Promise<AuthMeResponse> {
     return request('/auth/me')
+  },
+
+  /** Validate an API key by calling GET /auth/me with it set */
+  async loginWithApiKey(key: string): Promise<AuthMeResponse> {
+    // Temporarily store key so request() picks it up
+    localStorage.setItem('periphery_api_key', key)
+    try {
+      const me = await request<AuthMeResponse>('/auth/me')
+      return me
+    } catch (err) {
+      // Remove invalid key
+      localStorage.removeItem('periphery_api_key')
+      throw err
+    }
   },
 
   createOrg(name: string): Promise<{ org_id: string; name: string }> {
@@ -623,23 +654,17 @@ export const peripheryApi = {
 
 import type { Anomaly, EmergingStructure, Trajectory } from './types'
 
-/**
- * Adapt the backend AnalyticalQueryResponse (which uses synthesis/results/execution_stats)
- * into the flattened shape the frontend components expect.
- */
 function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
   const synthesis = raw.synthesis ?? {}
   const results = raw.results ?? {}
   const stats = raw.execution_stats ?? {}
 
-  // Map synthesis key_findings (strings) to Finding objects
   const keyFindings = (synthesis.key_findings ?? []).map((text: string) => ({
     text,
     confidence: 0.5,
     supporting_entity_ids: [],
   }))
 
-  // Map backend EntityResult to frontend EntityResult shape
   const entities = (results.entities ?? []).map((e: any) => ({
     canonical_id: e.canonical_id ?? '',
     name: e.name ?? '',
@@ -650,7 +675,6 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
     temporal_context: e.temporal_context?.temporal_focus ?? e.temporal_context ?? '',
   }))
 
-  // Map backend RelationshipResult to frontend shape
   const relationships = (results.relationships ?? []).map((r: any) => ({
     subject_name: r.subject?.name ?? r.subject_name ?? '',
     predicate: r.predicate ?? '',
@@ -660,7 +684,6 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
     evidence_snippet: (r.evidence ?? [])[0] ?? r.evidence_snippet ?? '',
   }))
 
-  // Map backend ClusterResult to frontend shape
   const clusters = (results.clusters ?? []).map((c: any) => ({
     cluster_id: c.cluster_id ?? '',
     label: c.label ?? '',
@@ -669,7 +692,6 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
     member_count: c.size ?? c.member_count ?? 0,
   }))
 
-  // Map backend TrajectoryResult
   const trajectories = (results.trajectories ?? []).map((t: any) => ({
     trajectory_id: t.trajectory_id ?? '',
     cluster_label: t.cluster_label ?? '',
@@ -677,7 +699,6 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
     velocity: t.velocity ?? 0,
   }))
 
-  // Map backend AnomalyResult
   const anomalies = (results.anomalies ?? []).map((a: any) => ({
     anomaly_id: a.anomaly_id ?? '',
     anomaly_type: a.type ?? a.anomaly_type ?? '',
@@ -697,7 +718,6 @@ function adaptQueryResponse(raw: any): AnalyticalQueryResponse {
     synthesis,
     results,
     execution_stats: stats,
-    // Flattened convenience fields
     narrative: synthesis.summary ?? '',
     key_findings: keyFindings,
     entities,
@@ -795,11 +815,6 @@ export { computeRendering }
 
 const WS_BASE = BASE_URL ? BASE_URL.replace(/^http/, 'ws') : ''
 
-// wsManager (WebSocketManager) is the active WebSocket implementation used by App.tsx.
-// The unused PeripheryWebSocket-based helpers (snapshotPWS, onSnapshotUpdate,
-// onNewDocument, getConnectionStatus, onConnectionStatusChange) have been removed
-// to avoid opening a duplicate /ws/snapshot connection on startup. (M14)
-
 export function subscribeToQuery(queryId: string, handler: (data: any) => void): () => void {
   const wsBase = WS_BASE || `${typeof window !== 'undefined' ? (window.location.protocol === 'https:' ? 'wss:' : 'ws:') : 'ws:'}//` + (typeof window !== 'undefined' ? window.location.host : 'localhost:8000')
   const queryWS = new PeripheryWebSocket(`${wsBase}/ws/query/${queryId}`)
@@ -807,7 +822,6 @@ export function subscribeToQuery(queryId: string, handler: (data: any) => void):
   const unsub = queryWS.on('query_update', (msg: WSMessage) => {
     if (msg.data) handler(msg.data)
   })
-  // Return cleanup function that unsubscribes AND disconnects
   return () => {
     unsub()
     queryWS.disconnect()

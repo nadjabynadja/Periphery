@@ -15,6 +15,7 @@ import type {
   PipelineStats,
   CriticMonitoring,
   HealthStatus,
+  DataClassification,
 } from '../api/types'
 
 interface PeripheryState {
@@ -98,6 +99,14 @@ interface PeripheryState {
   sessionToken: string | null
   setSessionToken: (t: string | null) => void
   isAuthenticated: boolean
+
+  // API Key auth
+  apiKey: string | null
+  setApiKey: (k: string | null) => void
+  classificationScope: DataClassification[]
+  setClassificationScope: (scope: DataClassification[]) => void
+  authRole: string
+  setAuthRole: (role: string) => void
 }
 
 export interface AuthUser {
@@ -137,7 +146,6 @@ const defaultGraphSettings: GraphSettings = {
 export const useStore = create<PeripheryState>((set) => ({
   snapshot: null,
   setSnapshot: (s) => set((state) => {
-    // Skip update if snapshot hasn't actually changed (prevents 30s refresh churn)
     const prev = state.snapshot
     if (prev && prev.snapshot_id === s.snapshot_id && prev.generated_at === s.generated_at) {
       return state
@@ -147,10 +155,8 @@ export const useStore = create<PeripheryState>((set) => ({
 
   entities: [],
   setEntities: (entities) => set((state) => {
-    // Skip update if entity list is structurally unchanged (prevents map/graph rerender)
     const prev = state.entities
     if (prev.length === entities.length && prev.length > 0) {
-      // Quick fingerprint: compare length + first/last entity ids + a confidence sample
       const prevFirst = prev[0]
       const nextFirst = entities[0]
       const prevLast = prev[prev.length - 1]
@@ -250,5 +256,20 @@ export const useStore = create<PeripheryState>((set) => ({
     }
     set({ sessionToken: t, isAuthenticated: t !== null })
   },
-  isAuthenticated: !!localStorage.getItem('periphery_session'),
+  isAuthenticated: !!(localStorage.getItem('periphery_session') || localStorage.getItem('periphery_api_key')),
+
+  // API Key auth
+  apiKey: localStorage.getItem('periphery_api_key') || null,
+  setApiKey: (k) => {
+    if (k) {
+      localStorage.setItem('periphery_api_key', k)
+    } else {
+      localStorage.removeItem('periphery_api_key')
+    }
+    set({ apiKey: k, isAuthenticated: k !== null })
+  },
+  classificationScope: ['PUBLIC'] as DataClassification[],
+  setClassificationScope: (scope) => set({ classificationScope: scope }),
+  authRole: 'analyst',
+  setAuthRole: (role) => set({ authRole: role }),
 }))
