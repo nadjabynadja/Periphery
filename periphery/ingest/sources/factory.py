@@ -16,6 +16,7 @@ from .opensky import OpenSkySource
 from .nc_voter import NCVoterSource
 from .fec_contributions import FECContributionsSource
 from .nc_campaign_finance import NCCampaignFinanceSource
+from .nc_parcels import NCParcelsSource
 from .openstreetmap import OpenStreetMapSource
 
 
@@ -153,6 +154,14 @@ def build_sources(settings: Settings) -> list[DataSource]:
         NCCampaignFinanceSource(
             poll_interval=settings.nc_campaign_finance_poll_interval,
             enabled=settings.nc_campaign_finance_enabled,
+        )
+    )
+
+    # NC Property Records (Parcels)
+    sources.append(
+        NCParcelsSource(
+            poll_interval=settings.nc_parcels_poll_interval,
+            enabled=settings.nc_parcels_enabled,
         )
     )
 

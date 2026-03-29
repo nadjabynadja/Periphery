@@ -166,6 +166,10 @@ class Settings(BaseSettings):
     nc_campaign_finance_enabled: bool = False
     nc_campaign_finance_poll_interval: int = 604800
 
+    # NC Property Records (Parcels)
+    nc_parcels_enabled: bool = False
+    nc_parcels_poll_interval: int = 604800
+
     # OFAC Sanctions Lists
     ofac_enabled: bool = False
     ofac_poll_interval: int = 86400  # daily

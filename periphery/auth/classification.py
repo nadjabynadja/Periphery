@@ -34,6 +34,7 @@ SOURCE_TYPE_CLASSIFICATIONS: dict[str, DataClassification] = {
     "nc_voter": DataClassification.PII,
     "fec_contributions": DataClassification.PII,
     "nc_campaign_finance": DataClassification.PII,
+    "nc_parcels": DataClassification.PII,
     "icij_offshore": DataClassification.PII,
     "ofac_sanctions": DataClassification.PUBLIC,
     "gdelt_doc": DataClassification.PUBLIC,

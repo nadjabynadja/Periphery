@@ -515,7 +515,7 @@ class TestFactory:
             exa_api_key="test",
         )
         sources = build_sources(settings)
-        assert len(sources) == 12  # 6 original + icij + ofac + gdelt + nc_voter + fec + nc_campaign_finance
+        assert len(sources) == 13  # 6 original + icij + ofac + gdelt + nc_voter + fec + nc_campaign_finance + nc_parcels
         assert all(not s.enabled for s in sources)
 
     def test_build_sources_opensky_enabled(self):
