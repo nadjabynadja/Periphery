@@ -159,6 +159,8 @@ class DocumentStore:
                 priority = 2  # campaign finance = medium priority
             elif source_type == "nc_parcels":
                 priority = 2  # property records = medium priority
+            elif source_type in ("irs_exempt_orgs", "nc_sos_business", "nc_rod"):
+                priority = 2  # public records = medium priority
             elif source_type == "gdelt_doc":
                 priority = 2  # GDELT = medium priority
             elif doc.source_category == "sanctions_financial":

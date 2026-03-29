@@ -14,11 +14,8 @@ Statistics of Income division, and freely available for bulk download.
 
 from __future__ import annotations
 
-import asyncio
 import csv
 import io
-import time
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 
