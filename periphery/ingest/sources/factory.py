@@ -14,6 +14,8 @@ from .maritime import MaritimeSource
 from .ofac_sanctions import OFACSanctionsSource
 from .opensky import OpenSkySource
 from .nc_voter import NCVoterSource
+from .fec_contributions import FECContributionsSource
+from .nc_campaign_finance import NCCampaignFinanceSource
 from .openstreetmap import OpenStreetMapSource
 
 
@@ -132,6 +134,25 @@ def build_sources(settings: Settings) -> list[DataSource]:
             data_dir=settings.nc_voter_data_dir,
             poll_interval=settings.nc_voter_poll_interval,
             enabled=settings.nc_voter_enabled,
+        )
+    )
+
+    # FEC Individual Contributions
+    sources.append(
+        FECContributionsSource(
+            data_dir=settings.fec_data_dir,
+            cycles=_parse_csv(settings.fec_cycles),
+            state_filter=settings.fec_state_filter,
+            poll_interval=settings.fec_poll_interval,
+            enabled=settings.fec_enabled,
+        )
+    )
+
+    # NC Campaign Finance
+    sources.append(
+        NCCampaignFinanceSource(
+            poll_interval=settings.nc_campaign_finance_poll_interval,
+            enabled=settings.nc_campaign_finance_enabled,
         )
     )
 

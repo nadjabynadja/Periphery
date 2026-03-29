@@ -155,6 +155,17 @@ class Settings(BaseSettings):
     nc_voter_poll_interval: int = 604800  # weekly
     nc_voter_data_dir: str = "/app/data/voter"
 
+    # FEC Individual Contributions
+    fec_enabled: bool = False
+    fec_poll_interval: int = 604800
+    fec_data_dir: str = "/app/data/fec"
+    fec_cycles: str = "2024"  # comma-separated: "2024,2022,2020"
+    fec_state_filter: str = "NC"
+
+    # NC Campaign Finance (NCSBE)
+    nc_campaign_finance_enabled: bool = False
+    nc_campaign_finance_poll_interval: int = 604800
+
     # OFAC Sanctions Lists
     ofac_enabled: bool = False
     ofac_poll_interval: int = 86400  # daily

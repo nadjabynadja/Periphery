@@ -155,6 +155,8 @@ class DocumentStore:
                 priority = 3  # ICIJ historical = low priority
             elif source_type == "nc_voter":
                 priority = 2  # voter data = medium priority
+            elif source_type in ("fec_contributions", "nc_campaign_finance"):
+                priority = 2  # campaign finance = medium priority
             elif source_type == "gdelt_doc":
                 priority = 2  # GDELT = medium priority
             elif doc.source_category == "sanctions_financial":
