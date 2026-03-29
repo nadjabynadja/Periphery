@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 
-from periphery.auth.middleware import get_current_user
+from periphery.auth.middleware import get_current_user, get_auth_context
 from periphery.auth.models import (
     AuthenticatedUser,
     ChallengeResponse,
@@ -198,17 +198,40 @@ async def logout(authorization: str | None = Header(None)):
     return {"ok": True}
 
 
-@router.get("/me", response_model=MeResponse)
-async def get_me(user: AuthenticatedUser = Depends(get_current_user)):
-    """Get the current authenticated user's info."""
-    org = await get_organization(user.org_id)
-    return MeResponse(
-        user_id=user.user_id,
-        org_id=user.org_id,
-        org_name=org.name if org else "Unknown",
-        display_name=user.display_name,
-        role=user.role,
-    )
+@router.get("/me")
+async def get_me(
+    request: Request,
+    authorization: str | None = Header(None),
+    x_api_key: str | None = Header(None),
+):
+    """Get the current authenticated user's info. Supports both session and API key auth."""
+    ctx = await get_auth_context(request, authorization, x_api_key)
+
+    if ctx.auth_type in ("api_key", "admin_key"):
+        return {
+            "user_id": ctx.key_id or "admin",
+            "org_id": "default",
+            "org_name": "Periphery",
+            "display_name": ctx.label,
+            "role": ctx.role,
+            "classification_scope": ctx.classification_scope,
+            "auth_type": ctx.auth_type,
+        }
+
+    # Session-based auth
+    if ctx.user_id:
+        user = await get_user(ctx.user_id)
+        if user:
+            org = await get_organization(user.org_id)
+            return MeResponse(
+                user_id=user.user_id,
+                org_id=user.org_id,
+                org_name=org.name if org else "Unknown",
+                display_name=user.display_name,
+                role=user.role,
+            )
+
+    raise HTTPException(status_code=401, detail="Unable to resolve user")
 
 
 # ---------------------------------------------------------------------------
