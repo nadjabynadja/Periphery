@@ -1,8 +1,8 @@
 """CLI for NC voter data ingest.
 
 Usage:
-    python -m periphery.commands.voter_ingest --state NC --download --db ./data/periphery_documents.db
-    python -m periphery.commands.voter_ingest --state NC --download --limit 1000 --db ./data/periphery_documents.db
+    python -m periphery.commands.voter_ingest --state NC --download --db ./data/analytical.db
+    python -m periphery.commands.voter_ingest --state NC --download --limit 1000 --db ./data/analytical.db
 
 Downloads NC voter registration and voter history ZIPs, parses records,
 and inserts IngestedDocument rows directly into the SQLite database.
@@ -42,7 +42,7 @@ def _get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite database",
     )
     parser.add_argument(

@@ -33,7 +33,7 @@ def _sanitize_fts_query(q: str) -> str:
     tokens = q.split()
     return " ".join(f'"{t.replace(chr(34), chr(34)+chr(34))}"' for t in tokens)
 
-_db_path: str = "./data/periphery_documents.db"
+_db_path: str = "./data/analytical.db"
 
 
 def set_db_path(path: str) -> None:

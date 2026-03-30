@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from periphery.db import get_persistent_connection
+from periphery.db import get_persistent_connection, COLLECTION_SCHEMA_SQL
 import structlog
 
 from .models import IngestedDocument
@@ -20,36 +20,6 @@ from .models import IngestedDocument
 logger = structlog.get_logger(__name__)
 
 _DEFAULT_DB_PATH = Path("./data/rss.db")
-
-_CREATE_DOCUMENTS = """
-CREATE TABLE IF NOT EXISTS documents (
-    id TEXT PRIMARY KEY,
-    source_feed TEXT NOT NULL,
-    source_category TEXT NOT NULL DEFAULT '',
-    source_credibility_tier INTEGER DEFAULT 3,
-    title TEXT,
-    url TEXT,
-    published TIMESTAMP,
-    content TEXT,
-    raw_html TEXT,
-    summary TEXT,
-    content_quality TEXT DEFAULT 'full',
-    metadata JSON,
-    classification TEXT DEFAULT 'PUBLIC',
-    enrichment_status TEXT DEFAULT 'pending',
-    enrichment_priority INTEGER DEFAULT 3,
-    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    content_hash TEXT
-)
-"""
-
-_CREATE_INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_enrichment_status ON documents(enrichment_status)",
-    "CREATE INDEX IF NOT EXISTS idx_enrichment_priority ON documents(enrichment_priority)",
-    "CREATE INDEX IF NOT EXISTS idx_content_hash ON documents(content_hash)",
-    "CREATE INDEX IF NOT EXISTS idx_url ON documents(url)",
-    "CREATE INDEX IF NOT EXISTS idx_ingested_at ON documents(ingested_at)",
-]
 
 _INSERT_DOC = """
 INSERT OR IGNORE INTO documents
@@ -72,9 +42,7 @@ class DocumentStore:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = await get_persistent_connection(self._db_path)
         await self._db.execute("PRAGMA journal_mode=WAL")
-        await self._db.execute(_CREATE_DOCUMENTS)
-        for idx_sql in _CREATE_INDEXES:
-            await self._db.execute(idx_sql)
+        await self._db.executescript(COLLECTION_SCHEMA_SQL)
         await self._db.commit()
         logger.info("document_store_initialized", db_path=str(self._db_path))
 

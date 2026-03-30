@@ -1,8 +1,8 @@
 """CLI for FEC individual contributions data ingest.
 
 Usage:
-    python -m periphery.commands.fec_ingest --cycle 2024 --state NC --download --db ./data/periphery_documents.db
-    python -m periphery.commands.fec_ingest --cycle 2024 --state NC --download --limit 1000 --db ./data/periphery_documents.db
+    python -m periphery.commands.fec_ingest --cycle 2024 --state NC --download --db ./data/analytical.db
+    python -m periphery.commands.fec_ingest --cycle 2024 --state NC --download --limit 1000 --db ./data/analytical.db
 
 Downloads FEC bulk contribution ZIP files, parses pipe-delimited records,
 filters to the configured state, and inserts IngestedDocument rows into SQLite.
@@ -47,7 +47,7 @@ def _get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite database",
     )
     parser.add_argument(

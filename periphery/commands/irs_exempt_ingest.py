@@ -1,8 +1,8 @@
 """CLI for IRS Exempt Organizations (NC) data ingest.
 
 Usage:
-    python -m periphery.commands.irs_exempt_ingest --download --db ./data/periphery_documents.db
-    python -m periphery.commands.irs_exempt_ingest --csv ./data/eo_nc.csv --db ./data/periphery_documents.db
+    python -m periphery.commands.irs_exempt_ingest --download --db ./data/analytical.db
+    python -m periphery.commands.irs_exempt_ingest --csv ./data/eo_nc.csv --db ./data/analytical.db
 
 Downloads the IRS BMF CSV for NC exempt organizations, parses records,
 and inserts IngestedDocument rows into SQLite.
@@ -39,7 +39,7 @@ def _get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite database",
     )
     parser.add_argument(

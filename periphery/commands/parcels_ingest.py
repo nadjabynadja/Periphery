@@ -1,9 +1,9 @@
 """CLI for NC Property Records (Parcels) ingest.
 
 Usage:
-    python -m periphery.commands.parcels_ingest --download --db ./data/periphery_documents.db
-    python -m periphery.commands.parcels_ingest --download --db ./data/periphery_documents.db --limit 1000
-    python -m periphery.commands.parcels_ingest --download --db ./data/periphery_documents.db --county WAKE
+    python -m periphery.commands.parcels_ingest --download --db ./data/analytical.db
+    python -m periphery.commands.parcels_ingest --download --db ./data/analytical.db --limit 1000
+    python -m periphery.commands.parcels_ingest --download --db ./data/analytical.db --county WAKE
 
 Queries the NC OneMap Statewide Parcels FeatureServer REST API,
 pages through results, and inserts IngestedDocument rows into SQLite.
@@ -34,7 +34,7 @@ def _get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite database",
     )
     parser.add_argument(

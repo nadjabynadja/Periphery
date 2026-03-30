@@ -1,8 +1,8 @@
 """CLI for NC Secretary of State Business Registration data ingest.
 
 Usage:
-    python -m periphery.commands.sos_ingest --seed-file data/sos_seed_ids.txt --db ./data/periphery_documents.db
-    python -m periphery.commands.sos_ingest --seed-file data/sos_seed_ids.txt --db ./data/periphery_documents.db --limit 100
+    python -m periphery.commands.sos_ingest --seed-file data/sos_seed_ids.txt --db ./data/analytical.db
+    python -m periphery.commands.sos_ingest --seed-file data/sos_seed_ids.txt --db ./data/analytical.db --limit 100
 
 Fetches NC SoS business profiles for known SOS IDs and inserts
 IngestedDocument rows into SQLite.
@@ -32,7 +32,7 @@ def _get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite database",
     )
     parser.add_argument(

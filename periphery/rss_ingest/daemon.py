@@ -36,7 +36,7 @@ from .status import register_daemon, router as status_router
 logger = structlog.get_logger(__name__)
 
 _DEFAULT_DB_PATH = os.environ.get(
-    "PERIPHERY_DB_PATH", "./data/periphery_documents.db"
+    "PERIPHERY_DB_PATH", "./data/rss.db"
 )
 
 
@@ -187,7 +187,7 @@ def main() -> None:
         "--db-path",
         type=str,
         default=None,
-        help="Path to SQLite database (default: ./data/periphery_documents.db)",
+        help="Path to SQLite database (default: ./data/rss.db)",
     )
     parser.add_argument(
         "--duration",

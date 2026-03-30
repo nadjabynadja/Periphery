@@ -1,6 +1,7 @@
 """Continuous document processing pipeline.
 
-Watches periphery_documents.db for new documents and drives them through
-enrichment, embedding, and crystallization automatically using a linear
-state machine: pending -> enriching -> enriched -> embedding -> embedded -> crystallized
+Reads pending documents from collection databases (rss.db, gdelt.db,
+sanctions.db) and drives them through enrichment, embedding, and
+crystallization into analytical.db using a linear state machine:
+pending -> enriching -> enriched -> embedding -> embedded -> crystallized
 """

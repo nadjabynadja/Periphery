@@ -9,7 +9,7 @@ Usage:
 Options:
     --icij                    Ingest ICIJ Offshore Leaks
     --ofac                    Ingest OFAC SDN + Consolidated lists
-    --db PATH                 SQLite DB path (default: ./data/periphery_documents.db)
+    --db PATH                 SQLite DB path (default: ./data/analytical.db)
     --data-dir PATH           Directory for downloaded files (default: /app/data)
     --no-consolidated         Skip OFAC Consolidated Non-SDN list
     --node-types LIST         Comma-separated ICIJ node types (default: entities,officers,intermediaries)
@@ -147,7 +147,7 @@ async def main() -> None:
     parser.add_argument("--ofac", action="store_true", help="Ingest OFAC Sanctions lists")
     parser.add_argument(
         "--db",
-        default="./data/periphery_documents.db",
+        default="./data/analytical.db",
         help="Path to SQLite document store",
     )
     parser.add_argument(

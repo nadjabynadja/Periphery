@@ -858,7 +858,7 @@ async def get_connection(db_path: str | Path | None = None):
             yield db
     else:
         # Fallback: direct connection (pre-pool startup or tests)
-        db = await aiosqlite.connect(str(db_path or "./data/periphery_documents.db"))
+        db = await aiosqlite.connect(str(db_path or "./data/analytical.db"))
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA busy_timeout=30000")
         await db.execute("PRAGMA foreign_keys=ON")
