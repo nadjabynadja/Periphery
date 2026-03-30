@@ -126,7 +126,6 @@ class ExaSearchClient:
         kwargs: dict[str, Any] = {
             "num_results": self._max_results,
             "type": "auto",
-            "use_autoprompt": True,
             "text": {"max_characters": 1500},
         }
 

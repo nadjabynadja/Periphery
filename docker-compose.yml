@@ -1,14 +1,14 @@
 services:
+  # ─── API Server (query serving, crystallizer, WebSocket) ───
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    entrypoint: ["/app/docker-entrypoint-api-only.sh"]
+    command: ["uvicorn", "periphery.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
-      - ./docker-entrypoint-api-only.sh:/app/docker-entrypoint-api-only.sh:ro
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
@@ -32,6 +32,129 @@ services:
       retries: 3
       start_period: 300s
 
+  # ─── Enrichment Pipeline (shared consumer: enrichment → embedding → crystallization) ───
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.pipeline"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - EXA_API_KEY=${EXA_API_KEY:-}
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - CRYSTALLIZER_DB_PATH=/app/data/periphery_documents.db
+      - GEOTAG_DB_PATH=/app/data/geotag_embeddings.db
+      - ENRICHMENT_GEOCODE_CACHE_DB=/app/data/geocoding_cache.db
+      - ENRICHMENT_GEONAMES_DB=/app/data/geonames.db
+      - ENRICHMENT_GEOSPATIAL_SEED_FILE=/app/data/geospatial_seeds.json
+      - ENRICHMENT_PHOTON_BASE_URL=http://photon:2322
+      - FAISS_INDEX_PATH=/app/data/faiss/index.bin
+      - EMBEDDING_INDEX_DIR=/app/data/indices
+      # Disable source polling in pipeline — sources run as separate services
+      - SOURCES_ENABLED=false
+      - ENRICHMENT_HIGH_PRIORITY_RESERVED_SLOTS=25
+    env_file:
+      .env
+    restart: unless-stopped
+    # Medium CPU priority — pipeline is CPU-bound for embeddings
+    cpu_shares: 768
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Priority 1: GDELT (global news, 15-min cycle, time-sensitive) ───
+  ingest-gdelt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "gdelt_doc"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - GDELT_ENABLED=true
+      - GDELT_POLL_INTERVAL=900
+      - GDELT_MAX_ARTICLES_PER_QUERY=75
+    env_file:
+      .env
+    restart: unless-stopped
+    # Highest CPU share — GDELT is priority 1
+    cpu_shares: 1024
+    mem_limit: 512m
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Priority 2: RSS (feed monitoring, 5-min default cycle) ───
+  ingest-rss:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "rss"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - RSS_ENABLED=true
+      - RSS_FETCH_FULL_ARTICLES=true
+    env_file:
+      .env
+    restart: unless-stopped
+    cpu_shares: 768
+    mem_limit: 1g
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Priority 3: OFAC (sanctions lists, daily cycle) ───
+  ingest-ofac:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "ofac_sanctions"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - OFAC_ENABLED=true
+      - OFAC_POLL_INTERVAL=86400
+      - OFAC_INCLUDE_CONSOLIDATED=true
+    env_file:
+      .env
+    restart: unless-stopped
+    cpu_shares: 512
+    mem_limit: 512m
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Priority 4: ICIJ (offshore leaks, weekly cycle, large ZIP) ───
+  ingest-icij:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "icij_offshore"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - ICIJ_ENABLED=true
+      - ICIJ_POLL_INTERVAL=604800
+      - ICIJ_NODE_TYPES=entities,officers,intermediaries
+      - ICIJ_DATA_DIR=/app/data
+    env_file:
+      .env
+    restart: unless-stopped
+    # Lowest CPU share — ICIJ is priority 4, bulk historical data
+    cpu_shares: 256
+    mem_limit: 2g
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Frontend ───
   frontend:
     build:
       context: ./frontend
@@ -44,6 +167,7 @@ services:
       - "127.0.0.1:3000:80"
     restart: unless-stopped
 
+  # ─── Photon Geocoder ───
   photon:
     image: rtuszik/photon-docker:latest
     ports:
@@ -53,11 +177,7 @@ services:
     environment:
       - UPDATE_STRATEGY=DISABLED
     restart: unless-stopped
-    # NOTE: First run downloads ~66GB compressed planet database.
-    # Set REGION=united-states for a smaller (~3GB) extract.
 
 volumes:
-  periphery-data:
-    driver: local
   photon-data:
     driver: local

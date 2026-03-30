@@ -907,7 +907,6 @@ class ExaEnricher:
                 query,
                 num_results=3,
                 type="auto",
-                use_autoprompt=True,
                 text={"max_characters": 500},
             )
 

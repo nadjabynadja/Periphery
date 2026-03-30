@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # LLM verification stage settings
     verification_enabled: bool = True
-    verification_model: str = "claude-3-5-haiku-20241022"
+    verification_model: str = "claude-3-haiku-20240307"
     verification_exa_enabled: bool = True
     verification_exa_min_source_count: int = 3
     verification_batch_size: int = 50

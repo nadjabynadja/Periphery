@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-mkdir -p /app/data
+mkdir -p /app/data/faiss /app/data/indices
 python -m spacy validate 2>/dev/null || python -m spacy download en_core_web_sm
 
 echo "[periphery] Initializing databases..."
@@ -23,6 +23,5 @@ except Exception as e:
     import traceback; traceback.print_exc(); sys.exit(1)
 " || { echo "[periphery] FATAL: database initialization failed"; exit 1; }
 
-# API server ONLY — RSS and pipeline run as separate processes outside Docker
 echo "[periphery] Starting API server on port 8000 (API only mode)..."
 exec uvicorn periphery.main:app --host 0.0.0.0 --port 8000 --log-level info

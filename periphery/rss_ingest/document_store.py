@@ -148,25 +148,32 @@ class DocumentStore:
             if doc.data_classification and doc.data_classification != "PUBLIC":
                 data_classification = doc.data_classification
 
-        # Determine priority: explicit param > source-based heuristic > default 3
+        # Determine priority: explicit param > metadata tag > source-based heuristic > default 3
         if priority is None:
-            source_type = (doc.metadata or {}).get("source_type", "")
-            if source_type in ("icij_offshore",):
-                priority = 3  # ICIJ historical = low priority
-            elif source_type == "nc_voter":
-                priority = 2  # voter data = medium priority
-            elif source_type in ("fec_contributions", "nc_campaign_finance"):
-                priority = 2  # campaign finance = medium priority
-            elif source_type == "nc_parcels":
-                priority = 2  # property records = medium priority
-            elif source_type in ("irs_exempt_orgs", "nc_sos_business", "nc_rod"):
-                priority = 2  # public records = medium priority
-            elif source_type == "gdelt_doc":
-                priority = 2  # GDELT = medium priority
-            elif doc.source_category == "sanctions_financial":
-                priority = 3
+            # Check if the runner injected a priority via metadata
+            ingest_priority = (doc.metadata or {}).get("ingest_priority")
+            if ingest_priority is not None:
+                priority = int(ingest_priority)
             else:
-                priority = 1  # RSS articles = high priority
+                source_type = (doc.metadata or {}).get("source_type", "")
+                # Priority mapping: 1=GDELT (time-sensitive news), 2=RSS,
+                # 3=OFAC (sanctions), 4=ICIJ (historical leaks)
+                if source_type == "gdelt_doc":
+                    priority = 1  # GDELT = highest (global news, time-sensitive)
+                elif source_type in ("icij_offshore",):
+                    priority = 4  # ICIJ historical = lowest priority
+                elif doc.source_category == "sanctions_financial":
+                    priority = 3  # OFAC = medium-low
+                elif source_type == "nc_voter":
+                    priority = 3  # voter data = medium-low
+                elif source_type in ("fec_contributions", "nc_campaign_finance"):
+                    priority = 3  # campaign finance = medium-low
+                elif source_type == "nc_parcels":
+                    priority = 3  # property records = medium-low
+                elif source_type in ("irs_exempt_orgs", "nc_sos_business", "nc_rod"):
+                    priority = 3  # public records = medium-low
+                else:
+                    priority = 2  # RSS articles = high priority
 
         cursor = await self._db.execute(
             _INSERT_DOC,
