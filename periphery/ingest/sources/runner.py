@@ -41,6 +41,9 @@ SOURCE_PRIORITY: dict[str, int] = {
     "rss": 2,
     "ofac_sanctions": 3,
     "icij_offshore": 4,
+    "irs_exempt_orgs": 5,
+    "nc_sos_business": 5,
+    "nc_rod": 6,
 }
 
 
@@ -52,6 +55,10 @@ def _get_db_path_for_source(source_name: str, settings) -> str:
         return settings.db_gdelt_path
     elif source_name in ("ofac_sanctions", "icij_offshore"):
         return settings.db_sanctions_path
+    elif source_name in ("irs_exempt_orgs", "nc_sos_business", "nc_rod"):
+        # Public records sources write to analytical.db for now;
+        # can be split to a dedicated collection DB later if volume warrants it.
+        return settings.db_analytical_path
     else:
         return settings.db_analytical_path
 
@@ -188,6 +195,9 @@ def _build_source(source_name: str, settings):
     from .gdelt_doc import GDELTDocSource
     from .icij_offshore import ICIJOffshoreSource
     from .ofac_sanctions import OFACSanctionsSource
+    from .irs_exempt_orgs import IRSExemptOrgsSource
+    from .nc_sos_business import NCSoSBusinessSource
+    from .nc_register_of_deeds import NCRegisterOfDeedsSource
 
     builders = {
         "gdelt_doc": lambda: GDELTDocSource(
@@ -205,6 +215,22 @@ def _build_source(source_name: str, settings):
             enabled=True,
             node_types=[s.strip() for s in settings.icij_node_types.split(",") if s.strip()],
             data_dir=settings.icij_data_dir,
+        ),
+        "irs_exempt_orgs": lambda: IRSExemptOrgsSource(
+            poll_interval=settings.irs_exempt_poll_interval,
+            enabled=True,
+        ),
+        "nc_sos_business": lambda: NCSoSBusinessSource(
+            seed_file=settings.nc_sos_seed_file,
+            daily_limit=settings.nc_sos_daily_limit,
+            poll_interval=settings.nc_sos_poll_interval,
+            enabled=True,
+        ),
+        "nc_rod": lambda: NCRegisterOfDeedsSource(
+            counties=[c.strip() for c in settings.nc_rod_counties.split(",") if c.strip()],
+            request_delay=settings.nc_rod_request_delay,
+            poll_interval=settings.nc_rod_poll_interval,
+            enabled=True,
         ),
     }
 

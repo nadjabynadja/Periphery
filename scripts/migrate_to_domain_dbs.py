@@ -36,10 +36,18 @@ def classify_document(source_feed: str, metadata_json: str | None) -> str:
 
     source_type = meta.get("source_type", "")
 
+    # Analytical sources (public records, business registrations, property)
+    analytical_source_types = (
+        "irs_exempt_orgs", "nc_sos_business", "nc_rod",
+        "nc_voter", "fec_contributions", "nc_campaign_finance", "nc_parcels",
+    )
+
     if "gdelt" in sf or source_type == "gdelt_doc":
         return "gdelt"
     elif "icij" in sf or "ofac" in sf or source_type in ("icij_offshore", "ofac_sanctions"):
         return "sanctions"
+    elif source_type in analytical_source_types:
+        return "analytical"
     elif sf.startswith("http") or source_type == "" or source_type not in ("gdelt_doc", "icij_offshore", "ofac_sanctions"):
         return "rss"
     else:
