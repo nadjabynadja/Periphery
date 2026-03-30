@@ -4,8 +4,8 @@ Standalone enrichment pipeline process.  Initializes its own FAISS store,
 multi-space indices, enrichment pipeline, and crystallizer worker, then runs
 the pipeline orchestrator until interrupted.
 
-Communicates with the RSS ingest process and the API server via the shared
-SQLite database.
+Reads from collection databases (rss.db, gdelt.db, sanctions.db) and writes
+enriched data to analytical.db.
 """
 
 from __future__ import annotations
@@ -41,7 +41,16 @@ logger = structlog.get_logger(__name__)
 
 async def main() -> None:
     settings = get_settings()
-    db_path = settings.pipeline_db_path
+
+    # The pipeline writes to analytical.db
+    db_path = settings.db_analytical_path
+
+    # Collection DB paths for reading pending documents
+    collection_db_paths = {
+        "rss": settings.db_rss_path,
+        "gdelt": settings.db_gdelt_path,
+        "sanctions": settings.db_sanctions_path,
+    }
 
     # Ensure required data directories exist
     for dir_path in [
@@ -53,7 +62,12 @@ async def main() -> None:
     ]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize database schema
+    # Ensure collection databases exist
+    from periphery.db import ensure_collection_database
+    for coll_path in collection_db_paths.values():
+        await ensure_collection_database(coll_path)
+
+    # Initialize analytical database schema
     from periphery.db import ensure_database
     await ensure_database(db_path)
 
@@ -173,6 +187,7 @@ async def main() -> None:
     enrichment = EnrichmentConsumer(
         db_path,
         pipeline=enrichment_pipeline,
+        collection_db_paths=collection_db_paths,
         batch_size=settings.pipeline_enrichment_batch_size,
         poll_interval=settings.pipeline_enrichment_poll_interval,
         max_retries=settings.pipeline_max_retries,
@@ -210,30 +225,6 @@ async def main() -> None:
     # Start crystallizer worker
     await worker.start()
 
-    # Start external data sources daemon
-    sources_daemon = None
-    if settings.sources_enabled:
-        from periphery.ingest.sources.factory import build_sources
-        from periphery.ingest.sources.daemon import SourcesDaemon
-        from periphery.rss_ingest.document_store import DocumentStore
-
-        ext_sources = build_sources(settings)
-        enabled_sources = [s for s in ext_sources if s.enabled]
-        if enabled_sources:
-            doc_store = DocumentStore(db_path)
-            await doc_store.initialize()
-            sources_daemon = SourcesDaemon(
-                ext_sources, document_store=doc_store,
-            )
-            await sources_daemon.start()
-            logger.info(
-                "sources_daemon_started",
-                enabled=[s.name for s in enabled_sources],
-            )
-
-            from periphery.pipeline.router import set_sources_daemon
-            set_sources_daemon(sources_daemon)
-
     # Handle shutdown signals
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -248,6 +239,7 @@ async def main() -> None:
     logger.info(
         "pipeline_starting",
         db_path=db_path,
+        collection_dbs=collection_db_paths,
         enrichment_batch=settings.pipeline_enrichment_batch_size,
         embedding_batch=settings.pipeline_embedding_batch_size,
         crystallization_batch=settings.pipeline_crystallization_batch_size,
@@ -262,8 +254,6 @@ async def main() -> None:
 
     # Graceful shutdown
     logger.info("pipeline_shutting_down")
-    if sources_daemon is not None:
-        await sources_daemon.stop()
     await orchestrator.stop()
     orchestrator_task.cancel()
     try:

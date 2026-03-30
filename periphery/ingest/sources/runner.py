@@ -44,17 +44,29 @@ SOURCE_PRIORITY: dict[str, int] = {
 }
 
 
+def _get_db_path_for_source(source_name: str, settings) -> str:
+    """Return the domain-specific collection DB path for a source."""
+    if source_name == "rss":
+        return settings.db_rss_path
+    elif source_name == "gdelt_doc":
+        return settings.db_gdelt_path
+    elif source_name in ("ofac_sanctions", "icij_offshore"):
+        return settings.db_sanctions_path
+    else:
+        return settings.db_analytical_path
+
+
 async def run_source(source_name: str, duration: float | None = None) -> None:
     """Run a single ingestion source as a standalone process."""
     from periphery.config import get_settings
-    from periphery.db import ensure_database
+    from periphery.db import ensure_collection_database
     from periphery.rss_ingest.document_store import DocumentStore
 
     settings = get_settings()
-    db_path = settings.pipeline_db_path
+    db_path = _get_db_path_for_source(source_name, settings)
 
-    # Ensure DB schema exists
-    await ensure_database(db_path)
+    # Ensure collection DB schema exists
+    await ensure_collection_database(db_path)
 
     priority = SOURCE_PRIORITY.get(source_name, 99)
 

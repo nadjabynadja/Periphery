@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     faiss_index_path: str = "data/faiss/index.bin"
     device: str = "cpu"
     crystallizer_interval: int = 300  # seconds
-    crystallizer_db_path: str = "./data/periphery_documents.db"
+    crystallizer_db_path: str = "./data/analytical.db"
     crystallizer_full_recluster_interval_docs: int = 100
     crystallizer_full_recluster_interval_seconds: int = 3600
     crystallizer_incremental_interval_seconds: int = 60
@@ -58,8 +58,14 @@ class Settings(BaseSettings):
     # Geotag embeddings database
     geotag_db_path: str = "./data/geotag_embeddings.db"
 
-    # Processing pipeline settings
-    pipeline_db_path: str = "./data/periphery_documents.db"
+    # Domain-specific database paths (multi-DB architecture)
+    db_rss_path: str = "./data/rss.db"
+    db_gdelt_path: str = "./data/gdelt.db"
+    db_sanctions_path: str = "./data/sanctions.db"
+    db_analytical_path: str = "./data/analytical.db"
+
+    # Processing pipeline settings (backward compat — both point to analytical.db)
+    pipeline_db_path: str = "./data/analytical.db"
     pipeline_enrichment_batch_size: int = 50
     enrichment_high_priority_reserved_slots: int = 25
     pipeline_enrichment_poll_interval: float = 10.0

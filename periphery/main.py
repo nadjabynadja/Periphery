@@ -78,20 +78,20 @@ async def lifespan(app: FastAPI):
         Path(settings.embedding_index_dir),
         Path(settings.critic_checkpoint_dir),
         Path(settings.critic_training_dir),
-        Path(settings.pipeline_db_path).parent,
+        Path(settings.db_analytical_path).parent,
     ]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
     # Initialize database schemas before any component starts
     from periphery.db import ensure_database, ensure_geotag_database
-    await ensure_database(settings.pipeline_db_path)
+    await ensure_database(settings.db_analytical_path)
     await ensure_geotag_database(settings.geotag_db_path)
-    logger.info("Databases initialized: %s, %s", settings.pipeline_db_path, settings.geotag_db_path)
+    logger.info("Databases initialized: %s, %s", settings.db_analytical_path, settings.geotag_db_path)
 
     # Initialize full-text search indexes
     from periphery.search.setup import initialize_fts, rebuild_search_indexes
-    await initialize_fts(settings.pipeline_db_path)
-    await rebuild_search_indexes(settings.pipeline_db_path, force=False)
+    await initialize_fts(settings.db_analytical_path)
+    await rebuild_search_indexes(settings.db_analytical_path, force=False)
     logger.info("Full-text search indexes initialized")
 
     # Layer 1: Initialize embedding model and vector store
@@ -172,7 +172,7 @@ async def lifespan(app: FastAPI):
     logger.info("Continuous Critic initialized")
 
     # Layer 2: Start crystallizer worker (for query serving)
-    db_path = settings.pipeline_db_path
+    db_path = settings.db_analytical_path
     worker = CrystallizerWorker(
         store=store,
         documents=documents,
@@ -341,7 +341,7 @@ from periphery.auth.api_keys_router import router as api_keys_router
 
 # Set search router db_path
 from periphery.search.router import set_db_path as _set_search_db_path
-_set_search_db_path(_settings.pipeline_db_path)
+_set_search_db_path(_settings.db_analytical_path)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)

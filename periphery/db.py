@@ -19,9 +19,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Collection DB Schema — minimal schema for domain-specific collection
+# databases (rss.db, gdelt.db, sanctions.db). Each has a single writer.
+# ---------------------------------------------------------------------------
+
+COLLECTION_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    source_feed TEXT NOT NULL,
+    source_category TEXT NOT NULL DEFAULT '',
+    source_credibility_tier INTEGER DEFAULT 3,
+    title TEXT,
+    url TEXT,
+    published TIMESTAMP,
+    content TEXT,
+    raw_html TEXT,
+    summary TEXT,
+    content_quality TEXT DEFAULT 'full',
+    metadata JSON,
+    classification TEXT DEFAULT 'PUBLIC',
+    enrichment_status TEXT DEFAULT 'pending',
+    enrichment_priority INTEGER DEFAULT 3,
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    content_hash TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_enrichment_status ON documents(enrichment_status);
+CREATE INDEX IF NOT EXISTS idx_enrichment_priority ON documents(enrichment_priority);
+CREATE INDEX IF NOT EXISTS idx_content_hash ON documents(content_hash);
+CREATE INDEX IF NOT EXISTS idx_url ON documents(url);
+CREATE INDEX IF NOT EXISTS idx_ingested_at ON documents(ingested_at);
+"""
+
+# ---------------------------------------------------------------------------
 # Schema — the single canonical definition of every table and index.
 # Component-level files (document_store.py, crystallizer/persistence.py, etc.)
 # no longer carry their own CREATE TABLE statements.
+# This is the analytical.db schema — the full analytical database.
 # ---------------------------------------------------------------------------
 
 SCHEMA_SQL = """
@@ -858,6 +891,64 @@ async def ensure_database(db_path: str | Path) -> None:
     convenience entry point for main.py and tests.
     """
     await init_pool(db_path)
+
+
+async def ensure_collection_database(db_path: str | Path) -> None:
+    """Create a collection database (rss.db, gdelt.db, or sanctions.db) with the minimal schema.
+
+    Uses a direct connection (not the main pool) since collection DBs are
+    separate from the analytical database.
+    """
+    path = Path(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    db = await aiosqlite.connect(str(path))
+    try:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=30000")
+        await db.execute("PRAGMA foreign_keys=ON")
+        await db.execute("PRAGMA synchronous=NORMAL")
+        await db.executescript(COLLECTION_SCHEMA_SQL)
+        await db.commit()
+        logger.info("collection_database_initialized db=%s", str(path))
+    finally:
+        await db.close()
+
+
+@asynccontextmanager
+async def get_readonly_connection(db_path: str | Path):
+    """Open a read-only connection to a database with PRAGMA query_only=ON.
+
+    Used by the enrichment pipeline to read from collection DBs without
+    risk of accidental writes.
+    """
+    db = await aiosqlite.connect(str(db_path))
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA busy_timeout=30000")
+    await db.execute("PRAGMA query_only=ON")
+    db.row_factory = aiosqlite.Row
+    try:
+        yield db
+    finally:
+        await db.close()
+
+
+@asynccontextmanager
+async def get_collection_write_connection(db_path: str | Path):
+    """Open a write connection to a collection database.
+
+    Used by the enrichment pipeline to update enrichment_status back in
+    the source collection DB after processing.
+    """
+    db = await aiosqlite.connect(str(db_path))
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA busy_timeout=30000")
+    await db.execute("PRAGMA synchronous=NORMAL")
+    db.row_factory = aiosqlite.Row
+    try:
+        yield db
+    finally:
+        await db.close()
 
 
 async def ensure_geotag_database(db_path: str | Path) -> None:

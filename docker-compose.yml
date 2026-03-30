@@ -12,8 +12,9 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
-      - CRYSTALLIZER_DB_PATH=/app/data/periphery_documents.db
+      - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
+      - CRYSTALLIZER_DB_PATH=/app/data/analytical.db
       - GEOTAG_DB_PATH=/app/data/geotag_embeddings.db
       - ENRICHMENT_GEOCODE_CACHE_DB=/app/data/geocoding_cache.db
       - ENRICHMENT_GEONAMES_DB=/app/data/geonames.db
@@ -43,8 +44,12 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
-      - CRYSTALLIZER_DB_PATH=/app/data/periphery_documents.db
+      - DB_RSS_PATH=/app/data/rss.db
+      - DB_GDELT_PATH=/app/data/gdelt.db
+      - DB_SANCTIONS_PATH=/app/data/sanctions.db
+      - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
+      - CRYSTALLIZER_DB_PATH=/app/data/analytical.db
       - GEOTAG_DB_PATH=/app/data/geotag_embeddings.db
       - ENRICHMENT_GEOCODE_CACHE_DB=/app/data/geocoding_cache.db
       - ENRICHMENT_GEONAMES_DB=/app/data/geonames.db
@@ -73,7 +78,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - DB_GDELT_PATH=/app/data/gdelt.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
       - GDELT_ENABLED=true
       - GDELT_POLL_INTERVAL=900
       - GDELT_MAX_ARTICLES_PER_QUERY=75
@@ -96,7 +102,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - DB_RSS_PATH=/app/data/rss.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
       - RSS_ENABLED=true
       - RSS_FETCH_FULL_ARTICLES=true
     env_file:
@@ -117,7 +124,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - DB_SANCTIONS_PATH=/app/data/sanctions.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
       - OFAC_ENABLED=true
       - OFAC_POLL_INTERVAL=86400
       - OFAC_INCLUDE_CONSOLIDATED=true
@@ -139,7 +147,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - PIPELINE_DB_PATH=/app/data/periphery_documents.db
+      - DB_SANCTIONS_PATH=/app/data/sanctions.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
       - ICIJ_ENABLED=true
       - ICIJ_POLL_INTERVAL=604800
       - ICIJ_NODE_TYPES=entities,officers,intermediaries
