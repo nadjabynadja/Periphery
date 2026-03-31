@@ -166,7 +166,7 @@ class ICIJOffshoreSource(DataSource):
             # Stream download to disk — ZIP is ~500MB+
             await self._download_zip(session, zip_path)
 
-        docs = await asyncio.get_event_loop().run_in_executor(
+        docs = await asyncio.get_running_loop().run_in_executor(
             None, self._parse_zip, zip_path
         )
 

@@ -48,10 +48,8 @@ def classify_document(source_feed: str, metadata_json: str | None) -> str:
         return "sanctions"
     elif source_type in analytical_source_types:
         return "analytical"
-    elif sf.startswith("http") or source_type == "" or source_type not in ("gdelt_doc", "icij_offshore", "ofac_sanctions"):
-        return "rss"
     else:
-        return "rss"  # default
+        return "rss"  # default: RSS articles and anything unclassified
 
 
 def create_collection_db(db_path: str) -> None:

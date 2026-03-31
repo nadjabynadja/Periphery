@@ -288,7 +288,7 @@ class OFACSanctionsSource(DataSource):
         if isinstance(results[2], Exception):
             logger.warning("ofac_alt_download_failed", error=str(results[2]))
 
-        docs = await asyncio.get_event_loop().run_in_executor(
+        docs = await asyncio.get_running_loop().run_in_executor(
             None,
             self._parse_all,
             sdn_text,

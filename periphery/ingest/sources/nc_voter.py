@@ -158,14 +158,14 @@ class NCVoterSource(DataSource):
         await self._maybe_download(session, NCVHIS_ZIP_URL, history_zip)
 
         # Build voting history map in a thread (CPU-bound)
-        history_map = await asyncio.get_event_loop().run_in_executor(
+        history_map = await asyncio.get_running_loop().run_in_executor(
             None, self._build_history_map, history_zip
         )
 
         logger.info("nc_voter_history_loaded", ncids=len(history_map))
 
         # Stream voter registration and emit batches
-        count = await asyncio.get_event_loop().run_in_executor(
+        count = await asyncio.get_running_loop().run_in_executor(
             None, self._process_voters_sync, voter_zip, history_map
         )
 
