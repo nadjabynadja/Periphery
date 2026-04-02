@@ -12,6 +12,10 @@ import type {
   SatelliteImage,
   SatelliteImageRequest,
   GeoPanel,
+  TrackingTab,
+  TrackedVessel,
+  TrackedAircraft,
+  TrackedSatellite,
 } from './types'
 
 interface GeoState {
@@ -62,6 +66,18 @@ interface GeoState {
   setDrawingAOI: (d: boolean) => void
   aoiPolygon: GeoLocation[]
   setAoiPolygon: (p: GeoLocation[]) => void
+
+  // Tracking
+  trackingTab: TrackingTab
+  setTrackingTab: (t: TrackingTab) => void
+  trackedVessels: TrackedVessel[]
+  setTrackedVessels: (v: TrackedVessel[]) => void
+  trackedAircraft: TrackedAircraft[]
+  setTrackedAircraft: (a: TrackedAircraft[]) => void
+  trackedSatellites: TrackedSatellite[]
+  setTrackedSatellites: (s: TrackedSatellite[]) => void
+  trackingLoading: boolean
+  setTrackingLoading: (l: boolean) => void
 
   // Entity markers from Periphery ontology
   showEntityMarkers: boolean
@@ -124,6 +140,17 @@ export const useGeoStore = create<GeoState>((set) => ({
   setDrawingAOI: (d) => set({ drawingAOI: d }),
   aoiPolygon: [],
   setAoiPolygon: (p) => set({ aoiPolygon: p }),
+
+  trackingTab: 'maritime',
+  setTrackingTab: (t) => set({ trackingTab: t }),
+  trackedVessels: [],
+  setTrackedVessels: (v) => set({ trackedVessels: v }),
+  trackedAircraft: [],
+  setTrackedAircraft: (a) => set({ trackedAircraft: a }),
+  trackedSatellites: [],
+  setTrackedSatellites: (s) => set({ trackedSatellites: s }),
+  trackingLoading: false,
+  setTrackingLoading: (l) => set({ trackingLoading: l }),
 
   showEntityMarkers: true,
   setShowEntityMarkers: (s) => set({ showEntityMarkers: s }),

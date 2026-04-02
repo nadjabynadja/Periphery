@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir . \
 FROM python:3.13-slim AS backend
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+    curl libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

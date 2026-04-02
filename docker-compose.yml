@@ -27,6 +27,8 @@ services:
       - ENRICHMENT_PHOTON_BASE_URL=http://photon:2322
       - FAISS_INDEX_PATH=/app/data/faiss/index.bin
       - EMBEDDING_INDEX_DIR=/app/data/indices
+      - N2YO_API_KEY=${N2YO_API_KEY:-}
+      - POSITION_API_URL=http://position-api:5050
       - CORS_ORIGINS=http://localhost:3000,http://localhost:8000,https://kestralsaber.prphry.com
     env_file:
       .env
@@ -190,6 +192,19 @@ services:
       - photon-data:/photon/data
     environment:
       - UPDATE_STRATEGY=DISABLED
+    restart: unless-stopped
+
+  # ─── Position API (ADS-B + AIS tracking) ───
+  position-api:
+    build:
+      context: /root/position-api
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5050:5050"
+    environment:
+      - PORT=5050
+    env_file:
+      .env
     restart: unless-stopped
 
 volumes:

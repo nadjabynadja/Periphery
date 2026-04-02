@@ -89,4 +89,41 @@ export interface SatelliteImage {
   fullUrl?: string
 }
 
-export type GeoPanel = 'none' | 'streetview' | 'records' | 'cctv' | 'satellite'
+export type GeoPanel = 'none' | 'streetview' | 'records' | 'cctv' | 'satellite' | 'tracking'
+
+// ── Tracking Types ───────────────────────────────────────────────
+
+export type TrackingTab = 'maritime' | 'aircraft' | 'satellites'
+
+export interface TrackedVessel {
+  mmsi: string
+  name: string
+  lat: number
+  lng: number
+  speed: number
+  course: number
+  type?: string
+  flag?: string
+  timestamp?: string
+}
+
+export interface TrackedAircraft {
+  icao: string
+  callsign: string
+  lat: number
+  lng: number
+  altitude: number
+  speed: number
+  heading: number
+  timestamp?: string
+}
+
+export interface TrackedSatellite {
+  satid: number
+  satname: string
+  satlat: number
+  satlng: number
+  satalt: number
+  intDesignator?: string
+  launchDate?: string
+}

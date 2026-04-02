@@ -12,6 +12,7 @@ import { StreetViewPanel } from './StreetViewPanel'
 import { PublicRecordsPanel } from './PublicRecordsPanel'
 import { CCTVPanel } from './CCTVPanel'
 import { SatellitePanel } from './SatellitePanel'
+import { TrackingPanel } from './TrackingPanel'
 
 const PANEL_WIDTH = 420
 
@@ -29,6 +30,8 @@ export const GeospatialWorkstation: React.FC = () => {
         return <CCTVPanel />
       case 'satellite':
         return <SatellitePanel />
+      case 'tracking':
+        return <TrackingPanel />
       default:
         return null
     }

@@ -17,6 +17,7 @@ const PANELS: { id: GeoPanel; label: string; icon: string }[] = [
   { id: 'records', label: 'RECORDS', icon: '📋' },
   { id: 'cctv', label: 'CCTV', icon: '📹' },
   { id: 'satellite', label: 'IMAGERY', icon: '🛰' },
+  { id: 'tracking', label: 'TRACKING', icon: '📡' },
 ]
 
 export const MapToolbar: React.FC = () => {
