@@ -108,7 +108,7 @@ class DocumentStore:
                 doc.content_quality,
                 metadata_json,
                 data_classification,
-                "pending",
+                doc.processing_status if doc.processing_status != "pending" else "pending",
                 priority,
                 ingested_str,
                 content_hash,
