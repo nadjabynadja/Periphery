@@ -300,14 +300,19 @@ class EnrichmentConsumer(StageConsumer):
         )
         await db.commit()
 
-        # Update enrichment_status in the source collection DB
-        # Find which source DB this doc came from
+        # Update enrichment_status in the source collection DB and strip
+        # raw_html to reclaim disk space (content is already in analytical.db).
         source_db_path = self._find_source_db_for_doc(doc_id)
         if source_db_path:
             try:
                 async with get_collection_write_connection(source_db_path) as coll_db:
                     await coll_db.execute(
-                        "UPDATE documents SET enrichment_status = 'enriched' WHERE id = ?",
+                        """
+                        UPDATE documents
+                        SET enrichment_status = 'enriched',
+                            raw_html = NULL
+                        WHERE id = ?
+                        """,
                         (doc_id,),
                     )
                     await coll_db.commit()

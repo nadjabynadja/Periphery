@@ -338,6 +338,7 @@ from periphery.commands.router import router as commands_router
 from periphery.search.router import router as search_router
 from periphery.auth.router import router as auth_router
 from periphery.auth.api_keys_router import router as api_keys_router
+from periphery.geo.router import router as geo_router
 
 # Set search router db_path
 from periphery.search.router import set_db_path as _set_search_db_path
@@ -345,6 +346,7 @@ _set_search_db_path(_settings.db_analytical_path)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)
+app.include_router(geo_router)
 app.include_router(ingest_router)
 app.include_router(crystallizer_router)
 app.include_router(critic_router)

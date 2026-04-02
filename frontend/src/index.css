@@ -226,6 +226,11 @@
     50% { opacity: 1; }
   }
 
+  @keyframes pulse-marker {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 12px #FF333388; }
+    50% { transform: scale(1.3); box-shadow: 0 0 24px #FF3333CC, 0 0 48px #FF333344; }
+  }
+
   @keyframes command-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }

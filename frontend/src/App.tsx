@@ -13,6 +13,7 @@ import { DataFeedSidebar } from './components/DataFeedSidebar'
 import { SearchPanel } from './components/search/SearchPanel'
 import { OntologyGraph } from './components/graph/OntologyGraph'
 import { GeographicOverlay } from './components/graph/GeographicOverlay'
+import { GeospatialWorkstation } from './components/geo/GeospatialWorkstation'
 import { TemporalTimeline } from './components/graph/TemporalTimeline'
 import { QueryBar } from './components/query/QueryBar'
 import { QueryResults } from './components/query/QueryResults'
@@ -111,7 +112,7 @@ const AppContent: React.FC = () => {
       case 'graph':
         return <OntologyGraph />
       case 'map':
-        return <GeographicOverlay />
+        return <GeospatialWorkstation />
       case 'timeline':
         return <TemporalTimeline />
       default:

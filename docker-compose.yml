@@ -9,10 +9,13 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
+      - /root/Civic-Voice/data:/app/civicvoice
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
       - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - VOTER_DB_PATH=/app/civicvoice/voter.db
+      - FINANCE_DB_PATH=/app/civicvoice/finance.db
       - PIPELINE_DB_PATH=/app/data/analytical.db
       - CRYSTALLIZER_DB_PATH=/app/data/analytical.db
       - GEOTAG_DB_PATH=/app/data/geotag_embeddings.db
