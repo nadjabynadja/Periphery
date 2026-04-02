@@ -13,6 +13,8 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EXA_API_KEY=${EXA_API_KEY:-}
+      - SKYFI_API_KEY=${SKYFI_API_KEY:-}
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
       - DB_ANALYTICAL_PATH=/app/data/analytical.db
       - VOTER_DB_PATH=/app/civicvoice/voter.db
       - FINANCE_DB_PATH=/app/civicvoice/finance.db

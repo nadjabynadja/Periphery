@@ -75,19 +75,21 @@ async def _query_voters(voter_db: str, street_parts: str, zip_code: str) -> tupl
     if not street_parts or not os.path.exists(voter_db):
         return voters, owners
 
-    normalized = " ".join(street_parts.upper().split())
+    # Build LIKE pattern: replace whitespace runs with % for flexible matching
+    words = street_parts.upper().split()
+    like_pattern = "%" + "%".join(words) + "%"
 
     async with aiosqlite.connect(voter_db) as db:
         db.row_factory = aiosqlite.Row
 
         query = """
             SELECT first_name, middle_name, last_name, party_cd,
-                   registr_dt, voter_status_desc, res_street_address,
-                   res_city_desc, zip_code
+                   registr_dt, status_cd, res_street_address,
+                   res_city, zip_code
             FROM voters
             WHERE res_street_address LIKE ?
         """
-        params: list[str] = [f"%{normalized}%"]
+        params: list[str] = [like_pattern]
 
         if zip_code:
             query += " AND zip_code LIKE ?"
@@ -126,7 +128,7 @@ async def _query_voters(voter_db: str, street_parts: str, zip_code: str) -> tupl
                     "name": name,
                     "party": row["party_cd"] or "UNA",
                     "registrationDate": row["registr_dt"] or "",
-                    "status": row["voter_status_desc"] or "ACTIVE",
+                    "status": row["status_cd"] or "A",
                     "votingHistory": hist_count,
                 })
 
