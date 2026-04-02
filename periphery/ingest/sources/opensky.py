@@ -122,6 +122,7 @@ class OpenSkySource(DataSource):
                 published=timestamp,
                 content=content,
                 content_quality="full",
+                processing_status="skip",  # Raw structured data — no LLM enrichment
                 metadata={
                     "source_type": "aircraft_position",
                     "icao24": icao24,

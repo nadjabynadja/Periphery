@@ -170,6 +170,73 @@ services:
       backend:
         condition: service_healthy
 
+  # ─── Priority 2: OpenSky (ADS-B aircraft tracking, 30s poll) ───
+  ingest-opensky:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "opensky"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
+      - OPENSKY_BBOX=24.5,-125.0,49.5,-66.0
+      - OPENSKY_POLL_INTERVAL=30
+    env_file:
+      .env
+    restart: unless-stopped
+    cpu_shares: 512
+    mem_limit: 256m
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── Priority 2: Maritime AIS (vessel tracking, 60s poll) ───
+  ingest-maritime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "maritime"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
+      - POSITION_API_URL=http://position-api:5050
+      - MARITIME_POLL_INTERVAL=60
+    env_file:
+      .env
+    restart: unless-stopped
+    cpu_shares: 512
+    mem_limit: 256m
+    depends_on:
+      backend:
+        condition: service_healthy
+      position-api:
+        condition: service_started
+
+  # ─── Priority 4: CelesTrak (satellite TLE, hourly poll) ───
+  ingest-celestrak:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "periphery.ingest.sources.runner", "--source", "celestrak"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DB_ANALYTICAL_PATH=/app/data/analytical.db
+      - PIPELINE_DB_PATH=/app/data/analytical.db
+      - CELESTRAK_POLL_INTERVAL=3600
+    env_file:
+      .env
+    restart: unless-stopped
+    cpu_shares: 256
+    mem_limit: 256m
+    depends_on:
+      backend:
+        condition: service_healthy
+
   # ─── Frontend ───
   frontend:
     build:

@@ -44,6 +44,9 @@ SOURCE_PRIORITY: dict[str, int] = {
     "irs_exempt_orgs": 5,
     "nc_sos_business": 5,
     "nc_rod": 6,
+    "opensky": 2,
+    "maritime": 2,
+    "celestrak": 4,
 }
 
 
@@ -55,9 +58,13 @@ def _get_db_path_for_source(source_name: str, settings) -> str:
         return settings.db_gdelt_path
     elif source_name in ("ofac_sanctions", "icij_offshore"):
         return settings.db_sanctions_path
+    elif source_name in ("opensky", "maritime", "celestrak"):
+        # Tracking sources get their own DB to keep high-volume position
+        # data separate from analytical content.
+        return getattr(settings, "db_tracking_path", None) or os.path.join(
+            os.path.dirname(settings.db_analytical_path), "tracking.db"
+        )
     elif source_name in ("irs_exempt_orgs", "nc_sos_business", "nc_rod"):
-        # Public records sources write to analytical.db for now;
-        # can be split to a dedicated collection DB later if volume warrants it.
         return settings.db_analytical_path
     else:
         return settings.db_analytical_path
@@ -198,6 +205,9 @@ def _build_source(source_name: str, settings):
     from .irs_exempt_orgs import IRSExemptOrgsSource
     from .nc_sos_business import NCSoSBusinessSource
     from .nc_register_of_deeds import NCRegisterOfDeedsSource
+    from .opensky import OpenSkySource
+    from .maritime import MaritimeSource
+    from .celestrak import CelesTrakSource
 
     builders = {
         "gdelt_doc": lambda: GDELTDocSource(
@@ -232,6 +242,31 @@ def _build_source(source_name: str, settings):
             poll_interval=settings.nc_rod_poll_interval,
             enabled=True,
         ),
+        # ── Tracking sources (raw structured data, no LLM enrichment) ──
+        "opensky": lambda: OpenSkySource(
+            # Bounding box: continental US by default; override via settings
+            bbox=tuple(
+                float(x) for x in getattr(settings, "opensky_bbox", "24.5,-125.0,49.5,-66.0").split(",")
+            ),
+            poll_interval=getattr(settings, "opensky_poll_interval", 30),
+            enabled=True,
+        ),
+        "maritime": lambda: MaritimeSource(
+            position_api_url=os.environ.get("POSITION_API_URL", "http://position-api:5050"),
+            watch_points=[
+                # Default watch points — major US ports
+                {"lat": 36.85, "lng": -76.29, "distance_nm": 50},  # Norfolk/Hampton Roads
+                {"lat": 32.78, "lng": -79.93, "distance_nm": 30},  # Charleston
+                {"lat": 34.71, "lng": -76.67, "distance_nm": 30},  # Morehead City, NC
+            ],
+            poll_interval=getattr(settings, "maritime_poll_interval", 60),
+            enabled=True,
+        ),
+        "celestrak": lambda: CelesTrakSource(
+            groups=["stations", "active", "visual", "weather", "geo", "military"],
+            poll_interval=getattr(settings, "celestrak_poll_interval", 3600),
+            enabled=True,
+        ),
     }
 
     builder = builders.get(source_name)
@@ -240,11 +275,12 @@ def _build_source(source_name: str, settings):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a single ingestion source")
+    all_sources = list(SOURCE_PRIORITY.keys())
     parser.add_argument(
         "--source",
         required=True,
-        choices=list(SOURCE_PRIORITY.keys()),
-        help="Source to run",
+        choices=all_sources,
+        help=f"Source to run. Available: {', '.join(all_sources)}",
     )
     parser.add_argument(
         "--duration",

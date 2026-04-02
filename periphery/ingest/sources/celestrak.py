@@ -189,6 +189,7 @@ class CelesTrakSource(DataSource):
             published=published,
             content=content,
             content_quality="full",
+            processing_status="skip",  # Raw structured data — no LLM enrichment
             metadata={
                 "source_type": "satellite_tle",
                 "norad_id": norad_id,
