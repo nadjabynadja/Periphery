@@ -53,7 +53,19 @@ _FEED_HEADERS = {
     "Accept-Encoding": "gzip, deflate",
 }
 
-_BACKOFF_STATE_FILE = Path("/tmp/periphery_backoff_state.json")
+def _get_backoff_state_file() -> Path:
+    """Return the backoff state file path, respecting the configured data_dir."""
+    try:
+        from periphery.config import get_settings
+        data_dir = Path(get_settings().data_dir)
+    except Exception:
+        data_dir = Path("./data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir / "periphery_backoff_state.json"
+
+
+# Backward-compatible module-level alias (resolved lazily via function above)
+_BACKOFF_STATE_FILE: Path | None = None  # resolved on first use
 
 
 def _entry_id(entry: dict, feed_url: str) -> str:
@@ -216,17 +228,19 @@ class PollingEngine:
     def _save_backoff_state(self) -> None:
         """Persist backoff state to disk for crash recovery."""
         try:
+            state_file = _get_backoff_state_file()
             data = [bs.model_dump(mode="json") for bs in self._backoff.values()]
-            _BACKOFF_STATE_FILE.write_text(json.dumps(data, default=str))
+            state_file.write_text(json.dumps(data, default=str))
         except Exception as exc:
             logger.warning("backoff_state_save_failed", error=str(exc))
 
     def _load_backoff_state(self) -> None:
         """Load backoff state from disk if available."""
-        if not _BACKOFF_STATE_FILE.exists():
+        state_file = _get_backoff_state_file()
+        if not state_file.exists():
             return
         try:
-            data = json.loads(_BACKOFF_STATE_FILE.read_text())
+            data = json.loads(state_file.read_text())
             for entry in data:
                 # convert datetime strings back
                 for dt_field in ("next_allowed_poll",):

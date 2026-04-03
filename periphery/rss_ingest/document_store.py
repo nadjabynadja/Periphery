@@ -40,8 +40,9 @@ class DocumentStore:
     async def initialize(self) -> None:
         """Create database directory, connect, and ensure schema exists."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        # get_persistent_connection already sets WAL, busy_timeout, foreign_keys,
+        # and synchronous=NORMAL — no need to repeat them here.
         self._db = await get_persistent_connection(self._db_path)
-        await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.executescript(COLLECTION_SCHEMA_SQL)
         await self._db.commit()
         logger.info("document_store_initialized", db_path=str(self._db_path))

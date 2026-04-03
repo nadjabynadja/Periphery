@@ -207,8 +207,14 @@ class Settings(BaseSettings):
     auth_session_ttl_hours: int = 720  # 30 days
     auth_challenge_ttl_minutes: int = 5
 
+    # Data directory for runtime state files (backoff state, etc.)
+    # Defaults to ./data which matches other data file paths.
+    data_dir: str = "./data"
+
     # CORS settings
-    cors_origins: str = "http://localhost:5173,http://localhost:8000"
+    # Note: localhost:8000 removed from default — do not allow the API server
+    # to make credentialed cross-origin requests to itself from the browser.
+    cors_origins: str = "http://localhost:5173"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
