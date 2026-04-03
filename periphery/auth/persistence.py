@@ -498,7 +498,7 @@ async def scan_challenge(challenge_id: str, user_id: str, org_id: str) -> AuthCh
 async def complete_challenge(
     challenge_id: str,
     code: str,
-    session_token: str,
+    session_token: str | None = None,
 ) -> AuthChallenge | None:
     async with _auth_connection() as db:
         cursor = await db.execute(

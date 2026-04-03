@@ -416,7 +416,7 @@ class CrystallizerWorker:
         )
 
         snapshot = LivingOntologySnapshot(
-            snapshot_id=str(uuid.uuid4())[:16],
+            snapshot_id=str(uuid.uuid4()),
             generated_at=datetime.now(timezone.utc),
             corpus_stats=CorpusStats(
                 total_documents=total_docs,
@@ -530,7 +530,7 @@ class CrystallizerWorker:
                 ))
 
         snapshot = LivingOntologySnapshot(
-            snapshot_id=str(uuid.uuid4())[:16],
+            snapshot_id=str(uuid.uuid4()),
             generated_at=datetime.now(timezone.utc),
             corpus_stats=CorpusStats(
                 total_documents=len(doc_ids),

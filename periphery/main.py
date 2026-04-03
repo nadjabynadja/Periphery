@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -299,8 +299,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Key", "X-API-Key"],
 )
 
 # GZip compression — added after CORS so gzip wraps the full response
@@ -376,7 +376,20 @@ async def root():
 
 
 @app.get("/health")
-async def health():
+async def health(x_admin_key: str | None = Header(None)):
+    """Health check endpoint.
+
+    Returns minimal status for unauthenticated callers.
+    Returns detailed operational metrics when a valid X-Admin-Key is provided.
+    """
+    from periphery.config import get_settings as _get_settings
+    _s = _get_settings()
+    is_admin = bool(_s.admin_api_key and x_admin_key == _s.admin_api_key)
+
+    if not is_admin:
+        # Minimal response — don't leak operational details to unauthenticated callers
+        return {"status": "healthy"}
+
     db_health = {}
     try:
         from periphery.db import get_pool

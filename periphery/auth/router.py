@@ -144,9 +144,22 @@ async def scan_qr_challenge_by_email(challenge_id: str, body: EmailScanRequest):
 async def confirm_challenge(
     challenge_id: str,
     body: ConfirmRequest,
+    request: Request,
     user_agent: str | None = Header(None),
 ):
     """Desktop submits the 6-digit passcode. Returns session token on success."""
+    from periphery.auth.rate_limiter import failed_auth_tracker
+
+    # Brute-force protection: check if this IP is blocked from too many failed attempts
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.client.host if request.client else "unknown"
+    if failed_auth_tracker.is_blocked(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts. Try again later.",
+        )
+
     challenge = await get_challenge(challenge_id)
     if not challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -155,6 +168,17 @@ async def confirm_challenge(
     if not challenge.user_id or not challenge.org_id:
         raise HTTPException(status_code=400, detail="Challenge has no user")
 
+    # Verify the passcode BEFORE creating a session (avoid orphaned sessions)
+    completed = await complete_challenge(
+        challenge_id=challenge_id,
+        code=body.code,
+        session_token=None,  # session token set after verification
+    )
+    if not completed:
+        failed_auth_tracker.record_failure(client_ip)
+        raise HTTPException(status_code=401, detail="Invalid passcode or challenge expired")
+
+    # Code verified — now create the session
     settings = get_settings()
     session = await create_session(
         user_id=challenge.user_id,
@@ -163,15 +187,13 @@ async def confirm_challenge(
         user_agent=user_agent,
     )
 
-    completed = await complete_challenge(
+    # Update the challenge with the session token
+    await complete_challenge(
         challenge_id=challenge_id,
         code=body.code,
         session_token=session.session_token,
     )
-    if not completed:
-        # Wrong code or expired — clean up the session we just made
-        await delete_session(session.session_token)
-        raise HTTPException(status_code=401, detail="Invalid passcode or challenge expired")
+    failed_auth_tracker.clear(client_ip)
 
     user = await get_user(challenge.user_id)
     return SessionResponse(

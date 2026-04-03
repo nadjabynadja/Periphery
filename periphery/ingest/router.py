@@ -41,6 +41,12 @@ def get_documents() -> dict[str, Document]:
     return _documents
 
 
+# Maximum content size per document (1 MB) — prevents OOM from oversized payloads
+_MAX_CONTENT_BYTES = 1_000_000
+# Maximum number of in-memory legacy documents before rejecting new ones
+_MAX_LEGACY_DOCUMENTS = 10_000
+
+
 @router.post("/", response_model=IngestResponse)
 async def ingest_document(request: IngestRequest):
     """Ingest a single document into the embedding space.
@@ -57,6 +63,20 @@ async def ingest_document(request: IngestRequest):
             "Data will be lost on restart. Migrate to the database-backed pipeline."
         )
         _legacy_warning_emitted = True
+
+    # Guard against oversized payloads
+    if len(request.content) > _MAX_CONTENT_BYTES:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=413,
+            detail=f"Content exceeds maximum size ({_MAX_CONTENT_BYTES} bytes)",
+        )
+    if len(_documents) >= _MAX_LEGACY_DOCUMENTS:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=507,
+            detail="Legacy in-memory document store is full. Use the database-backed pipeline.",
+        )
     store = get_store()
     chunks = parsers.parse(request.content, request.content_type)
 
