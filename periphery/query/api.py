@@ -972,8 +972,25 @@ async def get_query_history(
 
 
 @router.post("/feedback/{query_id}")
-async def submit_feedback(query_id: str, feedback: FeedbackRequest):
-    """Submit analyst feedback on a query result (thumbs up/down, notes)."""
+async def submit_feedback(
+    query_id: str,
+    feedback: FeedbackRequest,
+    x_admin_key: str | None = Header(None),
+    authorization: str | None = Header(None),
+):
+    """Submit analyst feedback on a query result. Requires auth (session or admin key)."""
+    from periphery.auth.middleware import get_optional_user
+    from fastapi import Request as _Request
+    # Accept either a valid session token or the admin key.
+    _settings = get_settings()
+    is_admin_key = _settings.admin_api_key and x_admin_key == _settings.admin_api_key
+    if not is_admin_key:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        from periphery.auth.persistence import validate_session
+        session = await validate_session(authorization[7:])
+        if not session:
+            raise HTTPException(status_code=401, detail="Invalid or expired session")
     engine = _get_engine()
     if engine.query_store:
         await engine.query_store.save_feedback(query_id, feedback.model_dump(exclude_none=True))
@@ -988,8 +1005,19 @@ async def create_bookmark(
     query_id: str,
     session_id: str,
     label: str = "",
+    x_admin_key: str | None = Header(None),
+    authorization: str | None = Header(None),
 ):
-    """Bookmark a query for persistent monitoring."""
+    """Bookmark a query for persistent monitoring. Requires auth (session or admin key)."""
+    _settings = get_settings()
+    is_admin_key = _settings.admin_api_key and x_admin_key == _settings.admin_api_key
+    if not is_admin_key:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        from periphery.auth.persistence import validate_session
+        session_obj = await validate_session(authorization[7:])
+        if not session_obj:
+            raise HTTPException(status_code=401, detail="Invalid or expired session")
     engine = _get_engine()
     if engine.query_store:
         await engine.query_store.save_bookmark(query_id, session_id, label)
@@ -1010,8 +1038,21 @@ async def get_bookmarks(session_id: str):
 
 
 @router.post("/annotate")
-async def submit_annotation(body: AnnotationRequest):
-    """Submit an analyst annotation (entity merge, relationship confirmation, etc.)."""
+async def submit_annotation(
+    body: AnnotationRequest,
+    x_admin_key: str | None = Header(None),
+    authorization: str | None = Header(None),
+):
+    """Submit an analyst annotation. Requires auth (session or admin key)."""
+    _settings = get_settings()
+    is_admin_key = _settings.admin_api_key and x_admin_key == _settings.admin_api_key
+    if not is_admin_key:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        from periphery.auth.persistence import validate_session
+        session = await validate_session(authorization[7:])
+        if not session:
+            raise HTTPException(status_code=401, detail="Invalid or expired session")
     engine = _get_engine()
     if engine.query_store:
         await engine.query_store.save_annotation(

@@ -141,10 +141,14 @@ class DocumentStore:
         return await cursor.fetchone() is not None
 
     async def is_duplicate(self, doc_id: str, url: str) -> bool:
-        """Check if a document is a duplicate by ID or URL."""
+        """Check if a document is a duplicate by ID or URL.
+
+        Checks all documents regardless of enrichment_status so that
+        articles ingested-but-not-yet-processed are not re-ingested.
+        """
         assert self._db is not None
         cursor = await self._db.execute(
-            "SELECT 1 FROM documents WHERE (id = ? OR url = ?) AND enrichment_status != 'pending'",
+            "SELECT 1 FROM documents WHERE id = ? OR url = ?",
             (doc_id, url),
         )
         return await cursor.fetchone() is not None

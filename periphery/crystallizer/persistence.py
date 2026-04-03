@@ -114,7 +114,8 @@ class CrystallizerStore:
     async def initialize(self) -> None:
         """Create tables if they don't exist."""
         async with get_connection(self._db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+            # WAL is already set by the connection pool / get_connection fallback;
+            # issuing it again here is a no-op but causes confusion.
             await db.executescript(SCHEMA_SQL)
             await db.commit()
         self._initialized = True

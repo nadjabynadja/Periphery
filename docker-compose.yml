@@ -29,7 +29,7 @@ services:
       - EMBEDDING_INDEX_DIR=/app/data/indices
       - N2YO_API_KEY=${N2YO_API_KEY:-}
       - POSITION_API_URL=http://position-api:5050
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000,https://kestralsaber.prphry.com
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000,https://kestralsaber.prphry.com}
     env_file:
       .env
     restart: unless-stopped

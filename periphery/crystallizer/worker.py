@@ -818,8 +818,7 @@ class CrystallizerWorker:
 
             db_path = self._store_db._db_path
             async with get_connection(db_path) as db:
-                await db.execute("PRAGMA journal_mode=WAL")
-
+                # WAL is already set by the connection pool; no need to set it again.
                 cursor = await db.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='document_enrichments'"
                 )
