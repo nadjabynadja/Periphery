@@ -1,6 +1,6 @@
 # Periphery
 
-Data infrastructure where schema is emergent observation, not predefined imposition.
+Data infrastructure where schema is emergent, not predefined.
 
 Structure is a continuous output of the system, not an input to it.
 
