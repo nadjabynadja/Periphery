@@ -40,3 +40,9 @@ RUN mkdir -p /app/data
 EXPOSE 8000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
+
+# Default command run by docker-entrypoint.sh via `exec "$@"`.
+# Bind to the platform-provided $PORT (Railway/Heroku-style) and fall back
+# to 8000 for local runs. Without a CMD the entrypoint execs an empty command
+# and the container exits after DB init, so no web server ever starts.
+CMD ["sh", "-c", "uvicorn periphery.main:app --host [IP_ADDRESS] --port ${PORT:-8000} --log-level info"]
