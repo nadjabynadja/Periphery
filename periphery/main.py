@@ -72,6 +72,24 @@ async def lifespan(app: FastAPI):
 
     settings = get_settings()
 
+    # Catch-all: log full tracebacks for ANY unhandled exception on the event
+    # loop (background tasks, callbacks, etc.). Without this, such errors are
+    # reported by uvicorn with only a terse message and no stack, making
+    # post-"startup complete" crashes (e.g. a DNS gaierror "[Errno -2] Name or
+    # service not known" from an optional external dependency) undiagnosable.
+    def _loop_exception_handler(loop, context: dict) -> None:
+        exc = context.get("exception")
+        logger.error(
+            "event_loop_unhandled_exception",
+            message=context.get("message"),
+            exc_info=exc if exc is not None else False,
+        )
+
+    try:
+        asyncio.get_running_loop().set_exception_handler(_loop_exception_handler)
+    except Exception:
+        logger.debug("could_not_set_loop_exception_handler", exc_info=True)
+
     # Ensure required data directories exist
     for dir_path in [
         Path(settings.faiss_index_path).parent,
@@ -266,6 +284,29 @@ async def lifespan(app: FastAPI):
     _maintenance_task = asyncio.create_task(
         _periodic_maintenance(), name="periodic-maintenance"
     )
+
+    # Surface (rather than silently swallow) any exception raised by a
+    # fire-and-forget startup task. Previously an unhandled error in a
+    # background task (e.g. a DNS failure reaching an optional external
+    # dependency) propagated to the event loop and tore the server down
+    # right after "Application startup complete" with only uvicorn's terse
+    # "[Errno -2] Name or service not known" and no traceback. Log the full
+    # stack so the real culprit is identifiable, and keep the API serving.
+    def _log_background_task_exc(task: "asyncio.Task") -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error(
+                "background_task_failed",
+                task=task.get_name(),
+                exc_info=exc,
+            )
+
+    for _bg_task in (_maintenance_task,):
+        _bg_task.add_done_callback(_log_background_task_exc)
+    if worker is not None and getattr(worker, "_task", None) is not None:
+        worker._task.add_done_callback(_log_background_task_exc)
 
     logger.info("Periphery API server initialized — query layers active")
 
