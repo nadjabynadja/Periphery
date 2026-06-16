@@ -45,4 +45,11 @@ ENTRYPOINT ["./docker-entrypoint.sh"]
 # Bind to the platform-provided $PORT (Railway/Heroku-style) and fall back
 # to 8000 for local runs. Without a CMD the entrypoint execs an empty command
 # and the container exits after DB init, so no web server ever starts.
-CMD ["sh", "-c", "uvicorn periphery.main:app --host [IP_ADDRESS] --port ${PORT:-8000} --log-level info"]
+#
+# Host is "::" (dual-stack: binds IPv6 + IPv4). NOTE: do NOT use the literal
+# "[IP_ADDRESS]" here — under uvicorn/uvloop's bind path
+# (getaddrinfo with AI_PASSIVE and no family hint) that string raises
+# "socket.gaierror: [Errno -2] Name or service not known" and the server exits
+# immediately after "Application startup complete". Railway's internal network
+# is IPv6, so "::" is also required for private networking to work.
+CMD ["sh", "-c", "uvicorn periphery.main:app --host :: --port ${PORT:-8000} --log-level info"]
