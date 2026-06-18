@@ -84,10 +84,14 @@ async def get_auth_context(
         logger.warning("invalid_api_key ip=%s", client_ip)
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # --- Try 2: Bearer session token ---
+    # --- Try 2: Bearer token (local session token OR Clerk JWT) ---
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
         from periphery.auth.persistence import get_user, validate_session
+
+        # 2a: local opaque session token (token_urlsafe — no JWT structure).
+        # Try this first so existing logins keep their fast path. Clerk session
+        # JWTs are 3-segment RS256 tokens and won't match a session row.
         session = await validate_session(token)
         if session:
             user = await get_user(session.user_id)
@@ -100,6 +104,15 @@ async def get_auth_context(
                     classification_scope=ALL_CLASSIFICATIONS,  # session users get all classifications
                     label=user.display_name,
                 )
+
+        # 2b: Clerk JWT (human login via Clerk). Only attempt when the token
+        # actually looks like an RS256 JWT and Clerk is configured.
+        from periphery.auth.clerk_verifier import clerk_enabled, looks_like_clerk_token, verify_clerk_token
+        if clerk_enabled() and looks_like_clerk_token(token):
+            ctx = verify_clerk_token(token)
+            if ctx is not None:
+                failed_auth_tracker.clear(client_ip)
+                return ctx
 
         failed_auth_tracker.record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid or expired session")
@@ -122,19 +135,30 @@ async def get_current_user(
     token = authorization[7:]
     from periphery.auth.persistence import get_user, validate_session
     session = await validate_session(token)
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    if session:
+        user = await get_user(session.user_id)
+        if user:
+            return AuthenticatedUser(
+                user_id=user.user_id,
+                org_id=user.org_id,
+                display_name=user.display_name,
+                role=user.role,
+            )
 
-    user = await get_user(session.user_id)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+    # Fall back to Clerk JWT (human login). Clerk users have no local org/user
+    # row, so synthesize an AuthenticatedUser from verified claims.
+    from periphery.auth.clerk_verifier import clerk_enabled, looks_like_clerk_token, verify_clerk_token
+    if clerk_enabled() and looks_like_clerk_token(token):
+        ctx = verify_clerk_token(token)
+        if ctx is not None:
+            return AuthenticatedUser(
+                user_id=ctx.user_id or "clerk_unknown",
+                org_id=ctx.user_id or "clerk_unknown",
+                display_name=ctx.label,
+                role=ctx.role,
+            )
 
-    return AuthenticatedUser(
-        user_id=user.user_id,
-        org_id=user.org_id,
-        display_name=user.display_name,
-        role=user.role,
-    )
+    raise HTTPException(status_code=401, detail="Invalid or expired session")
 
 
 async def get_optional_user(

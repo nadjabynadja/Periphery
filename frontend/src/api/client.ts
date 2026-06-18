@@ -52,6 +52,20 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const DEFAULT_TIMEOUT = 10_000
 const QUERY_TIMEOUT = 30_000
 
+// --- Clerk token bridge ---
+// Clerk session JWTs are short-lived (~60s) and must be fetched fresh per
+// request, so we can't stash them in localStorage like the legacy session
+// token. Instead the ClerkAuthBridge component registers a getter here and the
+// request() helper calls it. When no Clerk session is active the getter
+// returns null and we fall back to the existing localStorage credentials
+// (API key or legacy session token) — machine/API-key clients are unaffected.
+type ClerkTokenGetter = () => Promise<string | null>
+let clerkTokenGetter: ClerkTokenGetter | null = null
+
+export function setClerkTokenGetter(getter: ClerkTokenGetter | null): void {
+  clerkTokenGetter = getter
+}
+
 // --- HTTP Client ---
 
 class ApiError extends Error {
@@ -84,11 +98,26 @@ async function request<T>(
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
-    // API key takes precedence over session token
+    // Credential precedence:
+    //   1. Clerk JWT (human login) — fetched fresh per request, sent as Bearer.
+    //   2. API key (machine clients) from localStorage — X-API-Key.
+    //   3. Legacy session token from localStorage — Bearer.
+    // Clerk takes precedence so a signed-in human always uses their live token.
+    let clerkToken: string | null = null
+    if (clerkTokenGetter) {
+      try {
+        clerkToken = await clerkTokenGetter()
+      } catch {
+        clerkToken = null
+      }
+    }
+
     const apiKey = localStorage.getItem('periphery_api_key')
     const token = localStorage.getItem('periphery_session')
 
-    if (apiKey) {
+    if (clerkToken) {
+      headers['Authorization'] = `Bearer ${clerkToken}`
+    } else if (apiKey) {
       headers['X-API-Key'] = apiKey
     } else if (token) {
       headers['Authorization'] = `Bearer ${token}`

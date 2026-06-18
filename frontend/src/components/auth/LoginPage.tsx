@@ -4,14 +4,18 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { SignIn } from '@clerk/clerk-react'
 import { peripheryApi } from '../../api/client'
 import { useStore } from '../../store'
 import type { DataClassification } from '../../api/types'
 
-type AuthTab = 'qr' | 'apikey'
+const clerkConfigured = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)
+
+type AuthTab = 'clerk' | 'qr' | 'apikey'
 
 export const LoginPage: React.FC = () => {
-  const [tab, setTab] = useState<AuthTab>('qr')
+  // Default to Clerk when configured, otherwise the legacy QR flow.
+  const [tab, setTab] = useState<AuthTab>(clerkConfigured ? 'clerk' : 'qr')
 
   return (
     <div className="h-screen flex items-center justify-center bg-base-900 grid-texture">
@@ -29,6 +33,14 @@ export const LoginPage: React.FC = () => {
         <div className="panel p-6">
           {/* Tab bar */}
           <div className="tab-bar mb-6">
+            {clerkConfigured && (
+              <button
+                className={`tab-item ${tab === 'clerk' ? 'active' : ''}`}
+                onClick={() => setTab('clerk')}
+              >
+                Sign In
+              </button>
+            )}
             <button
               className={`tab-item ${tab === 'qr' ? 'active' : ''}`}
               onClick={() => setTab('qr')}
@@ -43,7 +55,17 @@ export const LoginPage: React.FC = () => {
             </button>
           </div>
 
-          {tab === 'qr' ? <QRLoginFlow /> : <ApiKeyLoginFlow />}
+          {tab === 'clerk' ? (
+            <div className="flex justify-center">
+              {/* Clerk-hosted sign-in widget. On success, ClerkProvider's
+                  session activates and AuthProvider re-runs getMe(). */}
+              <SignIn routing="virtual" />
+            </div>
+          ) : tab === 'qr' ? (
+            <QRLoginFlow />
+          ) : (
+            <ApiKeyLoginFlow />
+          )}
         </div>
 
         <p className="text-center text-text-dim text-xxs mt-4 font-mono">

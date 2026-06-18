@@ -207,6 +207,22 @@ class Settings(BaseSettings):
     auth_session_ttl_hours: int = 720  # 30 days
     auth_challenge_ttl_minutes: int = 5
 
+    # Clerk auth (human login). When clerk_issuer + clerk_jwks_url are set,
+    # Clerk-issued session JWTs are accepted as a Bearer credential alongside
+    # local session tokens and API keys. Leave empty to disable Clerk entirely.
+    #   clerk_issuer:   e.g. https://your-app-1234.clerk.accounts.dev
+    #   clerk_jwks_url: e.g. https://your-app-1234.clerk.accounts.dev/.well-known/jwks.json
+    clerk_issuer: str = ""
+    clerk_jwks_url: str = ""
+    # Optional. Clerk default session tokens have no `aud`; only set this if you
+    # configured a JWT template with an audience.
+    clerk_audience: str = ""
+    # Optional comma-separated allowlist of `azp` (authorized party / origin)
+    # values. When set, tokens whose azp is not in the list are rejected.
+    clerk_authorized_parties: str = ""
+    # Clock-skew tolerance for exp/iat/nbf validation, in seconds.
+    clerk_leeway_seconds: int = 10
+
     # Data directory for runtime state files (backoff state, etc.)
     # Defaults to ./data which matches other data file paths.
     data_dir: str = "./data"
